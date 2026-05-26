@@ -3,120 +3,260 @@
         "product_id": "42",
         "name": "Apple Cinema 30&quot;",
         "price": "100.0000",
-        "quantity": "990"
+        "stock": 990,
+        "category": "Industrial Automation & Networking",
+        "attributes": {
+            "Interface": "مشخصات پورت یافت نشد",
+            "Protection": "استاندارد بدنه نامشخص"
+        },
+        "sales_angle": "تجهیزات صنعتی باکیفیت مدل Apple Cinema 30&quot;. گزینه‌ای پایدار برای پایداری شبکه و اتوماسیون.",
+        "alternatives": []
     },
     {
         "product_id": "30",
         "name": "Canon EOS 5D",
         "price": "100.0000",
-        "quantity": "7"
+        "stock": 7,
+        "category": "Industrial Automation & Networking",
+        "attributes": {
+            "Interface": "مشخصات پورت یافت نشد",
+            "Protection": "استاندارد بدنه نامشخص"
+        },
+        "sales_angle": "تجهیزات صنعتی باکیفیت مدل Canon EOS 5D. گزینه‌ای پایدار برای پایداری شبکه و اتوماسیون.",
+        "alternatives": []
     },
     {
         "product_id": "47",
         "name": "HP LP3065",
         "price": "100.0000",
-        "quantity": "1000"
+        "stock": 1000,
+        "category": "Industrial Automation & Networking",
+        "attributes": {
+            "Interface": "مشخصات پورت یافت نشد",
+            "Protection": "استاندارد بدنه نامشخص"
+        },
+        "sales_angle": "تجهیزات صنعتی باکیفیت مدل HP LP3065. گزینه‌ای پایدار برای پایداری شبکه و اتوماسیون.",
+        "alternatives": []
     },
     {
         "product_id": "28",
         "name": "HTC Touch HD",
         "price": "100.0000",
-        "quantity": "939"
+        "stock": 939,
+        "category": "Industrial Automation & Networking",
+        "attributes": {
+            "Interface": "مشخصات پورت یافت نشد",
+            "Protection": "استاندارد بدنه نامشخص"
+        },
+        "sales_angle": "تجهیزات صنعتی باکیفیت مدل HTC Touch HD. گزینه‌ای پایدار برای پایداری شبکه و اتوماسیون.",
+        "alternatives": []
     },
     {
         "product_id": "41",
         "name": "iMac",
         "price": "100.0000",
-        "quantity": "977"
+        "stock": 977,
+        "category": "Industrial Automation & Networking",
+        "attributes": {
+            "Interface": "مشخصات پورت یافت نشد",
+            "Protection": "استاندارد بدنه نامشخص"
+        },
+        "sales_angle": "تجهیزات صنعتی باکیفیت مدل iMac. گزینه‌ای پایدار برای پایداری شبکه و اتوماسیون.",
+        "alternatives": []
     },
     {
         "product_id": "40",
         "name": "iPhone",
         "price": "101.0000",
-        "quantity": "970"
+        "stock": 970,
+        "category": "Industrial Automation & Networking",
+        "attributes": {
+            "Interface": "مشخصات پورت یافت نشد",
+            "Protection": "استاندارد بدنه نامشخص"
+        },
+        "sales_angle": "تجهیزات صنعتی باکیفیت مدل iPhone. گزینه‌ای پایدار برای پایداری شبکه و اتوماسیون.",
+        "alternatives": []
     },
     {
         "product_id": "48",
         "name": "iPod Classic",
         "price": "100.0000",
-        "quantity": "995"
+        "stock": 995,
+        "category": "Industrial Automation & Networking",
+        "attributes": {
+            "Interface": "مشخصات پورت یافت نشد",
+            "Protection": "استاندارد بدنه نامشخص"
+        },
+        "sales_angle": "تجهیزات صنعتی باکیفیت مدل iPod Classic. گزینه‌ای پایدار برای پایداری شبکه و اتوماسیون.",
+        "alternatives": []
     },
     {
         "product_id": "36",
         "name": "iPod Nano",
         "price": "100.0000",
-        "quantity": "994"
+        "stock": 994,
+        "category": "Industrial Automation & Networking",
+        "attributes": {
+            "Interface": "مشخصات پورت یافت نشد",
+            "Protection": "استاندارد بدنه نامشخص"
+        },
+        "sales_angle": "تجهیزات صنعتی باکیفیت مدل iPod Nano. گزینه‌ای پایدار برای پایداری شبکه و اتوماسیون.",
+        "alternatives": []
     },
     {
         "product_id": "34",
         "name": "iPod Shuffle",
         "price": "100.0000",
-        "quantity": "1000"
+        "stock": 1000,
+        "category": "Industrial Automation & Networking",
+        "attributes": {
+            "Interface": "مشخصات پورت یافت نشد",
+            "Protection": "استاندارد بدنه نامشخص"
+        },
+        "sales_angle": "تجهیزات صنعتی باکیفیت مدل iPod Shuffle. گزینه‌ای پایدار برای پایداری شبکه و اتوماسیون.",
+        "alternatives": []
     },
     {
         "product_id": "32",
         "name": "iPod Touch",
         "price": "100.0000",
-        "quantity": "999"
+        "stock": 999,
+        "category": "Industrial Automation & Networking",
+        "attributes": {
+            "Interface": "مشخصات پورت یافت نشد",
+            "Protection": "استاندارد بدنه نامشخص"
+        },
+        "sales_angle": "تجهیزات صنعتی باکیفیت مدل iPod Touch. گزینه‌ای پایدار برای پایداری شبکه و اتوماسیون.",
+        "alternatives": []
     },
     {
         "product_id": "43",
         "name": "MacBook",
         "price": "500.0000",
-        "quantity": "929"
+        "stock": 929,
+        "category": "Industrial Automation & Networking",
+        "attributes": {
+            "Interface": "مشخصات پورت یافت نشد",
+            "Protection": "استاندارد بدنه نامشخص"
+        },
+        "sales_angle": "تجهیزات صنعتی باکیفیت مدل MacBook. گزینه‌ای پایدار برای پایداری شبکه و اتوماسیون.",
+        "alternatives": []
     },
     {
         "product_id": "44",
         "name": "MacBook Air",
         "price": "1000.0000",
-        "quantity": "1000"
+        "stock": 1000,
+        "category": "Industrial Automation & Networking",
+        "attributes": {
+            "Interface": "مشخصات پورت یافت نشد",
+            "Protection": "استاندارد بدنه نامشخص"
+        },
+        "sales_angle": "تجهیزات صنعتی باکیفیت مدل MacBook Air. گزینه‌ای پایدار برای پایداری شبکه و اتوماسیون.",
+        "alternatives": []
     },
     {
         "product_id": "45",
         "name": "MacBook Pro",
         "price": "2000.0000",
-        "quantity": "998"
+        "stock": 998,
+        "category": "Industrial Automation & Networking",
+        "attributes": {
+            "Interface": "مشخصات پورت یافت نشد",
+            "Protection": "استاندارد بدنه نامشخص"
+        },
+        "sales_angle": "تجهیزات صنعتی باکیفیت مدل MacBook Pro. گزینه‌ای پایدار برای پایداری شبکه و اتوماسیون.",
+        "alternatives": []
     },
     {
         "product_id": "31",
         "name": "Nikon D300",
         "price": "80.0000",
-        "quantity": "1000"
+        "stock": 1000,
+        "category": "Industrial Automation & Networking",
+        "attributes": {
+            "Interface": "مشخصات پورت یافت نشد",
+            "Protection": "استاندارد بدنه نامشخص"
+        },
+        "sales_angle": "تجهیزات صنعتی باکیفیت مدل Nikon D300. گزینه‌ای پایدار برای پایداری شبکه و اتوماسیون.",
+        "alternatives": []
     },
     {
         "product_id": "29",
         "name": "Palm Treo Pro",
         "price": "279.9900",
-        "quantity": "999"
+        "stock": 999,
+        "category": "Industrial Automation & Networking",
+        "attributes": {
+            "Interface": "مشخصات پورت یافت نشد",
+            "Protection": "استاندارد بدنه نامشخص"
+        },
+        "sales_angle": "تجهیزات صنعتی باکیفیت مدل Palm Treo Pro. گزینه‌ای پایدار برای پایداری شبکه و اتوماسیون.",
+        "alternatives": []
     },
     {
         "product_id": "35",
         "name": "Product 8",
         "price": "100.0000",
-        "quantity": "1000"
+        "stock": 1000,
+        "category": "Industrial Automation & Networking",
+        "attributes": {
+            "Interface": "مشخصات پورت یافت نشد",
+            "Protection": "استاندارد بدنه نامشخص"
+        },
+        "sales_angle": "تجهیزات صنعتی باکیفیت مدل Product 8. گزینه‌ای پایدار برای پایداری شبکه و اتوماسیون.",
+        "alternatives": []
     },
     {
         "product_id": "33",
         "name": "Samsung SyncMaster 941BW",
         "price": "200.0000",
-        "quantity": "1000"
+        "stock": 1000,
+        "category": "Industrial Automation & Networking",
+        "attributes": {
+            "Interface": "مشخصات پورت یافت نشد",
+            "Protection": "استاندارد بدنه نامشخص"
+        },
+        "sales_angle": "تجهیزات صنعتی باکیفیت مدل Samsung SyncMaster 941BW. گزینه‌ای پایدار برای پایداری شبکه و اتوماسیون.",
+        "alternatives": []
     },
     {
         "product_id": "46",
         "name": "Sony VAIO",
         "price": "1000.0000",
-        "quantity": "1000"
+        "stock": 1000,
+        "category": "Industrial Automation & Networking",
+        "attributes": {
+            "Interface": "مشخصات پورت یافت نشد",
+            "Protection": "استاندارد بدنه نامشخص"
+        },
+        "sales_angle": "تجهیزات صنعتی باکیفیت مدل Sony VAIO. گزینه‌ای پایدار برای پایداری شبکه و اتوماسیون.",
+        "alternatives": []
     },
     {
         "product_id": "49",
         "name": "Samsung Galaxy Tab 10.1",
         "price": "199.9900",
-        "quantity": "0"
+        "stock": 0,
+        "category": "Industrial Automation & Networking",
+        "attributes": {
+            "Interface": "مشخصات پورت یافت نشد",
+            "Protection": "استاندارد بدنه نامشخص"
+        },
+        "sales_angle": "تجهیزات صنعتی باکیفیت مدل Samsung Galaxy Tab 10.1. گزینه‌ای پایدار برای پایداری شبکه و اتوماسیون.",
+        "alternatives": []
     },
     {
         "product_id": "50",
         "name": "Test Moxa Switch",
         "price": "5.0000",
-        "quantity": "1"
+        "stock": 1,
+        "category": "Industrial Automation & Networking",
+        "attributes": {
+            "Interface": "مشخصات پورت یافت نشد",
+            "Protection": "استاندارد بدنه نامشخص"
+        },
+        "sales_angle": "تجهیزات صنعتی باکیفیت مدل Test Moxa Switch. گزینه‌ای پایدار برای پایداری شبکه و اتوماسیون.",
+        "alternatives": []
     }
 ]

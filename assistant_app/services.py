@@ -6,9 +6,7 @@ from functools import lru_cache
 import requests
 from django.conf import settings
 
-
 ACTION_RE = re.compile(r"\[ACTION:\s*ADD_TO_CART:\s*(?P<name>[^\]]+)\]", re.IGNORECASE)
-
 
 @lru_cache(maxsize=1)
 def load_catalog():
@@ -19,7 +17,6 @@ def load_catalog():
     except FileNotFoundError:
         return []
 
-
 def build_system_instruction():
     catalog = load_catalog()
     catalog_string = (
@@ -29,20 +26,20 @@ def build_system_instruction():
     )
 
     return f"""
-تو یک مشاور فروش ارشد، متخصص دیجیتال مارکتینگ و دستیار هوشمند فروش هستی.
-هدف تو خلق یک مکالمه طبیعی، جذاب و متقاعدکننده با مشتری است.
+تو یک مشاور فروش ارشد و متخصص تجهیزات شبکه و اتوماسیون صنعتی هستی.
+وظیفه تو راهنمایی تخصصی مشتریان، مقایسه محصولات و نهایی کردن فروش است.
 
-قوانین حیاتی:
-1. درباره ویژگی‌ها، نحوه استفاده و مقایسه محصولات با زبان فارسی روان توضیح بده.
-2. اگر محصولی موجود نیست یا در کاتالوگ نیست، مستقیم نگو نداریم؛ یک جایگزین نزدیک از کاتالوگ پیشنهاد بده.
-3. لحن تو صمیمی، دقیق و غیررباتی باشد.
-4. اگر مشتری قطعی گفت محصولی را می‌خرد، در انتهای پاسخ دقیقاً این فرمت را اضافه کن:
-[ACTION: ADD_TO_CART: Product_Name]
-
-کاتالوگ محصولات:
+اطلاعات زنده انبار و محصولات ما (به فرمت JSON):
 {catalog_string}
-""".strip()
 
+قوانین حیاتی تو (Strict Rules):
+۱. لحن: کاملاً حرفه‌ای، مسلط به اصطلاحات مهندسی شبکه، اما روان و متقاعدکننده.
+۲. استفاده از Sales Angle: هنگام معرفی هر محصول، حتماً از توضیحات بخش `sales_angle` برای برجسته کردن مزیت رقابتی آن استفاده کن.
+۳. مقایسه فنی: اگر کاربر دو محصول را مقایسه کرد، دقیقاً از دیتاهای بخش `attributes` برای نشان دادن تفاوت‌ها استفاده کن.
+۴. مدیریت ناموجودی: اگر فیلد `stock` برابر با 0 بود، به هیچ وجه نگو "موجود نداریم". بگو: "این مدل در حال حاضر ناموجود است، اما مدل‌های جایگزین زیر را با همان استانداردها پیشنهاد می‌کنم:" و از لیست `alternatives` پیشنهاد بده.
+۵. فرمان خرید: اگر مشتری تصمیم قطعی برای خرید گرفت، فقط و فقط در انتهای پاسخ، دقیقاً کد زیر را تولید کن:
+[ACTION: ADD_TO_CART: Product_Name]
+""".strip()
 
 def ask_ai(message):
     payload = {
@@ -66,7 +63,6 @@ def ask_ai(message):
         raise ValueError("Unexpected response from Ollama.")
     return reply
 
-
 def extract_cart_action(reply):
     match = ACTION_RE.search(reply or "")
     if not match:
@@ -78,11 +74,12 @@ def extract_cart_action(reply):
     for product in load_catalog():
         product_name = html.unescape(str(product.get("name", ""))).strip()
         if product_name.casefold() == requested_name.casefold():
+            # تغییر quantity به stock برای هماهنگی با فایل JSON جدید
             result.update(
                 {
                     "product_id": product.get("product_id"),
                     "price": product.get("price"),
-                    "quantity": product.get("quantity"),
+                    "stock": product.get("stock", product.get("quantity", 0)), 
                 }
             )
             break
