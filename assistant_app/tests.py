@@ -5,6 +5,14 @@ from django.test import TestCase
 
 
 class ChatApiTests(TestCase):
+    def test_api_index_lists_endpoints(self):
+        response = self.client.get("/")
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(data["status"], "ok")
+        self.assertEqual(data["endpoints"]["chat"], "/api/chat/")
+
     def test_health_check_reports_catalog_count(self):
         response = self.client.get("/api/health/")
 

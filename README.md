@@ -1,6 +1,6 @@
 # AI Shopping Assist
 
-نسخه Django دستیار خرید هوشمند.
+نسخه Django/DRF دستیار خرید هوشمند.
 
 ## اجرا
 
@@ -10,11 +10,13 @@ python manage.py migrate
 python manage.py runserver 127.0.0.1:8000
 ```
 
-سپس صفحه چت را باز کنید:
+برای دیدن وضعیت API:
 
 ```text
 http://127.0.0.1:8000/
 ```
+
+این پروژه فعلاً UI ندارد و فقط API JSON ارائه می‌کند.
 
 ## API
 
