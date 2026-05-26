@@ -1,0 +1,298 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>دستیار خرید هوشمند</title>
+    <style>
+        :root {
+            color-scheme: light;
+            --bg: #f6f7f9;
+            --surface: #ffffff;
+            --ink: #17202a;
+            --muted: #697586;
+            --line: #d9dee7;
+            --brand: #0f766e;
+            --brand-dark: #115e59;
+            --accent: #334155;
+            --danger: #b42318;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            min-height: 100vh;
+            background: var(--bg);
+            color: var(--ink);
+            font-family: Tahoma, Arial, sans-serif;
+        }
+
+        .app {
+            width: min(1180px, calc(100% - 32px));
+            min-height: 100vh;
+            margin: 0 auto;
+            padding: 24px 0;
+            display: grid;
+            grid-template-columns: minmax(260px, 330px) minmax(0, 1fr);
+            gap: 16px;
+        }
+
+        .panel {
+            background: var(--surface);
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            min-width: 0;
+        }
+
+        .catalog {
+            padding: 18px;
+            align-self: start;
+            max-height: calc(100vh - 48px);
+            overflow: auto;
+        }
+
+        .catalog h1,
+        .chat h1 {
+            margin: 0;
+            font-size: 20px;
+            line-height: 1.6;
+        }
+
+        .catalog-count {
+            margin: 4px 0 16px;
+            color: var(--muted);
+            font-size: 13px;
+        }
+
+        .product-list {
+            display: grid;
+            gap: 8px;
+        }
+
+        .product {
+            padding: 10px 12px;
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            background: #fbfcfe;
+        }
+
+        .product strong {
+            display: block;
+            font-size: 14px;
+            line-height: 1.6;
+        }
+
+        .product span {
+            color: var(--muted);
+            font-size: 12px;
+        }
+
+        .chat {
+            min-height: calc(100vh - 48px);
+            display: grid;
+            grid-template-rows: auto 1fr auto;
+        }
+
+        .chat-header {
+            padding: 18px 20px;
+            border-bottom: 1px solid var(--line);
+        }
+
+        .chat-header p {
+            margin: 4px 0 0;
+            color: var(--muted);
+            font-size: 13px;
+            line-height: 1.8;
+        }
+
+        .messages {
+            padding: 18px 20px;
+            overflow: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .message {
+            max-width: min(78%, 680px);
+            padding: 12px 14px;
+            border-radius: 8px;
+            line-height: 1.9;
+            white-space: pre-wrap;
+            overflow-wrap: anywhere;
+            font-size: 14px;
+        }
+
+        .message.user {
+            align-self: flex-start;
+            background: var(--brand);
+            color: white;
+        }
+
+        .message.ai {
+            align-self: flex-end;
+            background: #eef2f7;
+            color: var(--ink);
+        }
+
+        .message.error {
+            align-self: flex-end;
+            background: #fff1f0;
+            color: var(--danger);
+            border: 1px solid #ffcdc7;
+        }
+
+        .composer {
+            display: grid;
+            grid-template-columns: 1fr auto;
+            gap: 10px;
+            padding: 14px 20px 18px;
+            border-top: 1px solid var(--line);
+        }
+
+        textarea {
+            width: 100%;
+            min-height: 48px;
+            max-height: 150px;
+            resize: vertical;
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            padding: 12px;
+            font: inherit;
+            line-height: 1.7;
+            outline: none;
+        }
+
+        textarea:focus {
+            border-color: var(--brand);
+            box-shadow: 0 0 0 3px rgba(15, 118, 110, 0.14);
+        }
+
+        button {
+            min-width: 86px;
+            height: 48px;
+            border: 0;
+            border-radius: 8px;
+            background: var(--brand);
+            color: #fff;
+            font: inherit;
+            font-weight: 700;
+            cursor: pointer;
+        }
+
+        button:hover {
+            background: var(--brand-dark);
+        }
+
+        button:disabled {
+            cursor: wait;
+            background: var(--accent);
+        }
+
+        @media (max-width: 820px) {
+            .app {
+                width: min(100% - 20px, 680px);
+                grid-template-columns: 1fr;
+                padding: 10px 0;
+            }
+
+            .catalog {
+                max-height: 250px;
+            }
+
+            .chat {
+                min-height: calc(100vh - 286px);
+            }
+
+            .message {
+                max-width: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <main class="app">
+        <aside class="panel catalog" aria-label="کاتالوگ">
+            <h1>کاتالوگ فروشگاه</h1>
+            <p class="catalog-count">{{ product_count }} محصول آماده پیشنهاد است.</p>
+            <div class="product-list">
+                {% for product in products %}
+                    <article class="product">
+                        <strong>{{ product.name }}</strong>
+                        <span>قیمت: {{ product.price }} | موجودی: {{ product.quantity }}</span>
+                    </article>
+                {% empty %}
+                    <article class="product">
+                        <strong>کاتالوگ پیدا نشد</strong>
+                        <span>فایل products_catalog.json را کنار manage.py قرار بدهید.</span>
+                    </article>
+                {% endfor %}
+            </div>
+        </aside>
+
+        <section class="panel chat" aria-label="چت">
+            <header class="chat-header">
+                <h1>دستیار خرید هوشمند</h1>
+                <p>پیام مشتری را وارد کنید و پاسخ پیشنهادی مشاور فروش را ببینید.</p>
+            </header>
+
+            <div id="messages" class="messages" aria-live="polite">
+                <div class="message ai">سلام، آماده‌ام به مشتری برای انتخاب محصول کمک کنم.</div>
+            </div>
+
+            <form id="chat-form" class="composer">
+                <textarea id="message-input" name="message" placeholder="مثلاً: یک لپ‌تاپ برای کار روزمره می‌خواهم" required></textarea>
+                <button id="send-button" type="submit">ارسال</button>
+            </form>
+        </section>
+    </main>
+
+    <script>
+        const form = document.querySelector("#chat-form");
+        const input = document.querySelector("#message-input");
+        const messages = document.querySelector("#messages");
+        const button = document.querySelector("#send-button");
+
+        function addMessage(text, type) {
+            const item = document.createElement("div");
+            item.className = `message ${type}`;
+            item.textContent = text;
+            messages.appendChild(item);
+            messages.scrollTop = messages.scrollHeight;
+        }
+
+        form.addEventListener("submit", async (event) => {
+            event.preventDefault();
+            const message = input.value.trim();
+            if (!message) return;
+
+            addMessage(message, "user");
+            input.value = "";
+            button.disabled = true;
+            button.textContent = "در حال ارسال";
+
+            try {
+                const response = await fetch("/api/chat/", {
+                    method: "POST",
+                    headers: {"Content-Type": "application/json"},
+                    body: JSON.stringify({message}),
+                });
+                const data = await response.json();
+                if (!response.ok || data.status !== "success") {
+                    throw new Error(data.reply || "خطا در دریافت پاسخ");
+                }
+                addMessage(data.reply, "ai");
+            } catch (error) {
+                addMessage(error.message, "error");
+            } finally {
+                button.disabled = false;
+                button.textContent = "ارسال";
+                input.focus();
+            }
+        });
+    </script>
+</body>
+</html>
