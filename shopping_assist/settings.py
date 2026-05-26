@@ -55,7 +55,7 @@ WSGI_APPLICATION = "shopping_assist.wsgi.application"
 DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.sqlite3",
-        "NAME": BASE_DIR / "db.sqlite3",
+        "NAME": os.getenv("SQLITE_PATH", BASE_DIR / "db.sqlite3"),
     }
 }
 
@@ -77,6 +77,6 @@ REST_FRAMEWORK = {
     ],
 }
 
-OLLAMA_CHAT_URL = os.getenv("OLLAMA_CHAT_URL", "http://192.168.55.133:11434/api/chat")
+OLLAMA_CHAT_URL = os.getenv("OLLAMA_CHAT_URL", "http://localhost:11434/api/chat")
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "qwen2.5:7b")
 OLLAMA_TIMEOUT = float(os.getenv("OLLAMA_TIMEOUT", "60"))
