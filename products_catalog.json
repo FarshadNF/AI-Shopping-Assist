@@ -4,319 +4,286 @@
         "name": "Apple Cinema 30&quot;",
         "price": "100.0000",
         "stock": 990,
-        "category": "Industrial Automation & Networking",
+        "image": "http://localhost/test-shop/image/cache/catalog/demo/apple_cinema_30-800x800.jpg",
         "attributes": {
-            "Interface": "مشخصات پورت یافت نشد",
-            "Protection": "استاندارد بدنه نامشخص"
+            "Clockspeed": "100mhz"
         },
-        "sales_angle": "مشاوره تخصصی بر اساس کاتالوگ: The 30-inch Apple Cinema HD Display delivers an amazing 2560 x 1600 pixel resolution. Designed specifically for the creative professional, this displa...",
-        "alternatives": [],
         "full_description": "The 30-inch Apple Cinema HD Display delivers an amazing 2560 x 1600 pixel resolution. Designed specifically for the creative professional, this display provides more space for easier access to all the tools and palettes needed to edit, format and composite your work. Combine this display with a Mac Pro, MacBook Pro, or PowerMac G5 and there's no limit to what you can achieve. The Cinema HD features an active-matrix liquid crystal display that produces flicker-free images that deliver twice the brightness, twice the sharpness and twice the contrast ratio of a typical CRT display. Unlike other flat panels, it's designed with a pure digital interface to deliver distortion-free images that never need adjusting. With over 4 million digital pixels, the display is uniquely suited for scientific and technical applications such as visualizing molecular structures or analyzing geological data. Offering accurate, brilliant color performance, the Cinema HD delivers up to 16.7 million colors across a wide gamut allowing you to see subtle nuances between colors from soft pastels to rich jewel tones. A wide viewing angle ensures uniform color from edge to edge. Apple's ColorSync technology allows you to create custom profiles to maintain consistent color onscreen and in print. The result: You can confidently use this display in all your color-critical applications. Housed in a new aluminum design, the display has a very thin bezel that enhances visual accuracy. Each display features two FireWire 400 ports and two USB 2.0 ports, making attachment of desktop peripherals, such as iSight, iPod, digital and still cameras, hard drives, printers and scanners, even more accessible and convenient. Taking advantage of the much thinner and lighter footprint of an LCD, the new displays support the VESA (Video Electronics Standards Association) mounting interface standard. Customers with the optional Cinema Display VESA Mount Adapter kit gain the flexibility to mount their display in locations most appropriate for their work environment. The Cinema HD features a single cable design with elegant breakout for the USB 2.0, FireWire 400 and a pure digital connection using the industry standard Digital Video Interface (DVI) interface. The DVI connection allows for a direct pure-digital connection. Features: Unrivaled display performance 30-inch (viewable) active-matrix liquid crystal display provides breathtaking image quality and vivid, richly saturated color. Support for 2560-by-1600 pixel resolution for display of high definition still and video imagery. Wide-format design for simultaneous display of two full pages of text and graphics. Industry standard DVI connector for direct attachment to Mac- and Windows-based desktops and notebooks Incredibly wide (170 degree) horizontal and vertical viewing angle for maximum visibility and color performance. Lightning-fast pixel response for full-motion digital video playback. Support for 16.7 million saturated colors, for use in all graphics-intensive applications. Simple setup and operation Single cable with elegant breakout for connection to DVI, USB and FireWire ports Built-in two-port USB 2.0 hub for easy connection of desktop peripheral devices. Two FireWire 400 ports to support iSight and other desktop peripherals Sleek, elegant design Huge virtual workspace, very small footprint. Narrow Bezel design to minimize visual impact of using dual displays Unique hinge design for effortless adjustment Support for VESA mounting solutions (Apple Cinema Display VESA Mount Adapter sold separately) Technical specifications Screen size (diagonal viewable image size) Apple Cinema HD Display: 30 inches (29.7-inch viewable) Screen type Thin film transistor (TFT) active-matrix liquid crystal display (AMLCD) Resolutions 2560 x 1600 pixels (optimum resolution) 2048 x 1280 1920 x 1200 1280 x 800 1024 x 640 Display colors (maximum) 16.7 million Viewing angle (typical) 170° horizontal; 170° vertical Brightness (typical) 30-inch Cinema HD Display: 400 cd/m2 Contrast ratio (typical) 700:1 Response time (typical) 16 ms Pixel pitch 30-inch Cinema HD Display: 0.250 mm Screen treatment Antiglare hardcoat User controls (hardware and software) Display Power, System sleep, wake Brightness Monitor tilt Connectors and cables Cable DVI (Digital Visual Interface) FireWire 400 USB 2.0 DC power (24 V) Connectors Two-port, self-powered USB 2.0 hub Two FireWire 400 ports Kensington security port VESA mount adapter Requires optional Cinema Display VESA Mount Adapter (M9649G/A) Compatible with VESA FDMI (MIS-D, 100, C) compliant mounting solutions Electrical requirements Input voltage: 100-240 VAC 50-60Hz Maximum power when operating: 150W Energy saver mode: 3W or less Environmental requirements Operating temperature: 50° to 95° F (10° to 35° C) Storage temperature: -40° to 116° F (-40° to 47° C) Operating humidity: 20% to 80% noncondensing Maximum operating altitude: 10,000 feet Agency approvals FCC Part 15 Class B EN55022 Class B EN55024 VCCI Class B AS/NZS 3548 Class B CNS 13438 Class B ICES-003 Class B ISO 13406 part 2 MPR II IEC 60950 UL 60950 CSA 60950 EN60950 ENERGY STAR TCO '03 Size and weight 30-inch Apple Cinema HD Display Height: 21.3 inches (54.3 cm) Width: 27.2 inches (68.8 cm) Depth: 8.46 inches (21.5 cm) Weight: 27.5 pounds (12.5 kg) System Requirements Mac Pro, all graphic options MacBook Pro Power Mac G5 (PCI-X) with ATI Radeon 9650 or better or NVIDIA GeForce 6800 GT DDL or better Power Mac G5 (PCI Express), all graphics options PowerBook G4 with dual-link DVI support Windows PC and graphics card that supports DVI ports with dual-link digital bandwidth and VESA DDC standard for plug-and-play setup",
-        "meta_keywords": "",
-        "technical_tags": []
+        "brand": "Moxa",
+        "sales_angle": "مزیت رقابتی بر اساس مشخصات فنی: این محصول دارای استانداردهای Clockspeed: 100mhz بوده که پایداری بالایی در شبکه ایجاد می‌کند."
     },
     {
         "product_id": "30",
         "name": "Canon EOS 5D",
         "price": "100.0000",
         "stock": 7,
-        "category": "Industrial Automation & Networking",
-        "attributes": {
-            "Interface": "مشخصات پورت یافت نشد",
-            "Protection": "استاندارد بدنه نامشخص"
-        },
-        "sales_angle": "مشاوره تخصصی بر اساس کاتالوگ: Canon's press material for the EOS 5D states that it 'defines (a) new D-SLR category', while we're not typically too concerned with marketing talk thi...",
-        "alternatives": [],
+        "image": "http://localhost/test-shop/image/cache/catalog/demo/canon_eos_5d_1-800x800.jpg",
+        "attributes": {},
         "full_description": "Canon's press material for the EOS 5D states that it 'defines (a) new D-SLR category', while we're not typically too concerned with marketing talk this particular statement is clearly pretty accurate. The EOS 5D is unlike any previous digital SLR in that it combines a full-frame (35 mm sized) high resolution sensor (12.8 megapixels) with a relatively compact body (slightly larger than the EOS 20D, although in your hand it feels noticeably 'chunkier'). The EOS 5D is aimed to slot in between the EOS 20D and the EOS-1D professional digital SLR's, an important difference when compared to the latter is that the EOS 5D doesn't have any environmental seals. While Canon don't specifically refer to the EOS 5D as a 'professional' digital SLR it will have obvious appeal to professionals who want a high quality digital SLR in a body lighter than the EOS-1D. It will also no doubt appeal to current EOS 20D owners (although lets hope they've not bought too many EF-S lenses...) äë",
-        "meta_keywords": "",
-        "technical_tags": []
+        "brand": "Moxa"
     },
     {
         "product_id": "47",
         "name": "HP LP3065",
         "price": "100.0000",
         "stock": 1000,
-        "category": "Industrial Automation & Networking",
+        "image": "http://localhost/test-shop/image/cache/catalog/demo/hp_1-800x800.jpg",
         "attributes": {
-            "Interface": "مشخصات پورت یافت نشد",
-            "Protection": "استاندارد بدنه نامشخص"
+            "test 1": "16GB",
+            "No. of Cores": "4"
         },
-        "sales_angle": "مشاوره تخصصی بر اساس کاتالوگ: Stop your co-workers in their tracks with the stunning new 30-inch diagonal HP LP3065 Flat Panel Monitor. This flagship monitor features best-in-class...",
-        "alternatives": [],
         "full_description": "Stop your co-workers in their tracks with the stunning new 30-inch diagonal HP LP3065 Flat Panel Monitor. This flagship monitor features best-in-class performance and presentation features on a huge wide-aspect screen while letting you work as comfortably as possible - you might even forget you're at the office",
-        "meta_keywords": "",
-        "technical_tags": []
+        "brand": "Moxa",
+        "sales_angle": "مزیت رقابتی بر اساس مشخصات فنی: این محصول دارای استانداردهای test 1: 16GB, No. of Cores: 4 بوده که پایداری بالایی در شبکه ایجاد می‌کند."
     },
     {
         "product_id": "28",
         "name": "HTC Touch HD",
         "price": "100.0000",
         "stock": 939,
-        "category": "Industrial Automation & Networking",
-        "attributes": {
-            "Interface": "مشخصات پورت یافت نشد",
-            "Protection": "استاندارد بدنه نامشخص"
-        },
-        "sales_angle": "مشاوره تخصصی بر اساس کاتالوگ: HTC Touch - in High Definition. Watch music videos and streaming content in awe-inspiring high definition clarity for a mobile experience you never th...",
-        "alternatives": [],
+        "image": "http://localhost/test-shop/image/cache/catalog/demo/htc_touch_hd_1-800x800.jpg",
+        "attributes": {},
         "full_description": "HTC Touch - in High Definition. Watch music videos and streaming content in awe-inspiring high definition clarity for a mobile experience you never thought possible. Seductively sleek, the HTC Touch HD provides the next generation of mobile functionality, all at a simple touch. Fully integrated with Windows Mobile Professional 6.1, ultrafast 3.5G, GPS, 5MP camera, plus lots more - all delivered on a breathtakingly crisp 3.8\" WVGA touchscreen - you can take control of your mobile world with the HTC Touch HD. Features Processor Qualcomm® MSM 7201A™ 528 MHz Windows Mobile® 6.1 Professional Operating System Memory: 512 MB ROM, 288 MB RAM Dimensions: 115 mm x 62.8 mm x 12 mm / 146.4 grams 3.8-inch TFT-LCD flat touch-sensitive screen with 480 x 800 WVGA resolution HSDPA/WCDMA: Europe/Asia: 900/2100 MHz; Up to 2 Mbps up-link and 7.2 Mbps down-link speeds Quad-band GSM/GPRS/EDGE: Europe/Asia: 850/900/1800/1900 MHz (Band frequency, HSUPA availability, and data speed are operator dependent.) Device Control via HTC TouchFLO™ 3D & Touch-sensitive front panel buttons GPS and A-GPS ready Bluetooth® 2.0 with Enhanced Data Rate and A2DP for wireless stereo headsets Wi-Fi®: IEEE 802.11 b/g HTC ExtUSB™ (11-pin mini-USB 2.0) 5 megapixel color camera with auto focus VGA CMOS color camera Built-in 3.5 mm audio jack, microphone, speaker, and FM radio Ring tone formats: AAC, AAC+, eAAC+, AMR-NB, AMR-WB, QCP, MP3, WMA, WAV 40 polyphonic and standard MIDI format 0 and 1 (SMF)/SP MIDI Rechargeable Lithium-ion or Lithium-ion polymer 1350 mAh battery Expansion Slot: microSD™ memory card (SD 2.0 compatible) AC Adapter Voltage range/frequency: 100 ~ 240V AC, 50/60 Hz DC output: 5V and 1A Special Features: FM Radio, G-Sensor",
-        "meta_keywords": "",
-        "technical_tags": []
+        "brand": "Moxa"
     },
     {
         "product_id": "41",
         "name": "iMac",
         "price": "100.0000",
         "stock": 977,
-        "category": "Industrial Automation & Networking",
-        "attributes": {
-            "Interface": "مشخصات پورت یافت نشد",
-            "Protection": "استاندارد بدنه نامشخص"
-        },
-        "sales_angle": "مشاوره تخصصی بر اساس کاتالوگ: Just when you thought iMac had everything, now there´s even more. More powerful Intel Core 2 Duo processors. And more memory standard. Combine this wi...",
-        "alternatives": [],
+        "image": "http://localhost/test-shop/image/cache/catalog/demo/imac_1-800x800.jpg",
+        "attributes": {},
         "full_description": "Just when you thought iMac had everything, now there´s even more. More powerful Intel Core 2 Duo processors. And more memory standard. Combine this with Mac OS X Leopard and iLife ´08, and it´s more all-in-one than ever. iMac packs amazing performance into a stunningly slim space.",
-        "meta_keywords": "",
-        "technical_tags": []
+        "brand": "Moxa"
     },
     {
         "product_id": "40",
         "name": "iPhone",
         "price": "101.0000",
         "stock": 970,
-        "category": "Industrial Automation & Networking",
-        "attributes": {
-            "Interface": "مشخصات پورت یافت نشد",
-            "Protection": "استاندارد بدنه نامشخص"
-        },
-        "sales_angle": "مشاوره تخصصی بر اساس کاتالوگ: iPhone is a revolutionary new mobile phone that allows you to make a call by simply tapping a name or number in your address book, a favorites list, o...",
-        "alternatives": [],
+        "image": "http://localhost/test-shop/image/cache/catalog/demo/iphone_1-800x800.jpg",
+        "attributes": {},
         "full_description": "iPhone is a revolutionary new mobile phone that allows you to make a call by simply tapping a name or number in your address book, a favorites list, or a call log. It also automatically syncs all your contacts from a PC, Mac, or Internet service. And it lets you select and listen to voicemail messages in whatever order you want just like email.",
-        "meta_keywords": "",
-        "technical_tags": []
+        "brand": "Moxa"
     },
     {
         "product_id": "48",
         "name": "iPod Classic",
         "price": "100.0000",
         "stock": 995,
-        "category": "Industrial Automation & Networking",
-        "attributes": {
-            "Interface": "مشخصات پورت یافت نشد",
-            "Protection": "استاندارد بدنه نامشخص"
-        },
-        "sales_angle": "مشاوره تخصصی بر اساس کاتالوگ: More room to move. With 80GB or 160GB of storage and up to 40 hours of battery life, the new iPod classic lets you enjoy up to 40,000 songs or up to 2...",
-        "alternatives": [],
+        "image": "http://localhost/test-shop/image/cache/catalog/demo/ipod_classic_1-800x800.jpg",
+        "attributes": {},
         "full_description": "More room to move. With 80GB or 160GB of storage and up to 40 hours of battery life, the new iPod classic lets you enjoy up to 40,000 songs or up to 200 hours of video or any combination wherever you go. Cover Flow. Browse through your music collection by flipping through album art. Select an album to turn it over and see the track list. Enhanced interface. Experience a whole new way to browse and view your music and video. Sleeker design. Beautiful, durable, and sleeker than ever, iPod classic now features an anodized aluminum and polished stainless steel enclosure with rounded edges.",
-        "meta_keywords": "",
-        "technical_tags": []
+        "brand": "Moxa"
     },
     {
         "product_id": "36",
         "name": "iPod Nano",
         "price": "100.0000",
         "stock": 994,
-        "category": "Industrial Automation & Networking",
-        "attributes": {
-            "Interface": "مشخصات پورت یافت نشد",
-            "Protection": "استاندارد بدنه نامشخص"
-        },
-        "sales_angle": "مشاوره تخصصی بر اساس کاتالوگ: Video in your pocket. Its the small iPod with one very big idea: video. The worlds most popular music player now lets you enjoy movies, TV shows, and ...",
-        "alternatives": [],
+        "image": "http://localhost/test-shop/image/cache/catalog/demo/ipod_nano_1-800x800.jpg",
+        "attributes": {},
         "full_description": "Video in your pocket. Its the small iPod with one very big idea: video. The worlds most popular music player now lets you enjoy movies, TV shows, and more on a two-inch display thats 65% brighter than before. Cover Flow. Browse through your music collection by flipping through album art. Select an album to turn it over and see the track list. Enhanced interface. Experience a whole new way to browse and view your music and video. Sleek and colorful. With an anodized aluminum and polished stainless steel enclosure and a choice of five colors, iPod nano is dressed to impress. iTunes. Available as a free download, iTunes makes it easy to browse and buy millions of songs, movies, TV shows, audiobooks, and games and download free podcasts all at the iTunes Store. And you can import your own music, manage your whole media library, and sync your iPod or iPhone with ease.",
-        "meta_keywords": "",
-        "technical_tags": []
+        "brand": "Moxa"
     },
     {
         "product_id": "34",
         "name": "iPod Shuffle",
         "price": "100.0000",
         "stock": 1000,
-        "category": "Industrial Automation & Networking",
-        "attributes": {
-            "Interface": "مشخصات پورت یافت نشد",
-            "Protection": "استاندارد بدنه نامشخص"
-        },
-        "sales_angle": "مشاوره تخصصی بر اساس کاتالوگ: Born to be worn. Clip on the worlds most wearable music player and take up to 240 songs with you anywhere. Choose from five colors including four new ...",
-        "alternatives": [],
+        "image": "http://localhost/test-shop/image/cache/catalog/demo/ipod_shuffle_1-800x800.jpg",
+        "attributes": {},
         "full_description": "Born to be worn. Clip on the worlds most wearable music player and take up to 240 songs with you anywhere. Choose from five colors including four new hues to make your musical fashion statement. Random meets rhythm. With iTunes autofill, iPod shuffle can deliver a new musical experience every time you sync. For more randomness, you can shuffle songs during playback with the slide of a switch. Everything is easy. Charge and sync with the included USB dock. Operate the iPod shuffle controls with one hand. Enjoy up to 12 hours straight of skip-free music playback.",
-        "meta_keywords": "",
-        "technical_tags": []
+        "brand": "Moxa"
     },
     {
         "product_id": "32",
         "name": "iPod Touch",
         "price": "100.0000",
         "stock": 999,
-        "category": "Industrial Automation & Networking",
-        "attributes": {
-            "Interface": "مشخصات پورت یافت نشد",
-            "Protection": "استاندارد بدنه نامشخص"
-        },
-        "sales_angle": "مشاوره تخصصی بر اساس کاتالوگ: Revolutionary multi-touch interface. iPod touch features the same multi-touch screen technology as iPhone. Pinch to zoom in on a photo. Scroll through...",
-        "alternatives": [],
+        "image": "http://localhost/test-shop/image/cache/catalog/demo/ipod_touch_1-800x800.jpg",
+        "attributes": {},
         "full_description": "Revolutionary multi-touch interface. iPod touch features the same multi-touch screen technology as iPhone. Pinch to zoom in on a photo. Scroll through your songs and videos with a flick. Flip through your library by album artwork with Cover Flow. Gorgeous 3.5-inch widescreen display. Watch your movies, TV shows, and photos come alive with bright, vivid color on the 320-by-480-pixel display. Music downloads straight from iTunes. Shop the iTunes Wi-Fi Music Store from anywhere with Wi-Fi.1 Browse or search to find the music youre looking for, preview it, and buy it with just a tap. Surf the web with Wi-Fi. Browse the web using Safari and watch YouTube videos on the first iPod with Wi-Fi built in",
-        "meta_keywords": "",
-        "technical_tags": []
+        "brand": "Moxa"
     },
     {
         "product_id": "43",
         "name": "MacBook",
         "price": "500.0000",
         "stock": 929,
-        "category": "Industrial Automation & Networking",
+        "image": "http://localhost/test-shop/image/cache/catalog/demo/macbook_1-800x800.jpg",
         "attributes": {
-            "Interface": "مشخصات پورت یافت نشد",
-            "Protection": "استاندارد بدنه نامشخص"
+            "test 1": "8gb",
+            "No. of Cores": "1"
         },
-        "sales_angle": "مشاوره تخصصی بر اساس کاتالوگ: Intel Core 2 Duo processor Powered by an Intel Core 2 Duo processor at speeds up to 2.16GHz, the new MacBook is the fastest ever. 1GB memory, larger h...",
-        "alternatives": [],
         "full_description": "Intel Core 2 Duo processor Powered by an Intel Core 2 Duo processor at speeds up to 2.16GHz, the new MacBook is the fastest ever. 1GB memory, larger hard drives The new MacBook now comes with 1GB of memory standard and larger hard drives for the entire line perfect for running more of your favorite applications and storing growing media collections. Sleek, 1.08-inch-thin design MacBook makes it easy to hit the road thanks to its tough polycarbonate case, built-in wireless technologies, and innovative MagSafe Power Adapter that releases automatically if someone accidentally trips on the cord. Built-in iSight camera Right out of the box, you can have a video chat with friends or family,2 record a video at your desk, or take fun pictures with Photo Booth",
-        "meta_keywords": "",
-        "technical_tags": []
+        "brand": "Moxa",
+        "sales_angle": "مزیت رقابتی بر اساس مشخصات فنی: این محصول دارای استانداردهای test 1: 8gb, No. of Cores: 1 بوده که پایداری بالایی در شبکه ایجاد می‌کند."
     },
     {
         "product_id": "44",
         "name": "MacBook Air",
         "price": "1000.0000",
         "stock": 1000,
-        "category": "Industrial Automation & Networking",
-        "attributes": {
-            "Interface": "مشخصات پورت یافت نشد",
-            "Protection": "استاندارد بدنه نامشخص"
-        },
-        "sales_angle": "مشاوره تخصصی بر اساس کاتالوگ: MacBook Air is ultrathin, ultraportable, and ultra unlike anything else. But you don’t lose inches and pounds overnight. It’s the result of rethinking...",
-        "alternatives": [],
+        "image": "http://localhost/test-shop/image/cache/catalog/demo/macbook_air_1-800x800.jpg",
+        "attributes": {},
         "full_description": "MacBook Air is ultrathin, ultraportable, and ultra unlike anything else. But you don’t lose inches and pounds overnight. It’s the result of rethinking conventions. Of multiple wireless innovations. And of breakthrough design. With MacBook Air, mobile computing suddenly has a new standard.",
-        "meta_keywords": "",
-        "technical_tags": []
+        "brand": "Moxa"
     },
     {
         "product_id": "45",
         "name": "MacBook Pro",
         "price": "2000.0000",
         "stock": 998,
-        "category": "Industrial Automation & Networking",
-        "attributes": {
-            "Interface": "مشخصات پورت یافت نشد",
-            "Protection": "استاندارد بدنه نامشخص"
-        },
-        "sales_angle": "مشاوره تخصصی بر اساس کاتالوگ: Latest Intel mobile architecture Powered by the most advanced mobile processors from Intel, the new Core 2 Duo MacBook Pro is over 50% faster than the...",
-        "alternatives": [],
+        "image": "http://localhost/test-shop/image/cache/catalog/demo/macbook_pro_1-800x800.jpg",
+        "attributes": {},
         "full_description": "Latest Intel mobile architecture Powered by the most advanced mobile processors from Intel, the new Core 2 Duo MacBook Pro is over 50% faster than the original Core Duo MacBook Pro and now supports up to 4GB of RAM. Leading-edge graphics The NVIDIA GeForce 8600M GT delivers exceptional graphics processing power. For the ultimate creative canvas, you can even configure the 17-inch model with a 1920-by-1200 resolution display. Designed for life on the road Innovations such as a magnetic power connection and an illuminated keyboard with ambient light sensor put the MacBook Pro in a class by itself. Connect. Create. Communicate. Quickly set up a video conference with the built-in iSight camera. Control presentations and media from up to 30 feet away with the included Apple Remote. Connect to high-bandwidth peripherals with FireWire 800 and DVI. Next-generation wireless Featuring 802.11n wireless technology, the MacBook Pro delivers up to five times the performance and up to twice the range of previous-generation technologies.",
-        "meta_keywords": "",
-        "technical_tags": []
+        "brand": "Moxa"
     },
     {
         "product_id": "31",
         "name": "Nikon D300",
         "price": "80.0000",
         "stock": 1000,
-        "category": "Industrial Automation & Networking",
-        "attributes": {
-            "Interface": "مشخصات پورت یافت نشد",
-            "Protection": "استاندارد بدنه نامشخص"
-        },
-        "sales_angle": "مشاوره تخصصی بر اساس کاتالوگ: Engineered with pro-level features and performance, the 12.3-effective-megapixel D300 combines brand new technologies with advanced features inherited...",
-        "alternatives": [],
+        "image": "http://localhost/test-shop/image/cache/catalog/demo/nikon_d300_1-800x800.jpg",
+        "attributes": {},
         "full_description": "Engineered with pro-level features and performance, the 12.3-effective-megapixel D300 combines brand new technologies with advanced features inherited from Nikon's newly announced D3 professional digital SLR camera to offer serious photographers remarkable performance combined with agility. Similar to the D3, the D300 features Nikon's exclusive EXPEED Image Processing System that is central to driving the speed and processing power needed for many of the camera's new features. The D300 features a new 51-point autofocus system with Nikon's 3D Focus Tracking feature and two new LiveView shooting modes that allow users to frame a photograph using the camera's high-resolution LCD monitor. The D300 shares a similar Scene Recognition System as is found in the D3; it promises to greatly enhance the accuracy of autofocus, autoexposure, and auto white balance by recognizing the subject or scene being photographed and applying this information to the calculations for the three functions. The D300 reacts with lightning speed, powering up in a mere 0.13 seconds and shooting with an imperceptible 45-millisecond shutter release lag time. The D300 is capable of shooting at a rapid six frames per second and can go as fast as eight frames per second when using the optional MB-D10 multi-power battery pack. In continuous bursts, the D300 can shoot up to 100 shots at full 12.3-megapixel resolution. (NORMAL-LARGE image setting, using a SanDisk Extreme IV 1GB CompactFlash card.) The D300 incorporates a range of innovative technologies and features that will significantly improve the accuracy, control, and performance photographers can get from their equipment. Its new Scene Recognition System advances the use of Nikon's acclaimed 1,005-segment sensor to recognize colors and light patterns that help the camera determine the subject and the type of scene being photographed before a picture is taken. This information is used to improve the accuracy of autofocus, autoexposure, and auto white balance functions in the D300. For example, the camera can track moving subjects better and by identifying them, it can also automatically select focus points faster and with greater accuracy. It can also analyze highlights and more accurately determine exposure, as well as infer light sources to deliver more accurate white balance detection.",
-        "meta_keywords": "",
-        "technical_tags": []
+        "brand": "Moxa"
     },
     {
         "product_id": "29",
         "name": "Palm Treo Pro",
         "price": "279.9900",
         "stock": 999,
-        "category": "Industrial Automation & Networking",
-        "attributes": {
-            "Interface": "مشخصات پورت یافت نشد",
-            "Protection": "استاندارد بدنه نامشخص"
-        },
-        "sales_angle": "مشاوره تخصصی بر اساس کاتالوگ: Redefine your workday with the Palm Treo Pro smartphone. Perfectly balanced, you can respond to business and personal email, stay on top of appointmen...",
-        "alternatives": [],
+        "image": "http://localhost/test-shop/image/cache/catalog/demo/palm_treo_pro_1-800x800.jpg",
+        "attributes": {},
         "full_description": "Redefine your workday with the Palm Treo Pro smartphone. Perfectly balanced, you can respond to business and personal email, stay on top of appointments and contacts, and use Wi-Fi or GPS when you’re out and about. Then watch a video on YouTube, catch up with news and sports on the web, or listen to a few songs. Balance your work and play the way you like it, with the Palm Treo Pro. Features Windows Mobile® 6.1 Professional Edition Qualcomm® MSM7201 400MHz Processor 320x320 transflective colour TFT touchscreen HSDPA/UMTS/EDGE/GPRS/GSM radio Tri-band UMTS — 850MHz, 1900MHz, 2100MHz Quad-band GSM — 850/900/1800/1900 802.11b/g with WPA, WPA2, and 801.1x authentication Built-in GPS Bluetooth Version: 2.0 + Enhanced Data Rate 256MB storage (100MB user available), 128MB RAM 2.0 megapixel camera, up to 8x digital zoom and video capture Removable, rechargeable 1500mAh lithium-ion battery Up to 5.0 hours talk time and up to 250 hours standby MicroSDHC card expansion (up to 32GB supported) MicroUSB 2.0 for synchronization and charging 3.5mm stereo headset jack 60mm (W) x 114mm (L) x 13.5mm (D) / 133g",
-        "meta_keywords": "",
-        "technical_tags": []
+        "brand": "Moxa"
     },
     {
         "product_id": "35",
         "name": "Product 8",
         "price": "100.0000",
         "stock": 1000,
-        "category": "Industrial Automation & Networking",
-        "attributes": {
-            "Interface": "مشخصات پورت یافت نشد",
-            "Protection": "استاندارد بدنه نامشخص"
-        },
-        "sales_angle": "مشاوره تخصصی بر اساس کاتالوگ: Product 8...",
-        "alternatives": [],
+        "image": "",
+        "attributes": {},
         "full_description": "Product 8",
-        "meta_keywords": "",
-        "technical_tags": []
+        "brand": "Moxa"
     },
     {
         "product_id": "33",
         "name": "Samsung SyncMaster 941BW",
         "price": "200.0000",
         "stock": 1000,
-        "category": "Industrial Automation & Networking",
-        "attributes": {
-            "Interface": "مشخصات پورت یافت نشد",
-            "Protection": "استاندارد بدنه نامشخص"
-        },
-        "sales_angle": "مشاوره تخصصی بر اساس کاتالوگ: Imagine the advantages of going big without slowing down. The big 19\" 941BW monitor combines wide aspect ratio with fast pixel response time, for bigg...",
-        "alternatives": [],
+        "image": "http://localhost/test-shop/image/cache/catalog/demo/samsung_syncmaster_941bw-800x800.jpg",
+        "attributes": {},
         "full_description": "Imagine the advantages of going big without slowing down. The big 19\" 941BW monitor combines wide aspect ratio with fast pixel response time, for bigger images, more room to work and crisp motion. In addition, the exclusive MagicBright 2, MagicColor and MagicTune technologies help deliver the ideal image in every situation, while sleek, narrow bezels and adjustable stands deliver style just the way you want it. With the Samsung 941BW widescreen analog/digital LCD monitor, it's not hard to imagine.",
-        "meta_keywords": "",
-        "technical_tags": []
+        "brand": "Moxa"
     },
     {
         "product_id": "46",
         "name": "Sony VAIO",
         "price": "1000.0000",
         "stock": 1000,
-        "category": "Industrial Automation & Networking",
-        "attributes": {
-            "Interface": "مشخصات پورت یافت نشد",
-            "Protection": "استاندارد بدنه نامشخص"
-        },
-        "sales_angle": "مشاوره تخصصی بر اساس کاتالوگ: Unprecedented power. The next generation of processing technology has arrived. Built into the newest VAIO notebooks lies Intel's latest, most powerful...",
-        "alternatives": [],
+        "image": "http://localhost/test-shop/image/cache/catalog/demo/sony_vaio_1-800x800.jpg",
+        "attributes": {},
         "full_description": "Unprecedented power. The next generation of processing technology has arrived. Built into the newest VAIO notebooks lies Intel's latest, most powerful innovation yet: Intel® Centrino® 2 processor technology. Boasting incredible speed, expanded wireless connectivity, enhanced multimedia support and greater energy efficiency, all the high-performance essentials are seamlessly combined into a single chip.",
-        "meta_keywords": "",
-        "technical_tags": []
+        "brand": "Moxa"
+    },
+    {
+        "product_id": "50",
+        "name": "MOXA EDS-2005-EL Unmanaged Ethernet Switch",
+        "price": "95.0000",
+        "stock": 100,
+        "image": "http://localhost/test-shop/image/cache/catalog/moxa-eds-2005-el-600x600%20(2)-800x800.jpg",
+        "attributes": {
+            "Dimensions": "18 x 81 x 65 mm (0.7 x 3.19 x 2.56 in)",
+            "Installation": "DIN-rail mounting, Wall mounting (with optional kit)",
+            "Operation Humidity": "5 to 95% (non-condensing)",
+            "Power Consumption (Output Adapter)": "9.6 to 60 VDC",
+            "Standards and Certifications": "Vibration, Shock, Freefall, Safety, EMS, EMC, EMI"
+        },
+        "full_description": "MOXA EDS-2005-EL Introduction The EDS-2005-EL series offers a cost-effective solution for your industrial network with robust connectivity features. The Moxa EDS-2005-EL unmanaged switch is a powerhouse in industrial network infrastructure to deliver seamless and reliable connectivity in the most demanding environments, simplify network expansion, and optimize industrial automation processes. This industrial switch ensures optimal performance with its 5 Fast Ethernet ports and provides connectivity options for a wide range of industrial devices like PLCs, HMI panels, and IP cameras. Its compact and durable design is ideal for environments where space and reliability are critical, such as the Factory Automation industry. This switch with rugged metal housing tolerates extreme temperatures (-10 to 60°C) in harsh conditions and guarantees uninterrupted network performance to ensure your operations run efficiently even under challenging conditions. It s plug-and-play functionality simplifies network deployment and allows for quick integration into existing systems. This feature is particularly beneficial for industries requiring fast, reliable, and straightforward network solutions. Boost Efficiency and Reduce Downtime The EDS-2005-EL supports 5 fast Ethernet ports. This industrial Ethernet switch prioritizes critical data traffic with Quality of Service (QoS) functionality and ensures smooth operation even during complex networks. The user-friendly DIP switches enable you to customize QoS and Broadcast Storm Protection (BSP) settings for optimal network performance. This switch, b y minimizing congestion and lag, simplifies network expansion and your industrial automation processes. Effortless Integration The EDS-2005-EL switch has been designed for effortless installation and configuration. Its compact size allows for flexible mounting options, including DIN-rail mounting for integration into existing industrial control cabinets to simplify network expansion. Its durability, ease of installation, and energy efficiency are valuable assets for ensuring reliable and efficient network connectivity. MOXA EDS-2005-EL Certifications The EDS-2005-EL switch datasheet shows all the features and approvals. These certifications are important in the areas of safety, vibration, shock, EMS, EMI, and more. It meets UL 61010-2-201 and EN 62368-1 standards to ensure safe operation in industrial environments. The switch is also tested for vibration and shock resistance under IEC 60068-2-6 and IEC 60068-2-27 . It complies with EN 55032/35 , FCC Part 15B Class A , and IEC 61000-6-2/-6-4 standards for electromagnetic compatibility (EMC) . Moreover, EMS protection includes IEC 61000-4-2 to 61000-4-8 to cover electrostatic discharge (ESD), radiated susceptibility, fast transients, surge, and conducted disturbances. MOXA EDS-2005-EL Features 5 x 10/100Mbps T(x) ports DIN-rail Metal body -10 to 60°C operating temperature You can also find the EDS-2005-EL-T model in the EDS-2005-EL Series . Discover top-notch industrial solutions, and buy MOXA EDS-2005-EL Unmanaged Ethernet Switch with confidence online through the website at a reasonable price, or connect with our sales experts by inquiring in the Middle East (UAE (Dubai, Abu Dhabi), KSA (Al Khobar, Riyadh), Kuwait, Qatar, and Oman ). Our commitment to quality and customer satisfaction remains unparalleled.",
+        "brand": "Moxa",
+        "sales_angle": "مزیت رقابتی بر اساس مشخصات فنی: این محصول دارای استانداردهای Dimensions: 18 x 81 x 65 mm (0.7 x 3.19 x 2.56 in), Installation: DIN-rail mounting, Wall mounting (with optional kit) بوده که پایداری بالایی در شبکه ایجاد می‌کند."
+    },
+    {
+        "product_id": "51",
+        "name": "MOXA EDS-2005-EL-T Unmanaged Ethernet Switch",
+        "price": "138.0000",
+        "stock": 100,
+        "image": "http://localhost/test-shop/image/cache/catalog/MOXA-EDS-2005-EL-T-Easy-World-Automation-2-600x600-800x800.jpg",
+        "attributes": {
+            "Dimensions": "18 x 81 x 65 mm (0.7 x 3.19 x 2.56 in)",
+            "Installation": "DIN-rail mounting, Wall mounting (with optional kit)",
+            "Operation Humidity": "5 to 95% (non-condensing)",
+            "Standards and Certifications": "Vibration, Shock, Freefall, Safety, EMS, EMC, EMI"
+        },
+        "full_description": "MOXA EDS-2005-EL-T Introduction The Moxa EDS-2005-EL-T unmanaged Ethernet switch is a robust and reliable networking solution for industrial environments. With a wide operating temperature range from -40°C to 75°C, it can withstand harsh conditions. This switch is ideal for industrial applications like Factory Automation and IP Surveillance , and offers uninterrupted connectivity and ensures that critical industrial operations run correctly. As part of the EDS-2005-EL series , this ind u strial unman a ged switch delivers high performance without the need for complex configurations, simplifying the deployment process. This powerhouse packs 5 copper ports, perfect for establishing dependable connections between your devices in industrial terms. It supports various industrial applications, providing a stable and secure industrial network in fra structure that enhances productivity and reduces downtime. Industrial-Grade Durability and High EMI/EMC Immunity The Moxa EDS-2005-EL-T unmanaged switch endures the challenging conditions of industrial environments. Its rugged and robust metal housing design ensures reliable operation in industrial settings, where extreme temperatures and vibrations are common. This durability guarantees long-term performance for maintaining network stability. Moreover, the EDS-2005-EL-T prioritizes reliable data transmission with high EMI/EMC capabilities. This shielding protects your network from electromagnetic interference and guarantees your critical data reaches its destination without errors. It also supports the rigorous demands of modern industrial environments, providing consistent and reliable network performance. Plug-and-Play Simplicity with DIP Switches The switch ’s plug-and-play functionality allows for quick and fast deployment and eliminates the need for extensive configuration. It ensures that your network is up with minimal effort required. This Ethernet switch offers surprising configuration flexibility through conveniently located DIP switches on the exterior panel. It allows you to enable or disable features such as Quality of Service (QoS) prioritization and broadcast storm protection without complex software or IT expertise, ensuring optimal performance for your network traffic, even during periods of high activity. MOXA EDS-2005-EL-T Certifications By choosing the EDS-2005-EL-T , you're investing in a solution that combines durability, simplicity, and high performance. Maximize your investment with the cost-effective switch by paying attention to Vibration, Free-fall, and Shock approvals. The EDS-2005-EL-T switch datasheet will inform you about all certifications and details. MOXA EDS-2005-EL-T Features 5 x 10/100Mbps T(x) ports DIN-rail Metal body -40 to 75°C operating temperature You can also find the EDS-2005-EL model in the EDS-2005-EL Series . Explore the variety of industrial automation products we have for sale at lower prices. Choose and buy MOXA EDS-2005-EL-T Unmanaged Ethernet Switch, the ideal solutions that meet your needs. Our branches in the Middle East (UAE (Dubai, Abu Dhabi), KSA (Al Khobar, Riyadh), Kuwait, Qatar, and Oman ) are strategically located to provide efficient support for all your purchasing requirements.",
+        "brand": "Moxa",
+        "sales_angle": "مزیت رقابتی بر اساس مشخصات فنی: این محصول دارای استانداردهای Dimensions: 18 x 81 x 65 mm (0.7 x 3.19 x 2.56 in), Installation: DIN-rail mounting, Wall mounting (with optional kit) بوده که پایداری بالایی در شبکه ایجاد می‌کند."
+    },
+    {
+        "product_id": "52",
+        "name": "MOXA EDS-205A Unmanaged Ethernet Switch",
+        "price": "105.0000",
+        "stock": 100,
+        "image": "http://localhost/test-shop/image/cache/catalog/MOXA-EDS-205A-Easy-World-Automation-222-min-600x600-800x800.jpg",
+        "attributes": {
+            "Dimensions": "30x115x70mm",
+            "Installation": "Din-rail",
+            "Operating Temperature": "-10 to 60 ° C",
+            "Operation Humidity": "5% to %95 RH non-condensing",
+            "Standards and Certifications": ",Safety: UL 508, Hazardous Location: UL/cUL Class 1 Division 2 Groups A/B/C/D,FCC, IP30, UL, CE, ATEX Zone 2 Ex nA nC IIC T4 Gc, EMI: FCC Part 15 Subpart B Class A, EN 55022 Class A, EMS: EN 61000-4-2 (ESD) Level 3, EN 61000-4-3 (RS) Level 3, EN 61000-4-4 (EFT) Level 3, EN 61000-4-5 (Surge) Level 3, EN 61000-4-6 (CS) Level 3, EN 61000-4-8, EN 61000-4-11 , Marine: DNV, GL, LR, ABS, NK, Traffic Control: NEMA TS2, Rail Traffic: EN 50121-4, Shock: IEC 60068-2-27, Freefall: IEC 60068-2-32, Vibration: IEC 60068-2-6",
+            "Storage Temperature": "-40 to 85 ° C"
+        },
+        "full_description": "MOXA EDS-205A Introduction The Moxa EDS-205A unmanaged Ethernet switch is a versatile and robust solution to meet the demanding needs of industrial networking. This switch is specifically designed for industrial network infrastructure to offe r reliability and efficiency. The EDS is equipped with 5 Fast Ethernet ports across connected devices for small-scale industrial networks where high-speed data transmission and real-time data communication, and monitoring are essential. Its compact design supports both DIN-rail and wall mounting, providing flexible installation options to fit various industrial environments. With a wide operating temperature range of -10 to 60°C, the EDS-205A performs reliably even in harsh conditions, ensuring continuous operation in Oil and Gas , Factory automation , Marine , Railway , Road transportation , Mine , Water and Wastewater , and IP Surveillance applications . By integrating into your industrial network, you can enhance operational efficiency, reduce maintenance costs, and ensure stable network performance. Flexible Mounting Options The EDS-205A switch offers flexible installation options for different industrial environments. Its compact design supports both DIN-rail mounting and wall mounting, and provides versatility in setup. This flexibility ensures that the switch can be easily combined with existing network infrastructures. The ease of installation and adaptability of this switch make it a preferred choice for diverse industrial applications. Reliability for Continuous Uptime The EDS-205A prioritizes uptime! Unlike many unmanaged Ethernet switches , it features redundant power inputs. This means it can accept a wide range of VDC redundant power supplies, offering exceptional resilience against power fluctuations. Even in the event of a power source failure, it can switch to the backup, guarantee uninterrupted data flow, and keep your critical operations running smoothly. MOXA EDS-205A Certifications This industrial Ethernet switch supports industry-standard IEEE 802.3 and IEEE 802.3u/x protocols to ensure compatibility with a wide range of Ethernet devices. Its rugged metal housing with an IP30 rating and hazardous conditions approval (Class I Div. 2, ATEX Zone 2) are some improvements for its resistance against vibrations, electromagnetic interference, dust, and humidity. The EDS-205A switch datasheet shows you all the details about this Ethernet device. MOXA EDS-205A Features 5 x 100Mbps T(x) ports DIN-rail Aluminum body -10 to 60°C operating temperature You can also find the EDS-205A-T and EDS-205A-M-ST-T models in the EDS-205A series . Place your order with confidence for the MOXA EDS-205A Unmanaged Ethernet Switch at a competitive price, perfect for industrial solutions , by purchasing online or inquiring through the website at our Middle East branches (UAE (Dubai, Abu Dhabi), KSA (Al Khobar, Riyadh), Kuwait, Qatar, and Oman ). Our customer-focused approach ensures a straightforward buying process.",
+        "brand": "Moxa",
+        "sales_angle": "مزیت رقابتی بر اساس مشخصات فنی: این محصول دارای استانداردهای Dimensions: 30x115x70mm, Installation: Din-rail بوده که پایداری بالایی در شبکه ایجاد می‌کند."
+    },
+    {
+        "product_id": "53",
+        "name": "MOXA EDS-205A-M-SC Unmanaged Ethernet Switch",
+        "price": "197.0000",
+        "stock": 1,
+        "image": "http://localhost/test-shop/image/cache/catalog/MOXA-EDS-205A-M-SC-Easy-World-Automation-2-600x600-800x800.jpg",
+        "attributes": {
+            "Dimensions": "30x115x70mm",
+            "Installation": "Din-rail",
+            "Operating Temperature": "-10 to 60 ° C",
+            "Operation Humidity": "5% to %95 RH non-condensing",
+            "Standards and Certifications": "CE, FCC,UL 508, UL/cUL Class 1 Div 2, ATEX Zone 2, DNV/GL, ABS/LR/NK, NEMA TS2, EN 50121-4, IP30",
+            "Storage Temperature": "-40 to 85 ° C"
+        },
+        "full_description": "MOXA EDS-205A-M-SC Introduction The Moxa EDS-205A-M-SC unmanaged Ethernet switch is a part of Moxa's extensive range of industrial network solutions, specifically engineered to meet the demands of industrial network infrastructure . This Moxa unmanaged Ethernet switch is designed to ensure operational reliability, even in harsh environments. They maintain the stringent standards required for consistent performance, with an operating temperature range of -10 to 60°C (14 to 140°F). The Moxa EDS-205A Series is well-suited for various industries, including Railway Transportation , Road Transportation , Water and Wastewater , Oil and Gas , Marine , and Factory Automation . Versatile Ethernet Interfaces The Moxa EDS-205A-M-SC features robust Ethernet interfaces designed to optimize network performance in industrial environments. It includes four 10/100BaseT(X) ports (RJ45 connectors) that support auto-negotiation speed, allowing for both full and half duplex modes, as well as an Auto MDI/MDI-X connection to simplify installation and reduce cabling errors. Additionally, this switch offers one 100BaseFX port with a multi-mode SC connector, ensuring flexible and reliable fiber optic connectivity. This combination makes the industrial Ethernet switch an excellent choice for applications requiring diverse network connections. Moxa switch solutions are known for their durability and dependability in demanding settings. Reliable Power Parameters The Moxa EDS-205A-M-SC unmanaged device is equipped with comprehensive power parameters to enhance reliability and uptime. It supports redundant dual inputs power via 1 removable 4-contact terminal block, accommodating an input voltage range of 12/24/48 VDC and an operating voltage from 9.6 to 60 VDC. With an input current of 0.1 A @ 24 VDC, the device also includes overload current protection and reverse polarity protection to safeguard against electrical anomalies. These features make the industrial unmanaged Ethernet switch a reliable component for maintaining steady power in industrial settings. Advanced Switch Properties for Optimized Network Performance The Moxa EDS-205A-M-SC Ethernet switch comes with advanced switch properties designed to enhance network performance and reliability. It supports a MAC table size of 1 K and a packet buffer size of 384 bits, utilizing store-and-forward processing for efficient data handling. Additionally, it offers a DIP switch configuration for simple setup and includes broadcast storm protection to prevent network disruptions. These features make this Moxa unmanaged switch a powerful and flexible solution for industrial network management. The EDS-205A-M-SC is particularly well-suited for environments where network reliability and simplicity are critical. For those interested in exploring more about the technical specifications and capabilities of this switch, the Moxa EDS-205A-M-SC datasheet offers detailed information. MOXA EDS-205A-M-SC Certifications The Moxa EDS-205A-M-SC unmanaged Ethernet switch meets a wide range of certifications that ensure its performance and safety in industrial applications. These certifications include Safety, EMC, EMI, EMS, Shock, Vibration, Freefall, EN 50121-4, NEMA TS2, ABS, DNV-GL, LR, and NK. Most notably, the switch is certified for Hazardous Locations: IECEx, ATEX, and Class I Division 2 . This certification is crucial for industries operating in potentially explosive environments, verifying that the switch can function safely under such conditions. This level of certification underlines Moxa’s commitment to providing Moxa industrial network infrastructure solutions that are both robust and secure, meeting the highest standards of industrial safety. MOXA EDS-205A-M-SC Features 4 x 10/100Mbps T(X) ports and 1 x 100Mbps F(x) multi-mode port with SC connector DIN-rail Aluminum body -10 to 60°C operating temperature You can also find the EDS-205A-M-ST and EDS-205A-S-SC-T models in the EDS - 205A seri es . For buyers, especially in the Middle East (UAE (Dubai, Abu Dhabi), KSA (Al Khobar, Riyadh), Kuwait, Qatar, and Oman), our branches pave the way to inquire about or purchase industrial products online at a competitive price, ensuring a smooth process for obtaining the MOXA EDS-205A-M-SC Unmanaged Ethernet Switch . Enjoy the ease of online shopping for all your industrial needs.",
+        "brand": "Moxa",
+        "sales_angle": "مزیت رقابتی بر اساس مشخصات فنی: این محصول دارای استانداردهای Dimensions: 30x115x70mm, Installation: Din-rail بوده که پایداری بالایی در شبکه ایجاد می‌کند."
+    },
+    {
+        "product_id": "54",
+        "name": "MOXA EDS-208 Unmanaged Ethernet Switch",
+        "price": "131.0000",
+        "stock": 100,
+        "image": "http://localhost/test-shop/image/cache/catalog/MOXA-EDS-208-Easy-World-Automation-2-600x600-800x800.jpg",
+        "attributes": {
+            "Dimensions": "40x100x86.5mm",
+            "Operating Temperature": "-10 to 60 ° C",
+            "Operation Humidity": "5% to %95 RH non-condensing",
+            "Standards and Certifications": "CE, IP30, Safety: UL 508, EMI: FCC Part 15 Subpart B Class A, EN 55022 Class A, EMS: EN 61000-4-2 (ESD) Level 2, EN 61000-4-3 (RS) Level 3, EN 61000-4-4 (EFT) Level 3, EN 61000-4-5 (Surge) Level 3, EN 61000-4-6 (CS) Level 3, EN 61000-4-8, EN 61000-4-11, Shock: IEC 60068-2-27, Freefall: IEC 60068-2-32, Vibration: IEC 60068-2-6",
+            "Storage Temperature": "-40 to 85 ° C"
+        },
+        "full_description": "MOXA EDS-208 Introduction The Moxa EDS-208 unmanaged Ethernet switch is a robust and versatile, and reliable solution to meet the demanding requirements of industrial networking. As a part of the EDS-208 series , it provides connectivity for various industrial applications and supports a wide operating temperature range of -10 to 60°C to ensure consistent performance in harsh environmental conditions. The switch provides high-speed and dependable data transmission with 8 unmanaged Ethernet ports for expanding network capacity in industrial settings. Its plug-and-play simplicity eliminates the need for complex configurations, allowing for quick and easy deployment. The EDS-208 is the base of industrial network infrastructure solutions for answering the specific needs of industrial automation, process control, and other mission-critical applications. This Moxa switch is an invaluable device for enhancing network reliability, durability, and efficiency in demanding industrial environments. Plug-and-Play Functionality and High-Speed Data Transfer The EDS 208 facilitates high-speed data transfer and efficient network traffic management via 8 unmanaged Ethernet ports. This makes it an excellent choice for expanding network capacity in industrial automation systems. It s plug-and-play approach ensures quick deployment and eliminates the need for complex configuration procedures. It automatically detects and negotiates data speeds and ensures communication between connected devices. This ease of use is a significant advantage for industrial operations that require immediate and reliable networking solutions. Versatile and Scalable Industrial Networking This industrial unmanaged Ethernet switch provides scalable and flexible networking solutions for a variety of industrial applications . The EDS-208 switch supports seamless integration with other Moxa Ethernet switches and devices. This versatility allows for the creation of robust and scalable network architectures that can grow with the demands of industrial processes. Whether for small-scale installations or expansive industrial networks, this EDS is dependable for ensuring network stability and efficiency. MOXA EDS-208 Certifications The EDS-208  switch datasheet shows all approvals and validations that the Moxa company obtains for this Ethernet device. It is certified to ensure high reliability in industrial environments. It withstands freefall, vibration, and shock for many rugged applications, and it can also be used in Factory Automation and IP surveillance industries. It meets CE and FCC standards, ensuring safety and minimal interference. MOXA EDS-208 Features 8 x 10/100Mbps T(x) ports DIN-rail Plastic body -10 to 60°C operating temperature You can also find the EDS-208-M-SC and EDS-208-M-ST models in the EDS-208 Series . Discover top-notch industrial solutions, and buy MOXA EDS-208 Unmanaged Ethernet Switch with confidence online through the website at a reasonable price, or connect with our sales experts by inquiring in the Middle East (UAE (Dubai, Abu Dhabi), KSA (Al Khobar, Riyadh), Kuwait, Qatar, and Oman ). Our commitment to quality and customer satisfaction remains unparalleled.",
+        "brand": "Moxa",
+        "sales_angle": "مزیت رقابتی بر اساس مشخصات فنی: این محصول دارای استانداردهای Dimensions: 40x100x86.5mm, Operating Temperature: -10 to 60 ° C بوده که پایداری بالایی در شبکه ایجاد می‌کند."
     },
     {
         "product_id": "49",
         "name": "Samsung Galaxy Tab 10.1",
         "price": "199.9900",
         "stock": 0,
-        "category": "Industrial Automation & Networking",
-        "attributes": {
-            "Interface": "مشخصات پورت یافت نشد",
-            "Protection": "استاندارد بدنه نامشخص"
-        },
-        "sales_angle": "مشاوره تخصصی بر اساس کاتالوگ: Samsung Galaxy Tab 10.1, is the world’s thinnest tablet, measuring 8.6 mm thickness, running with Android 3.0 Honeycomb OS on a 1GHz dual-core Tegra 2...",
-        "alternatives": [],
+        "image": "http://localhost/test-shop/image/cache/catalog/demo/samsung_tab_1-800x800.jpg",
+        "attributes": {},
         "full_description": "Samsung Galaxy Tab 10.1, is the world’s thinnest tablet, measuring 8.6 mm thickness, running with Android 3.0 Honeycomb OS on a 1GHz dual-core Tegra 2 processor, similar to its younger brother Samsung Galaxy Tab 8.9. Samsung Galaxy Tab 10.1 gives pure Android 3.0 experience, adding its new TouchWiz UX or TouchWiz 4.0 – includes a live panel, which lets you to customize with different content, such as your pictures, bookmarks, and social feeds, sporting a 10.1 inches WXGA capacitive touch screen with 1280 x 800 pixels of resolution, equipped with 3 megapixel rear camera with LED flash and a 2 megapixel front camera, HSPA+ connectivity up to 21Mbps, 720p HD video recording capability, 1080p HD playback, DLNA support, Bluetooth 2.1, USB 2.0, gyroscope, Wi-Fi 802.11 a/b/g/n, micro-SD slot, 3.5mm headphone jack, and SIM slot, including the Samsung Stick – a Bluetooth microphone that can be carried in a pocket like a pen and sound dock with powered subwoofer. Samsung Galaxy Tab 10.1 will come in 16GB / 32GB / 64GB verities and pre-loaded with Social Hub, Reader’s Hub, Music Hub and Samsung Mini Apps Tray – which gives you access to more commonly used apps to help ease multitasking and it is capable of Adobe Flash Player 10.2, powered by 6860mAh battery that gives you 10hours of video-playback time. äö",
-        "meta_keywords": "",
-        "technical_tags": []
-    },
-    {
-        "product_id": "50",
-        "name": "Test Moxa Switch",
-        "price": "5.0000",
-        "stock": 1,
-        "category": "Industrial Automation & Networking",
-        "attributes": {
-            "Interface": "مشخصات پورت یافت نشد",
-            "Protection": "استاندارد بدنه نامشخص"
-        },
-        "sales_angle": "مشاوره تخصصی بر اساس کاتالوگ: MOXA EDS-2005-EL Introduction The EDS-2005-EL series offers a cost-effective solution for your industrial network with robust connectivity features. T...",
-        "alternatives": [],
-        "full_description": "MOXA EDS-2005-EL Introduction The EDS-2005-EL series offers a cost-effective solution for your industrial network with robust connectivity features. The Moxa EDS-2005-EL unmanaged switch is a powerhouse in industrial network infrastructure to deliver seamless and reliable connectivity in the most demanding environments, simplify network expansion, and optimize industrial automation processes. This industrial switch ensures optimal performance with its 5 Fast Ethernet ports and provides connectivity options for a wide range of industrial devices like PLCs, HMI panels, and IP cameras. Its compact and durable design is ideal for environments where space and reliability are critical, such as the Factory Automation industry. This switch with rugged metal housing tolerates extreme temperatures (-10 to 60°C) in harsh conditions and guarantees uninterrupted network performance to ensure your operations run efficiently even under challenging conditions. It s plug-and-play functionality simplifies network deployment and allows for quick integration into existing systems. This feature is particularly beneficial for industries requiring fast, reliable, and straightforward network solutions. Boost Efficiency and Reduce Downtime The EDS-2005-EL supports 5 fast Ethernet ports. This industrial Ethernet switch prioritizes critical data traffic with Quality of Service (QoS) functionality and ensures smooth operation even during complex networks. The user-friendly DIP switches enable you to customize QoS and Broadcast Storm Protection (BSP) settings for optimal network performance. This switch, b y minimizing congestion and lag, simplifies network expansion and your industrial automation processes. Effortless Integration The EDS-2005-EL switch has been designed for effortless installation and configuration. Its compact size allows for flexible mounting options, including DIN-rail mounting for integration into existing industrial control cabinets to simplify network expansion. Its durability, ease of installation, and energy efficiency are valuable assets for ensuring reliable and efficient network connectivity. MOXA EDS-2005-EL Certifications The EDS-2005-EL switch datasheet shows all the features and approvals. These certifications are important in the areas of safety, vibration, shock, EMS, EMI, and more. It meets UL 61010-2-201 and EN 62368-1 standards to ensure safe operation in industrial environments. The switch is also tested for vibration and shock resistance under IEC 60068-2-6 and IEC 60068-2-27 . It complies with EN 55032/35 , FCC Part 15B Class A , and IEC 61000-6-2/-6-4 standards for electromagnetic compatibility (EMC) . Moreover, EMS protection includes IEC 61000-4-2 to 61000-4-8 to cover electrostatic discharge (ESD), radiated susceptibility, fast transients, surge, and conducted disturbances. MOXA EDS-2005-EL Features 5 x 10/100Mbps T(x) ports DIN-rail Metal body -10 to 60°C operating temperature You can also find the EDS-2005-EL-T model in the EDS-2005-EL Series . Discover top-notch industrial solutions, and buy MOXA EDS-2005-EL Unmanaged Ethernet Switch with confidence online through the website at a reasonable price, or connect with our sales experts by inquiring in the Middle East (UAE (Dubai, Abu Dhabi), KSA (Al Khobar, Riyadh), Kuwait, Qatar, and Oman ). Our commitment to quality and customer satisfaction remains unparalleled.",
-        "meta_keywords": "Industrial Network Infrastructure, Industrial Ethernet Switch, Moxa Unmanaged Ethernet Switch, Moxa EDS-2005-EL Series, Moxa Switch, Moxa EDS-2005-EL Unmanaged Ethernet Switch, EDS-2005-EL Price, EDS-2005-EL Datasheet, EDS-2005-EL Specification",
-        "technical_tags": []
+        "brand": "Moxa"
     }
 ]
