@@ -1,12 +1,17 @@
 import json
+from io import BytesIO
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest.mock import Mock, patch
+from zipfile import ZipFile
 
+from django.contrib.admin.helpers import ACTION_CHECKBOX_NAME
+from django.contrib.auth import get_user_model
 from django.test import TestCase, override_settings
+from django.urls import reverse
 
 from . import services
-from .models import OpenCartConnectionStatus
+from .models import ChatMessage, Conversation, OpenCartConnectionStatus
 
 
 class ChatApiTests(TestCase):
@@ -174,3 +179,59 @@ class ChatApiTests(TestCase):
         self.assertEqual(status.catalog_items, 12)
         self.assertEqual(status.source, "http://shop.test/index.php?route=catalog")
         get.assert_called_once()
+
+
+class ConversationAdminExportTests(TestCase):
+    def setUp(self):
+        user = get_user_model().objects.create_superuser(
+            username="admin",
+            email="admin@example.com",
+            password="password",
+        )
+        self.client.force_login(user)
+
+    def test_admin_exports_selected_conversations_to_xlsx(self):
+        conversation = Conversation.objects.create(session_key="session-1")
+        ChatMessage.objects.create(
+            conversation=conversation,
+            role=ChatMessage.ROLE_USER,
+            content="Need a phone",
+        )
+        ChatMessage.objects.create(
+            conversation=conversation,
+            role=ChatMessage.ROLE_ASSISTANT,
+            content="Here is a good option.",
+        )
+
+        other_conversation = Conversation.objects.create(session_key="session-2")
+        ChatMessage.objects.create(
+            conversation=other_conversation,
+            role=ChatMessage.ROLE_USER,
+            content="Do not export me",
+        )
+
+        response = self.client.post(
+            reverse("admin:assistant_app_conversation_changelist"),
+            {
+                "action": "export_conversations_to_excel",
+                ACTION_CHECKBOX_NAME: [str(conversation.pk)],
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response["Content-Type"],
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+        self.assertIn("conversations-", response["Content-Disposition"])
+        self.assertIn(".xlsx", response["Content-Disposition"])
+
+        with ZipFile(BytesIO(response.content)) as workbook:
+            sheet_xml = workbook.read("xl/worksheets/sheet1.xml").decode("utf-8")
+
+        self.assertIn(str(conversation.public_id), sheet_xml)
+        self.assertIn("session-1", sheet_xml)
+        self.assertIn("Need a phone", sheet_xml)
+        self.assertIn("Here is a good option.", sheet_xml)
+        self.assertNotIn("session-2", sheet_xml)
+        self.assertNotIn("Do not export me", sheet_xml)

@@ -1,7 +1,10 @@
 from django.contrib import admin, messages
+from django.http import HttpResponse
 from django.shortcuts import redirect
+from django.utils import timezone
 from django.utils.html import format_html
 
+from .exporters import build_conversations_xlsx
 from .models import ChatMessage, Conversation, OpenCartConnectionStatus
 from .services import check_opencart_connection, get_or_create_opencart_status
 
@@ -79,6 +82,22 @@ class ConversationAdmin(admin.ModelAdmin):
     list_display = ("public_id", "session_key", "created_at", "updated_at")
     search_fields = ("public_id", "session_key")
     readonly_fields = ("public_id", "created_at", "updated_at")
+    actions = ("export_conversations_to_excel",)
+
+    @admin.action(description="Export selected conversations to Excel")
+    def export_conversations_to_excel(self, request, queryset):
+        content = build_conversations_xlsx(queryset)
+        timestamp = timezone.localtime(timezone.now()).strftime("%Y%m%d-%H%M%S")
+        response = HttpResponse(
+            content,
+            content_type=(
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            ),
+        )
+        response["Content-Disposition"] = (
+            f'attachment; filename="conversations-{timestamp}.xlsx"'
+        )
+        return response
 
 
 @admin.register(ChatMessage)
