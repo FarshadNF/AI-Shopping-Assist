@@ -1,8 +1,15 @@
+from django.conf import settings
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 
-from .services import ask_ai, extract_cart_action, get_or_create_conversation, load_catalog
-from .serializers import ChatRequestSerializer
+from .services import (
+    ask_ai,
+    extract_cart_action,
+    get_or_create_conversation,
+    load_catalog,
+    replace_catalog,
+)
+from .serializers import CatalogImportSerializer, ChatRequestSerializer
 
 
 @api_view(["GET"])
@@ -12,6 +19,7 @@ def api_index(request):
             "status": "ok",
             "endpoints": {
                 "chat": "/api/chat/",
+                "catalog_import": "/api/catalog/import/",
                 "health": "/api/health/",
             },
         }
@@ -62,3 +70,35 @@ def chat_api(request):
 @api_view(["GET"])
 def health_check(request):
     return Response({"status": "ok", "catalog_items": len(load_catalog())})
+
+
+@api_view(["POST"])
+def import_catalog(request):
+    expected_token = settings.AI_ASSISTANT_SYNC_TOKEN
+    if expected_token:
+        received_token = request.headers.get("X-AI-Assistant-Token", "")
+        if received_token != expected_token:
+            return Response(
+                {"status": "error", "reply": "Invalid catalog sync token."},
+                status=403,
+            )
+
+    serializer = CatalogImportSerializer(data=request.data)
+    if not serializer.is_valid():
+        return Response(
+            {
+                "status": "error",
+                "reply": "Invalid catalog payload.",
+                "errors": serializer.errors,
+            },
+            status=400,
+        )
+
+    products = replace_catalog(serializer.validated_data["products"])
+    return Response(
+        {
+            "status": "success",
+            "catalog_items": len(products),
+            "source": serializer.validated_data.get("source", ""),
+        }
+    )

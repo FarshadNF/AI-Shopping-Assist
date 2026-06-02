@@ -2,6 +2,7 @@ import html
 import json
 import re
 from functools import lru_cache
+from numbers import Number
 
 import requests
 from django.conf import settings
@@ -19,6 +20,119 @@ def load_catalog():
             return json.load(catalog_file)
     except FileNotFoundError:
         return []
+
+def _first_present(source, *keys, default=None):
+    if not isinstance(source, dict):
+        return default
+
+    for key in keys:
+        value = source.get(key)
+        if value not in (None, ""):
+            return value
+    return default
+
+def _clean_text(value, default=""):
+    if value is None:
+        return default
+    return html.unescape(str(value)).strip()
+
+def _to_int(value, default=0):
+    try:
+        if isinstance(value, Number):
+            return int(value)
+        return int(float(str(value).replace(",", "").strip()))
+    except (TypeError, ValueError):
+        return default
+
+def _normalize_attributes(raw_attributes):
+    if isinstance(raw_attributes, dict):
+        return {
+            _clean_text(key): _clean_text(value)
+            for key, value in raw_attributes.items()
+            if _clean_text(key) and _clean_text(value)
+        }
+
+    normalized = {}
+    if isinstance(raw_attributes, list):
+        for entry in raw_attributes:
+            if not isinstance(entry, dict):
+                continue
+
+            nested_attributes = _first_present(
+                entry,
+                "attribute",
+                "attributes",
+                "items",
+                default=None,
+            )
+            if isinstance(nested_attributes, list):
+                normalized.update(_normalize_attributes(nested_attributes))
+                continue
+
+            name = _clean_text(
+                _first_present(entry, "name", "title", "attribute_name")
+            )
+            value = _clean_text(
+                _first_present(entry, "text", "value", "attribute_value")
+            )
+            if name and value:
+                normalized[name] = value
+
+    return normalized
+
+def normalize_catalog_product(item):
+    name = _clean_text(_first_present(item, "name", "product_name", "title"))
+    product_id = _clean_text(
+        _first_present(item, "product_id", "id", "productId")
+    )
+    stock = _to_int(_first_present(item, "stock", "quantity", "qty", default=0))
+    category = _clean_text(
+        _first_present(item, "category", "category_name", "manufacturer"),
+        default="Industrial Automation & Networking",
+    )
+    attributes = _normalize_attributes(
+        _first_present(item, "attributes", "attribute_groups", "specifications")
+    )
+
+    if not attributes:
+        attributes = {
+            "Interface": "مشخصات پورت یافت نشد",
+            "Protection": "استاندارد بدنه نامشخص",
+        }
+
+    sales_angle = _clean_text(_first_present(item, "sales_angle", "description"))
+    if not sales_angle:
+        sales_angle = (
+            f"تجهیزات باکیفیت مدل {name}. گزینه‌ای مناسب برای انتخاب دقیق‌تر "
+            "بر اساس موجودی و مشخصات فروشگاه."
+        )
+
+    return {
+        "product_id": product_id,
+        "name": name,
+        "price": _clean_text(_first_present(item, "price", "special", default="0")),
+        "stock": stock,
+        "category": category,
+        "attributes": attributes,
+        "sales_angle": sales_angle,
+        "alternatives": item.get("alternatives", []) if isinstance(item, dict) else [],
+    }
+
+def replace_catalog(raw_products):
+    products = [
+        normalize_catalog_product(item)
+        for item in raw_products
+        if isinstance(item, dict)
+        and _clean_text(_first_present(item, "name", "product_name", "title"))
+    ]
+
+    catalog_path = settings.BASE_DIR / "products_catalog.json"
+    temp_path = catalog_path.with_suffix(".json.tmp")
+    with temp_path.open("w", encoding="utf-8") as catalog_file:
+        json.dump(products, catalog_file, ensure_ascii=False, indent=4)
+    temp_path.replace(catalog_path)
+    load_catalog.cache_clear()
+    return products
 
 def build_system_instruction():
     catalog = load_catalog()

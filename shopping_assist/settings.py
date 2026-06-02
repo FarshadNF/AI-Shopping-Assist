@@ -13,6 +13,13 @@ ALLOWED_HOSTS = [
     if host.strip()
 ]
 
+def csv_env(name, default=""):
+    return [
+        item.strip()
+        for item in os.getenv(name, default).split(",")
+        if item.strip()
+    ]
+
 INSTALLED_APPS = [
     "django.contrib.admin",
     "django.contrib.auth",
@@ -26,6 +33,7 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
+    "assistant_app.middleware.SimpleCorsMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
@@ -99,3 +107,15 @@ OLLAMA_CHAT_URL = os.getenv("OLLAMA_CHAT_URL", "http://localhost:11434/api/chat"
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "qwen2.5:7b")
 OLLAMA_TIMEOUT = float(os.getenv("OLLAMA_TIMEOUT", "60"))
 CHAT_MEMORY_LIMIT = int(os.getenv("CHAT_MEMORY_LIMIT", "20"))
+AI_ASSISTANT_CORS_ALLOW_ALL = os.getenv(
+    "AI_ASSISTANT_CORS_ALLOW_ALL",
+    "1" if DEBUG else "0",
+).lower() in {"1", "true", "yes", "on"}
+AI_ASSISTANT_ALLOWED_ORIGINS = csv_env(
+    "AI_ASSISTANT_ALLOWED_ORIGINS",
+    "http://localhost,http://127.0.0.1",
+)
+AI_ASSISTANT_SYNC_TOKEN = os.getenv("AI_ASSISTANT_SYNC_TOKEN", "")
+AI_ASSISTANT_MAX_CATALOG_ITEMS = int(
+    os.getenv("AI_ASSISTANT_MAX_CATALOG_ITEMS", "5000")
+)

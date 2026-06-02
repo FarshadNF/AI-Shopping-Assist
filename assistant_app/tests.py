@@ -1,7 +1,11 @@
 import json
+from pathlib import Path
+from tempfile import TemporaryDirectory
 from unittest.mock import Mock, patch
 
-from django.test import TestCase
+from django.test import TestCase, override_settings
+
+from . import services
 
 
 class ChatApiTests(TestCase):
@@ -96,3 +100,47 @@ class ChatApiTests(TestCase):
         self.assertEqual(second_messages[1]["content"], "first question")
         self.assertEqual(second_messages[2]["content"], "first reply")
         self.assertEqual(second_messages[3]["content"], "second question")
+
+    def test_catalog_import_replaces_catalog(self):
+        with TemporaryDirectory() as temp_dir:
+            services.load_catalog.cache_clear()
+            with override_settings(
+                BASE_DIR=Path(temp_dir),
+                AI_ASSISTANT_SYNC_TOKEN="",
+            ):
+                response = self.client.post(
+                    "/api/catalog/import/",
+                    data=json.dumps(
+                        {
+                            "source": "test",
+                            "products": [
+                                {
+                                    "product_id": 123,
+                                    "name": "Test Switch",
+                                    "price": "10.0000",
+                                    "quantity": 7,
+                                    "attributes": {"Ports": "8"},
+                                }
+                            ],
+                        }
+                    ),
+                    content_type="application/json",
+                )
+
+                self.assertEqual(response.status_code, 200)
+                self.assertEqual(response.json()["catalog_items"], 1)
+                imported_catalog = services.load_catalog()
+                self.assertEqual(imported_catalog[0]["product_id"], "123")
+                self.assertEqual(imported_catalog[0]["stock"], 7)
+                self.assertEqual(imported_catalog[0]["attributes"]["Ports"], "8")
+            services.load_catalog.cache_clear()
+
+    @override_settings(AI_ASSISTANT_SYNC_TOKEN="secret")
+    def test_catalog_import_checks_token_when_configured(self):
+        response = self.client.post(
+            "/api/catalog/import/",
+            data=json.dumps({"products": [{"name": "Blocked"}]}),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 403)
