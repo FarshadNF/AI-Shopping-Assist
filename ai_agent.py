@@ -1,5 +1,7 @@
 import ollama
 import json
+import os
+from pathlib import Path
 
 # ==========================================
 # ۱. بارگذاری کاتالوگ (فقط در لپ‌تاپ شما)
@@ -55,10 +57,50 @@ def execute_site_action(ai_response):
         except:
             pass
 
+def load_local_env():
+    env_path = Path(".env")
+    if not env_path.exists():
+        return
+
+    for raw_line in env_path.read_text(encoding="utf-8").splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        os.environ.setdefault(key.strip(), value.strip().strip('"').strip("'"))
+
+def setup_persistent_memory():
+    load_local_env()
+    memory_database_url = os.getenv("CHAT_MEMORY_DATABASE_URL")
+    if memory_database_url and not os.getenv("DATABASE_URL"):
+        os.environ["DATABASE_URL"] = memory_database_url
+
+    try:
+        os.environ.setdefault("DJANGO_SETTINGS_MODULE", "shopping_assist.settings")
+        import django
+
+        django.setup()
+        from assistant_app.services import (
+            get_memory_messages,
+            get_or_create_conversation,
+            save_chat_turn,
+        )
+
+        session_key = os.getenv("CHAT_MEMORY_SESSION_KEY", "ai-agent-cli")
+        conversation = get_or_create_conversation(session_key=session_key)
+        print("🧠 حافظه دائمی دیتابیس فعال شد.")
+        return conversation, get_memory_messages, save_chat_turn
+    except Exception as exc:
+        print(f"⚠️ حافظه دیتابیس فعال نشد؛ حافظه موقت استفاده می‌شود: {exc}")
+        return None, None, None
+
 # متغیر برای نگهداری حافظه مکالمات (Chat History)
+memory_conversation, load_memory_messages, save_memory_turn = setup_persistent_memory()
 chat_history = [
     {'role': 'system', 'content': system_instruction}
 ]
+if memory_conversation and load_memory_messages:
+    chat_history.extend(load_memory_messages(memory_conversation))
 
 if __name__ == "__main__":
     print(f"=== سیستم دستیار هوشمند (متصل به موتور پردازشی {COLLEAGUE_IP}) روشن شد ===")
@@ -82,6 +124,8 @@ if __name__ == "__main__":
             
             ai_reply = response['message']['content']
             chat_history.append({'role': 'assistant', 'content': ai_reply})
+            if memory_conversation and save_memory_turn:
+                save_memory_turn(memory_conversation, user_voice, ai_reply)
             
             text_to_speech(ai_reply)
             execute_site_action(ai_reply)

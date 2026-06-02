@@ -5,6 +5,9 @@ from functools import lru_cache
 
 import requests
 from django.conf import settings
+from django.utils import timezone
+
+from .models import ChatMessage, Conversation
 
 ACTION_RE = re.compile(r"\[ACTION:\s*ADD_TO_CART:\s*(?P<name>[^\]]+)\]", re.IGNORECASE)
 
@@ -41,11 +44,60 @@ def build_system_instruction():
 [ACTION: ADD_TO_CART: Product_Name]
 """.strip()
 
-def ask_ai(message):
+def get_or_create_conversation(conversation_id=None, session_key=None):
+    if conversation_id:
+        conversation, _ = Conversation.objects.get_or_create(public_id=conversation_id)
+        return conversation
+
+    if session_key:
+        conversation, _ = Conversation.objects.get_or_create(session_key=session_key)
+        return conversation
+
+    return Conversation.objects.create()
+
+def get_memory_messages(conversation):
+    if conversation is None:
+        return []
+
+    limit = max(settings.CHAT_MEMORY_LIMIT, 0)
+    if limit == 0:
+        return []
+
+    messages = list(
+        conversation.messages.order_by("-created_at", "-id")[:limit]
+    )
+    messages.reverse()
+    return [
+        {"role": message.role, "content": message.content}
+        for message in messages
+    ]
+
+def save_chat_turn(conversation, user_message, assistant_reply):
+    if conversation is None:
+        return
+
+    ChatMessage.objects.bulk_create(
+        [
+            ChatMessage(
+                conversation=conversation,
+                role=ChatMessage.ROLE_USER,
+                content=user_message,
+            ),
+            ChatMessage(
+                conversation=conversation,
+                role=ChatMessage.ROLE_ASSISTANT,
+                content=assistant_reply,
+            ),
+        ]
+    )
+    Conversation.objects.filter(pk=conversation.pk).update(updated_at=timezone.now())
+
+def ask_ai(message, conversation=None):
     payload = {
         "model": settings.OLLAMA_MODEL,
         "messages": [
             {"role": "system", "content": build_system_instruction()},
+            *get_memory_messages(conversation),
             {"role": "user", "content": message},
         ],
         "stream": False,
@@ -61,6 +113,7 @@ def ask_ai(message):
     reply = data.get("message", {}).get("content")
     if not isinstance(reply, str):
         raise ValueError("Unexpected response from Ollama.")
+    save_chat_turn(conversation, message, reply)
     return reply
 
 def extract_cart_action(reply):

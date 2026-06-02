@@ -2,18 +2,19 @@ services:
   api:
     build: .
     environment:
+      DATABASE_URL: "postgresql://${POSTGRES_USER:-shopping_assist}:${POSTGRES_PASSWORD:-shopping_assist}@db:5432/${POSTGRES_DB:-shopping_assist}"
       DJANGO_ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS:-localhost,127.0.0.1,api}
       DJANGO_DEBUG: ${DJANGO_DEBUG:-0}
       DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:-change-me-before-production}
+      CHAT_MEMORY_LIMIT: ${CHAT_MEMORY_LIMIT:-20}
       OLLAMA_CHAT_URL: http://ollama:11434/api/chat
       OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen2.5:7b}
       OLLAMA_TIMEOUT: ${OLLAMA_TIMEOUT:-180}
-      SQLITE_PATH: /app/data/db.sqlite3
     ports:
       - "${APP_PORT:-8000}:8000"
-    volumes:
-      - app_data:/app/data
     depends_on:
+      db:
+        condition: service_healthy
       ollama:
         condition: service_healthy
       ollama-pull:
@@ -25,6 +26,24 @@ services:
       timeout: 10s
       retries: 3
       start_period: 20s
+
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-shopping_assist}
+      POSTGRES_USER: ${POSTGRES_USER:-shopping_assist}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-shopping_assist}
+    ports:
+      - "${POSTGRES_HOST_PORT:-5433}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-shopping_assist} -d ${POSTGRES_DB:-shopping_assist}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
 
   ollama:
     image: ollama/ollama:latest
@@ -55,5 +74,5 @@ services:
     restart: "no"
 
 volumes:
-  app_data:
+  postgres_data:
   ollama_data:

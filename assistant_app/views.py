@@ -1,7 +1,7 @@
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 
-from .services import ask_ai, extract_cart_action, load_catalog
+from .services import ask_ai, extract_cart_action, get_or_create_conversation, load_catalog
 from .serializers import ChatRequestSerializer
 
 
@@ -32,11 +32,26 @@ def chat_api(request):
         )
 
     try:
-        reply = ask_ai(serializer.validated_data["message"])
+        conversation_id = serializer.validated_data.get("conversation_id")
+        session_key = None
+        if not conversation_id:
+            if not request.session.session_key:
+                request.session.create()
+            session_key = request.session.session_key
+
+        conversation = get_or_create_conversation(
+            conversation_id=conversation_id,
+            session_key=session_key,
+        )
+        reply = ask_ai(serializer.validated_data["message"], conversation=conversation)
     except Exception as exc:
         return Response({"status": "error", "reply": str(exc)}, status=502)
 
-    response_data = {"status": "success", "reply": reply}
+    response_data = {
+        "status": "success",
+        "reply": reply,
+        "conversation_id": str(conversation.public_id),
+    }
     action = extract_cart_action(reply)
     if action:
         response_data["action"] = action
