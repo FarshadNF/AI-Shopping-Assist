@@ -1,0 +1,36 @@
+{
+  "system_architecture": {
+    "project_name": "OpenCart AI Sales Consultant",
+    "environment": "Development (Localhost)",
+    "api_endpoints": {
+      "opencart_catalog": "http://localhost/test-shop/index.php?route=extension/opencart/checkout/ai_assistant.getCatalog",
+      "ollama_chat_url": "http://127.0.0.1:11434/api/chat"
+    }
+  },
+  "ai_model_config": {
+    "model_name": "[نام مدل دقیق را اینجا وارد کن، مثلا llama3:8b]",
+    "context_window": 4096,
+    "temperature": 0.2,
+    "system_role": "Senior Sales Consultant and Data Auditor"
+  },
+  "business_logic": {
+    "shipping": {
+      "tehran": "24 hours",
+      "other_cities": "2-4 working days"
+    },
+    "stock_rules": {
+      "out_of_stock_behavior": "Suggest alternatives immediately",
+      "bulk_order_threshold": "Quantity > available stock -> Forward to commercial unit"
+    }
+  },
+  "category_matrix": {
+    "industrial_equipment": {
+      "target_keywords": ["moxa", "switch", "industrial", "modbus", "router"],
+      "tone": "Engineering, focused on stability and technical specs"
+    },
+    "consumer_electronics": {
+      "target_keywords": ["laptop", "monitor", "gaming", "digital"],
+      "tone": "UX-driven, focused on value for money and daily usage"
+    }
+  }
+}
