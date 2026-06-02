@@ -3,12 +3,13 @@ import json
 import re
 from functools import lru_cache
 from numbers import Number
+from urllib.parse import urljoin
 
 import requests
 from django.conf import settings
 from django.utils import timezone
 
-from .models import ChatMessage, Conversation
+from .models import ChatMessage, Conversation, OpenCartConnectionStatus
 
 ACTION_RE = re.compile(r"\[ACTION:\s*ADD_TO_CART:\s*(?P<name>[^\]]+)\]", re.IGNORECASE)
 
@@ -20,6 +21,109 @@ def load_catalog():
             return json.load(catalog_file)
     except FileNotFoundError:
         return []
+
+def get_or_create_opencart_status():
+    status, _ = OpenCartConnectionStatus.objects.get_or_create(
+        name="opencart",
+        defaults={
+            "status": OpenCartConnectionStatus.STATUS_WAITING,
+            "message": "Waiting for the first OpenCart catalog sync.",
+        },
+    )
+    return status
+
+def get_opencart_catalog_url():
+    catalog_url = settings.OPENCART_CATALOG_URL.strip()
+    if catalog_url:
+        return catalog_url
+
+    base_url = settings.OPENCART_BASE_URL.strip()
+    if not base_url:
+        return ""
+
+    return urljoin(base_url.rstrip("/") + "/", settings.OPENCART_CATALOG_ROUTE)
+
+def _extract_catalog_rows(payload):
+    if isinstance(payload, list):
+        return payload
+    if not isinstance(payload, dict):
+        return []
+    if isinstance(payload.get("data"), list):
+        return payload["data"]
+    if isinstance(payload.get("products"), list):
+        return payload["products"]
+    data = payload.get("data")
+    if isinstance(data, dict) and isinstance(data.get("products"), list):
+        return data["products"]
+    return []
+
+def _extract_catalog_total(payload, rows):
+    if not isinstance(payload, dict):
+        return len(rows)
+
+    total = _first_present(payload, "total", default=None)
+    if total is None and isinstance(payload.get("pagination"), dict):
+        total = _first_present(payload["pagination"], "total", default=None)
+    return _to_int(total, default=len(rows))
+
+def record_opencart_catalog_sync(source, catalog_items):
+    now = timezone.now()
+    status = get_or_create_opencart_status()
+    status.status = OpenCartConnectionStatus.STATUS_CONNECTED
+    status.source = source or status.source
+    status.catalog_items = catalog_items
+    status.message = "Catalog sync completed from OpenCart footer widget."
+    status.last_sync_at = now
+    status.last_checked_at = now
+    status.save()
+    return status
+
+def check_opencart_connection():
+    status = get_or_create_opencart_status()
+    catalog_url = get_opencart_catalog_url()
+    now = timezone.now()
+
+    if not catalog_url:
+        if status.last_sync_at:
+            status.status = OpenCartConnectionStatus.STATUS_CONNECTED
+            status.message = (
+                "No live OpenCart URL is configured. The latest footer catalog "
+                "sync was successful."
+            )
+        else:
+            status.status = OpenCartConnectionStatus.STATUS_WAITING
+            status.message = (
+                "Set OPENCART_BASE_URL or OPENCART_CATALOG_URL to enable live "
+                "OpenCart checks. Footer sync status is still tracked."
+            )
+        status.last_checked_at = now
+        status.save()
+        return status
+
+    try:
+        response = requests.get(
+            catalog_url,
+            params={"page": 1, "limit": 1},
+            timeout=settings.OPENCART_TIMEOUT,
+        )
+        response.raise_for_status()
+        payload = response.json()
+        if isinstance(payload, dict) and payload.get("success") is False:
+            raise ValueError(payload.get("error") or "OpenCart catalog API failed.")
+
+        rows = _extract_catalog_rows(payload)
+        status.status = OpenCartConnectionStatus.STATUS_CONNECTED
+        status.source = catalog_url
+        status.catalog_items = _extract_catalog_total(payload, rows)
+        status.message = "Live OpenCart catalog check succeeded."
+    except Exception as exc:
+        status.status = OpenCartConnectionStatus.STATUS_DISCONNECTED
+        status.source = catalog_url
+        status.message = str(exc)
+
+    status.last_checked_at = now
+    status.save()
+    return status
 
 def _first_present(source, *keys, default=None):
     if not isinstance(source, dict):

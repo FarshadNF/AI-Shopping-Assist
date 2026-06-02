@@ -7,6 +7,7 @@ from .services import (
     extract_cart_action,
     get_or_create_conversation,
     load_catalog,
+    record_opencart_catalog_sync,
     replace_catalog,
 )
 from .serializers import CatalogImportSerializer, ChatRequestSerializer
@@ -95,6 +96,10 @@ def import_catalog(request):
         )
 
     products = replace_catalog(serializer.validated_data["products"])
+    record_opencart_catalog_sync(
+        serializer.validated_data.get("source", ""),
+        len(products),
+    )
     return Response(
         {
             "status": "success",

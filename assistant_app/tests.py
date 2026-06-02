@@ -6,6 +6,7 @@ from unittest.mock import Mock, patch
 from django.test import TestCase, override_settings
 
 from . import services
+from .models import OpenCartConnectionStatus
 
 
 class ChatApiTests(TestCase):
@@ -133,6 +134,13 @@ class ChatApiTests(TestCase):
                 self.assertEqual(imported_catalog[0]["product_id"], "123")
                 self.assertEqual(imported_catalog[0]["stock"], 7)
                 self.assertEqual(imported_catalog[0]["attributes"]["Ports"], "8")
+                sync_status = OpenCartConnectionStatus.objects.get(name="opencart")
+                self.assertEqual(
+                    sync_status.status,
+                    OpenCartConnectionStatus.STATUS_CONNECTED,
+                )
+                self.assertEqual(sync_status.source, "test")
+                self.assertEqual(sync_status.catalog_items, 1)
             services.load_catalog.cache_clear()
 
     @override_settings(AI_ASSISTANT_SYNC_TOKEN="secret")
@@ -144,3 +152,25 @@ class ChatApiTests(TestCase):
         )
 
         self.assertEqual(response.status_code, 403)
+
+    @override_settings(
+        OPENCART_CATALOG_URL="http://shop.test/index.php?route=catalog",
+        OPENCART_TIMEOUT=1,
+    )
+    @patch("assistant_app.services.requests.get")
+    def test_opencart_live_check_records_connected_status(self, get):
+        opencart_response = Mock()
+        opencart_response.raise_for_status.return_value = None
+        opencart_response.json.return_value = {
+            "success": True,
+            "total": 12,
+            "data": [{"product_id": "1", "name": "Switch"}],
+        }
+        get.return_value = opencart_response
+
+        status = services.check_opencart_connection()
+
+        self.assertEqual(status.status, OpenCartConnectionStatus.STATUS_CONNECTED)
+        self.assertEqual(status.catalog_items, 12)
+        self.assertEqual(status.source, "http://shop.test/index.php?route=catalog")
+        get.assert_called_once()

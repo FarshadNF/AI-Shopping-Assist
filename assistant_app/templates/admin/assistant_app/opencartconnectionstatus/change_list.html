@@ -1,0 +1,40 @@
+{% extends "admin/change_list.html" %}
+
+{% block content %}
+  {% if opencart_status %}
+    <div class="module" style="padding: 16px; margin-bottom: 16px;">
+      <h2 style="margin: 0 0 12px;">OpenCart connection</h2>
+      <p style="margin: 0 0 12px;">
+        <strong>Status:</strong>
+        {% if opencart_status.status == "connected" %}
+          <span style="color: #047857; font-weight: 700;">Connected</span>
+        {% elif opencart_status.status == "disconnected" %}
+          <span style="color: #b91c1c; font-weight: 700;">Disconnected</span>
+        {% else %}
+          <span style="color: #b45309; font-weight: 700;">Waiting</span>
+        {% endif %}
+      </p>
+      <p style="margin: 0 0 8px;">
+        <strong>Source:</strong>
+        {{ opencart_status.source|default:"Not configured yet" }}
+      </p>
+      <p style="margin: 0 0 8px;">
+        <strong>Catalog items:</strong>
+        {{ opencart_status.catalog_items }}
+      </p>
+      <p style="margin: 0 0 8px;">
+        <strong>Last footer sync:</strong>
+        {{ opencart_status.last_sync_at|default:"Never" }}
+      </p>
+      <p style="margin: 0 0 12px;">
+        <strong>Last live check:</strong>
+        {{ opencart_status.last_checked_at|default:"Never" }}
+      </p>
+      {% if opencart_status.message %}
+        <p style="margin: 0 0 14px;">{{ opencart_status.message }}</p>
+      {% endif %}
+      <a class="button" href="?check=1">Check OpenCart now</a>
+    </div>
+  {% endif %}
+  {{ block.super }}
+{% endblock %}

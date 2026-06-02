@@ -42,3 +42,35 @@ class ChatMessage(models.Model):
 
     def __str__(self):
         return f"{self.role}: {self.content[:60]}"
+
+
+class OpenCartConnectionStatus(models.Model):
+    STATUS_CONNECTED = "connected"
+    STATUS_WAITING = "waiting"
+    STATUS_DISCONNECTED = "disconnected"
+
+    STATUS_CHOICES = [
+        (STATUS_CONNECTED, "Connected"),
+        (STATUS_WAITING, "Waiting"),
+        (STATUS_DISCONNECTED, "Disconnected"),
+    ]
+
+    name = models.CharField(max_length=80, unique=True, default="opencart")
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default=STATUS_WAITING,
+    )
+    source = models.CharField(max_length=255, blank=True)
+    message = models.TextField(blank=True)
+    catalog_items = models.PositiveIntegerField(default=0)
+    last_sync_at = models.DateTimeField(blank=True, null=True)
+    last_checked_at = models.DateTimeField(blank=True, null=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "OpenCart connection"
+        verbose_name_plural = "OpenCart connection"
+
+    def __str__(self):
+        return "OpenCart connection"

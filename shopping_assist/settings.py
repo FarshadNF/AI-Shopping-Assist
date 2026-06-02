@@ -33,6 +33,7 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
+    "whitenoise.middleware.WhiteNoiseMiddleware",
     "assistant_app.middleware.SimpleCorsMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
@@ -91,6 +92,7 @@ USE_I18N = True
 USE_TZ = True
 
 STATIC_URL = "static/"
+STATIC_ROOT = BASE_DIR / "staticfiles"
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 REST_FRAMEWORK = {
@@ -119,3 +121,10 @@ AI_ASSISTANT_SYNC_TOKEN = os.getenv("AI_ASSISTANT_SYNC_TOKEN", "")
 AI_ASSISTANT_MAX_CATALOG_ITEMS = int(
     os.getenv("AI_ASSISTANT_MAX_CATALOG_ITEMS", "5000")
 )
+OPENCART_BASE_URL = os.getenv("OPENCART_BASE_URL", "")
+OPENCART_CATALOG_ROUTE = os.getenv(
+    "OPENCART_CATALOG_ROUTE",
+    "index.php?route=extension/opencart/checkout/ai_assistant.getCatalog",
+)
+OPENCART_CATALOG_URL = os.getenv("OPENCART_CATALOG_URL", "")
+OPENCART_TIMEOUT = float(os.getenv("OPENCART_TIMEOUT", "15"))
