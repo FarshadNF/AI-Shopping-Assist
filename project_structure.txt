@@ -1,0 +1,55 @@
+Nova Project Structure:
+.
+├── assistant_app [96.61KB]
+│   ├── __init__.py (2.00B)
+│   ├── admin.py (4.14KB)
+│   ├── apps.py (163.00B)
+│   ├── exporters.py (11.59KB)
+│   ├── middleware.py (1.27KB)
+│   ├── migrations [4.06KB]
+│   │   ├── 0001_initial.py (2.12KB)
+│   │   ├── 0002_opencartconnectionstatus.py (1.93KB)
+│   │   └── __init__.py (2.00B)
+│   ├── models.py (2.22KB)
+│   ├── serializers.py (853.00B)
+│   ├── services.py (15.90KB)
+│   ├── static [16.30KB]
+│   │   └── assistant_app [16.30KB]
+│   │       ├── css [2.90KB]
+│   │       │   └── ai-widget.css (2.90KB)
+│   │       └── js [13.41KB]
+│   │           └── ai-widget.js (13.41KB)
+│   ├── templates [1.51KB]
+│   │   └── admin [1.51KB]
+│   │       └── assistant_app [1.51KB]
+│   │           └── opencartconnectionstatus [1.51KB]
+│   │               └── change_list.html (1.51KB)
+│   ├── tests.py (9.19KB)
+│   ├── urls.py (482.00B)
+│   ├── utils [16.96KB]
+│   │   ├── ai_agent.py (6.36KB)
+│   │   ├── core_api.py (256.00B)
+│   │   ├── deep_crawler.py (6.55KB)
+│   │   ├── fetch_catalog.py (3.38KB)
+│   │   └── test_connection.py (438.00B)
+│   └── views.py (3.18KB)
+├── db.sqlite3 (128.00KB)
+├── docker-compose.gpu.yml (187.00B)
+├── docker-compose.ollama-host.yml (78.00B)
+├── docker-compose.yml (2.97KB)
+├── docker-entrypoint.sh (191.00B)
+├── Dockerfile (591.00B)
+├── generate_structure.py (2.04KB)
+├── legacy [15.12KB]
+│   └── opencart_footer_widget.html (15.12KB)
+├── manage.py (297.00B)
+├── OPENCART_FOOTER_INSTALL.md (2.19KB)
+├── project_structure.txt (0.00B)
+├── README.md (3.91KB)
+├── requirements.txt (982.00B)
+└── shopping_assist [8.53KB]
+    ├── __init__.py (2.00B)
+    ├── asgi.py (185.00B)
+    ├── settings.py (4.11KB)
+    ├── urls.py (181.00B)
+    └── wsgi.py (185.00B)
