@@ -11,14 +11,7 @@ from django.utils import timezone
 
 from .models import ChatMessage, Conversation, OpenCartConnectionStatus
 
-ACTION_RE = re.compile(r"\[ACTION:\s*ADD_TO_CART:\s*(?P<name>[^|\]]+)(?:\s*\|\s*QTY:\s*(?P<qty>\d+))?\]", re.IGNORECASE)
-NOTIFICATION_RE = re.compile(r"\[NOTIFICATION:\s*DATA_ERROR:\s*(?P<details>[^\]]+)\]", re.IGNORECASE)
-
-BUSINESS_POLICIES = {
-    "shipping_info": "ارسال برای تهران ظرف ۲۴ ساعت کاری (پیک/تیپاکس) و برای شهرستان‌ها ۲ تا ۴ روز کاری (پست پیشتاز/باربری) انجام می‌شود.",
-    "bulk_orders": "برای سفارش‌های عمده، سازمانی یا تعداد بالاتر از موجودی کاتالوگ، مشتری تایید فنی می‌شود و برای صدور پیش‌فاکتور رسمی به واحد بازرگانی ارجاع داده می‌شود.",
-    "working_hours": "ساعات کاری مجموعه شنبه تا چهارشنبه از ۹:۰۰ تا ۱۷:۰۰ و پنجشنبه‌ها از ۹:۰۰ تا ۱۳:۰۰ است."
-}
+ACTION_RE = re.compile(r"\[ACTION:\s*ADD_TO_CART:\s*(?P<name>[^\]]+)\]", re.IGNORECASE)
 
 @lru_cache(maxsize=1)
 def load_catalog():
@@ -29,6 +22,7 @@ def load_catalog():
     except (FileNotFoundError, json.JSONDecodeError):
         return []
 
+<<<<<<< HEAD
 def get_or_create_opencart_status():
     status, _ = OpenCartConnectionStatus.objects.get_or_create(
         name="opencart",
@@ -38,6 +32,7 @@ def get_or_create_opencart_status():
         },
     )
     return status
+
 
 def get_opencart_catalog_url():
     catalog_url = settings.OPENCART_CATALOG_URL.strip()
@@ -49,6 +44,7 @@ def get_opencart_catalog_url():
         return ""
 
     return urljoin(base_url.rstrip("/") + "/", settings.OPENCART_CATALOG_ROUTE)
+
 
 def _extract_catalog_rows(payload):
     if isinstance(payload, list):
@@ -64,6 +60,7 @@ def _extract_catalog_rows(payload):
         return data["products"]
     return []
 
+
 def _extract_catalog_total(payload, rows):
     if not isinstance(payload, dict):
         return len(rows)
@@ -72,6 +69,7 @@ def _extract_catalog_total(payload, rows):
     if total is None and isinstance(payload.get("pagination"), dict):
         total = _first_present(payload["pagination"], "total", default=None)
     return _to_int(total, default=len(rows))
+
 
 def record_opencart_catalog_sync(source, catalog_items):
     now = timezone.now()
@@ -84,6 +82,7 @@ def record_opencart_catalog_sync(source, catalog_items):
     status.last_checked_at = now
     status.save()
     return status
+
 
 def check_opencart_connection():
     status = get_or_create_opencart_status()
@@ -126,6 +125,7 @@ def check_opencart_connection():
     status.save()
     return status
 
+
 def _first_present(source, *keys, default=None):
     if not isinstance(source, dict):
         return default
@@ -136,10 +136,12 @@ def _first_present(source, *keys, default=None):
             return value
     return default
 
+
 def _clean_text(value, default=""):
     if value is None:
         return default
     return html.unescape(str(value)).strip()
+
 
 def _to_int(value, default=0):
     try:
@@ -148,6 +150,7 @@ def _to_int(value, default=0):
         return int(float(str(value).replace(",", "").strip()))
     except (TypeError, ValueError):
         return default
+
 
 def _normalize_attributes(raw_attributes):
     if isinstance(raw_attributes, dict):
@@ -174,6 +177,7 @@ def _normalize_attributes(raw_attributes):
                 normalized[name] = value
 
     return normalized
+
 
 def normalize_catalog_product(item):
     name = _clean_text(_first_present(item, "name", "product_name", "title"))
@@ -206,52 +210,60 @@ def normalize_catalog_product(item):
         "alternatives": item.get("alternatives", []) if isinstance(item, dict) else [],
     }
 
-def get_relevant_catalog(user_message):
-    full_catalog = load_catalog()
-    if not full_catalog:
-        return []
-        
-    if len(user_message) < 10:
-        return full_catalog[:8]
-    
-    search_words = [w.lower() for w in user_message.split() if len(w) > 2]
-    if not search_words:
-        return full_catalog[:8]
+def replace_catalog(raw_products):
+    products = [
+        normalize_catalog_product(item)
+        for item in raw_products
+        if isinstance(item, dict)
+        and _clean_text(_first_present(item, "name", "product_name", "title"))
+    ]
 
-    relevant = []
-    for p in full_catalog:
-        search_zone = f"{p.get('name', '')} {p.get('brand', '')} {p.get('full_description', '')}".lower()
-        if any(word in search_zone for word in search_words):
-            relevant.append(p)
-            
-    return relevant if relevant else full_catalog[:8]
+    catalog_path = settings.BASE_DIR / "products_catalog.json"
+    temp_path = catalog_path.with_suffix(".json.tmp")
+    with temp_path.open("w", encoding="utf-8") as catalog_file:
+        json.dump(products, catalog_file, ensure_ascii=False, indent=4)
+    temp_path.replace(catalog_path)
+    load_catalog.cache_clear()
+    return products
+
+def build_system_instruction():
+    catalog = load_catalog()
+    catalog_string = (
+        json.dumps(catalog, ensure_ascii=False, indent=2)
+        if catalog
+        else "کاتالوگ محصولی پیدا نشد."
+    )
+=======
+def get_relevant_catalog(user_message):
+    """
+    ارتقای قدرت ذهنی: به جای ارسال کل کاتالوگ، محصولات مرتبط را بر اساس کلمات کلیدی پیام کاربر فیلتر می‌کند.
+    این کار باعث افزایش دقت هوش مصنوعی و کاهش شلوغی ذهن مدل می‌شود.
+    """
+    full_catalog = load_catalog()
+    # اگر پیام کوتاه بود یا بار اول بود، 10 محصول برتر را بفرست
+    if len(user_message) < 10:
+        return full_catalog[:10]
+    
+    # فیلتر ساده بر اساس نام یا برند (قابل ارتقا به جستجوی معنایی در آینده)
+    relevant = [
+        p for p in full_catalog 
+        if any(word.lower() in p['name'].lower() or word.lower() in p.get('full_description', '').lower() 
+               for word in user_message.split())
+    ]
+    
+    return relevant if relevant else full_catalog[:10]
 
 def build_system_instruction(user_message):
+    # دریافت محصولات مرتبط به جای کل دیتابیس
     relevant_products = get_relevant_catalog(user_message)
-    
-    light_catalog = []
-    for p in relevant_products:
-        light_catalog.append({
-            "product_id": p.get("product_id"),
-            "name": p.get("name"),
-            "price": p.get("price"),
-            "stock": p.get("stock", 0),
-            "brand": p.get("brand"),
-            "attributes": p.get("attributes"),
-            "short_desc": p.get("full_description", "")[:350].strip() if p.get("full_description") else ""
-        })
-        
-    catalog_string = json.dumps(light_catalog, ensure_ascii=False, indent=2) if light_catalog else "کاتالوگ محصولی پیدا نشد."
+    catalog_string = json.dumps(relevant_products, ensure_ascii=False, indent=2)
+>>>>>>> b45963b4903fac5fdda67c2067794ae9f9bbbd95
 
     return f"""
-تو یک مشاور فروش ارشد، هوشمند و ممیز منصف اطلاعات فروشگاه هستی. وظیفه تو راهنمایی متنی دقیق، روان و بدون خطای کاربران است.
+تو یک مشاور فروش ارشد و متخصص "حل مسئله" در حوزه اتوماسیون صنعتی هستی. 
+هدف تو صرفاً فروختن نیست؛ هدف تو درک چالش فنی مشتری و ارائه بهترین راهکار از برند Moxa است.
 
-اطلاعات کلیدی رویه‌های کاری فروشگاه (لوجستیک و فروش):
-- زمان و نحوه ارسال سفارشات: {BUSINESS_POLICIES['shipping_info']}
-- سفارش‌های عمده و سازمانی: {BUSINESS_POLICIES['bulk_orders']}
-- ساعات پاسخگویی رسمی: {BUSINESS_POLICIES['working_hours']}
-
-کاتالوگ محصولات در دسترس تو (شامل موجودی `stock` و قیمت):
+کاتالوگ محصولات مرتبط با نیاز فعلی کاربر:
 {catalog_string}
 
 پروتکل عملکرد هوشمند (Strict Rules):
@@ -263,6 +275,7 @@ def build_system_instruction(user_message):
 ۵. گاردریل متنی: پاسخ‌ها کاملاً به زبان فارسی، شسته روفته و بدون زیاده‌گویی باشد.
 """.strip()
 
+<<<<<<< HEAD
 def get_or_create_conversation(conversation_id=None, session_key=None):
     if conversation_id:
         conversation, _ = Conversation.objects.get_or_create(public_id=conversation_id)
@@ -273,6 +286,7 @@ def get_or_create_conversation(conversation_id=None, session_key=None):
         return conversation
 
     return Conversation.objects.create()
+
 
 def get_memory_messages(conversation):
     if conversation is None:
@@ -286,6 +300,7 @@ def get_memory_messages(conversation):
     messages.reverse()
     return [{"role": message.role, "content": message.content} for message in messages]
 
+
 def save_chat_turn(conversation, user_message, assistant_reply):
     if conversation is None:
         return
@@ -296,23 +311,37 @@ def save_chat_turn(conversation, user_message, assistant_reply):
     ])
     Conversation.objects.filter(pk=conversation.pk).update(updated_at=timezone.now())
 
-def ask_ai(message, conversation=None):
+
+def ask_ai(message, conversation=None, history=None):
+    memory_messages = history if history is not None else get_memory_messages(conversation)
     payload = {
         "model": settings.OLLAMA_MODEL,
         "messages": [
-            {"role": "system", "content": build_system_instruction(message)},
+            {"role": "system", "content": build_system_instruction()},
             *get_memory_messages(conversation),
             {"role": "user", "content": message},
         ],
         "stream": False,
         "options": {
-            "temperature": 0.2,
-            "num_ctx": 4096,
-            "top_p": 0.9,
-            "stop": ["User:", "System:"]
+            "temperature": 0.3, # کاهش دما برای افزایش دقت فنی و جلوگیری از خیالبافی
+            "num_ctx": 4096     # افزایش پهنای ذهن برای خواندن دیتای بیشتر
         }
     }
 
+<<<<<<< HEAD
+    response = requests.post(
+        settings.OLLAMA_CHAT_URL,
+        json=payload,
+        timeout=settings.OLLAMA_TIMEOUT,
+    )
+    response.raise_for_status()
+    data = response.json()
+    reply = data.get("message", {}).get("content")
+    if not isinstance(reply, str):
+        raise ValueError("Unexpected response from Ollama.")
+    save_chat_turn(conversation, message, reply)
+    return reply
+=======
     try:
         response = requests.post(
             settings.OLLAMA_CHAT_URL,
@@ -321,14 +350,10 @@ def ask_ai(message, conversation=None):
         )
         response.raise_for_status()
         data = response.json()
-        reply = data.get("message", {}).get("content", "")
-        if not isinstance(reply, str):
-            raise ValueError("Unexpected response from Ollama.")
-        
-        save_chat_turn(conversation, message, reply)
-        return reply
+        return data.get("message", {}).get("content", "")
     except Exception as e:
         return f"خطا در ارتباط با مغز متفکر: {str(e)}"
+>>>>>>> b45963b4903fac5fdda67c2067794ae9f9bbbd95
 
 def extract_cart_action(reply):
     match = ACTION_RE.search(reply or "")
@@ -336,17 +361,32 @@ def extract_cart_action(reply):
         return None
 
     requested_name = html.unescape(match.group("name").strip())
-    requested_qty = int(match.group("qty")) if match.group("qty") else 1
     
+    # جستجوی دقیق در کاتالوگ برای استخراج متادیتا
     for product in load_catalog():
         product_name = html.unescape(str(product.get("name", ""))).strip()
         if product_name.casefold() == requested_name.casefold():
+            # تغییر quantity به stock برای هماهنگی با فایل JSON جدید
+            result.update(
+                {
+                    "product_id": product.get("product_id"),
+                    "price": product.get("price"),
+                    "stock": product.get("stock", product.get("quantity", 0)), 
+                }
+            )
+            break
+
+    return result
+=======
+        if product.get("name", "").strip().lower() == requested_name.lower():
             return {
-                "product_name": product_name,
+                "product_name": product.get("name"),
                 "product_id": product.get("product_id"),
                 "price": product.get("price"),
-                "stock": product.get("stock", product.get("quantity", 0)),
-                "requested_qty": requested_qty
+                "stock": product.get("stock", 0),
+                "image": product.get("image") # اضافه شدن عکس به اکشن برای نمایش در سبد خرید
             }
+    return {"product_name": requested_name, "error": "Product metadata not found"}
+>>>>>>> b45963b4903fac5fdda67c2067794ae9f9bbbd95
 
     return None
