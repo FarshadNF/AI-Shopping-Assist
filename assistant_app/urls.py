@@ -7,5 +7,7 @@ urlpatterns = [
     path("", views.api_index, name="api-index"),
     path("api/chat", views.chat_api, name="chat-api-no-slash"),
     path("api/chat/", views.chat_api, name="chat-api"),
+    path("api/catalog/import", views.import_catalog, name="catalog-import-no-slash"),
+    path("api/catalog/import/", views.import_catalog, name="catalog-import"),
     path("api/health/", views.health_check, name="health-check"),
 ]

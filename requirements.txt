@@ -28,6 +28,7 @@ ollama==0.6.2
 packaging==26.0
 proto-plus==1.28.0
 protobuf==5.29.6
+psycopg[binary]>=3.2,<4
 pyasn1==0.6.3
 pyasn1_modules==0.4.2
 pycparser==3.0
@@ -45,3 +46,4 @@ tzdata==2025.3
 uritemplate==4.2.0
 urllib3==2.7.0
 websockets==16.0
+whitenoise>=6.9,<7
