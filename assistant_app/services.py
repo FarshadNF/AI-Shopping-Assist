@@ -235,14 +235,24 @@ def replace_catalog(raw_products):
     load_catalog.cache_clear()
     return products
 
-def get_or_create_conversation(conversation_id=None, session_key=None):
+def get_or_create_conversation(conversation_id=None, session_key=None, api_key=None):
     if conversation_id:
-        conversation, _ = Conversation.objects.get_or_create(public_id=conversation_id)
+        conversation, created = Conversation.objects.get_or_create(public_id=conversation_id)
+        # Update the api_key if one was provided and it differs
+        if api_key and conversation.api_key != api_key:
+             conversation.api_key = api_key
+             conversation.save(update_fields=['api_key'])
         return conversation
     if session_key:
-        conversation, _ = Conversation.objects.get_or_create(session_key=session_key)
+        conversation, created = Conversation.objects.get_or_create(session_key=session_key)
+        # Update the api_key if one was provided and it differs
+        if api_key and conversation.api_key != api_key:
+             conversation.api_key = api_key
+             conversation.save(update_fields=['api_key'])
         return conversation
-    return Conversation.objects.create()
+    
+    # If neither conversation_id nor session_key is provided
+    return Conversation.objects.create(api_key=api_key)
 
 def get_relevant_catalog(user_message, top_k=5):
     full_catalog = load_catalog()
@@ -318,25 +328,25 @@ async def ask_ai_async(message, conversation=None):
     memory = await get_memory_messages_async(conversation)
     system_instruction = await build_system_instruction_async(message)
     
-    # تزریق ابزارها به مغز سیستم
     tools = [ADD_TO_CART_TOOL]
     
-    # خروجی حالا یک AgentOutput چندبعدی است
+    # استخراج api_key در صورت وجود در آبجکت conversation
+    user_api_key = conversation.api_key if conversation else None
+    
     agent_output = await ai_agent.ask_async(
         system_instruction=system_instruction, 
         chat_history=memory, 
         user_message=message,
-        tools=tools
+        tools=tools,
+        api_key=user_api_key # ارسال api_key اختصاصی کاربر
     )
     
     reply_text = agent_output.text or "در حال پردازش سفارش شما..."
     await save_chat_turn_async(conversation, message, reply_text)
     
-    # کل آبجکت را برمی‌گردانیم تا هم متن و هم دستورات ابزار در دسترس باشند
     return agent_output
 
 async def extract_cart_action_async(agent_output):
-    # سیستم جدید: جستجو برای Tool Call بومی
     if hasattr(agent_output, 'function_calls') and agent_output.function_calls:
         for call in agent_output.function_calls:
             if call.name == "add_to_cart":
@@ -363,7 +373,6 @@ async def extract_cart_action_async(agent_output):
                 }
     return None
 
-# توابع همگام (Sync) برای پشتیبانی موقت (Backward Compatibility)
 def get_memory_messages(conversation):
     if conversation is None:
         return []
@@ -384,8 +393,15 @@ def save_chat_turn(conversation, user_message, assistant_reply):
 def ask_ai(message, conversation=None):
     memory = get_memory_messages(conversation)
     system_instruction = build_system_instruction(message)
+    
+    user_api_key = conversation.api_key if conversation else None
+    
     agent_output = async_to_sync(ai_agent.ask_async)(
-        system_instruction, memory, message, tools=[ADD_TO_CART_TOOL]
+        system_instruction, 
+        memory, 
+        message, 
+        tools=[ADD_TO_CART_TOOL],
+        api_key=user_api_key
     )
     reply_text = agent_output.text or "در حال پردازش..."
     save_chat_turn(conversation, message, reply_text)
