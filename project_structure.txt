@@ -1,6 +1,6 @@
 Nova Project Structure:
 .
-├── assistant_app [96.61KB]
+├── assistant_app [92.90KB]
 │   ├── __init__.py (2.00B)
 │   ├── admin.py (4.14KB)
 │   ├── apps.py (163.00B)
@@ -12,7 +12,7 @@ Nova Project Structure:
 │   │   └── __init__.py (2.00B)
 │   ├── models.py (2.22KB)
 │   ├── serializers.py (853.00B)
-│   ├── services.py (15.90KB)
+│   ├── services.py (10.91KB)
 │   ├── static [16.30KB]
 │   │   └── assistant_app [16.30KB]
 │   │       ├── css [2.90KB]
@@ -32,12 +32,12 @@ Nova Project Structure:
 │   │   ├── deep_crawler.py (6.55KB)
 │   │   ├── fetch_catalog.py (3.38KB)
 │   │   └── test_connection.py (438.00B)
-│   └── views.py (3.18KB)
+│   └── views.py (4.45KB)
 ├── db.sqlite3 (128.00KB)
 ├── docker-compose.gpu.yml (187.00B)
 ├── docker-compose.ollama-host.yml (78.00B)
 ├── docker-compose.yml (2.97KB)
-├── docker-entrypoint.sh (191.00B)
+├── docker-entrypoint.sh (517.00B)
 ├── Dockerfile (591.00B)
 ├── generate_structure.py (2.04KB)
 ├── legacy [15.12KB]
@@ -46,7 +46,7 @@ Nova Project Structure:
 ├── OPENCART_FOOTER_INSTALL.md (2.19KB)
 ├── project_structure.txt (0.00B)
 ├── README.md (3.91KB)
-├── requirements.txt (982.00B)
+├── requirements.txt (2.14KB)
 └── shopping_assist [8.53KB]
     ├── __init__.py (2.00B)
     ├── asgi.py (185.00B)
