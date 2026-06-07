@@ -55,14 +55,17 @@ async def chat_api(request):
 
     try:
         conversation_id = serializer.validated_data.get("conversation_id")
+        api_key = serializer.validated_data.get("api_key")  # دریافت کلید از فرانت‌اند
         session_key = None
         
         if not conversation_id:
             session_key = await handle_session(request)
 
+        # ارسال api_key به تابع دیتابیس برای ذخیره یا آپدیت
         conversation = await get_or_create_conversation_async(
             conversation_id=conversation_id,
             session_key=session_key,
+            api_key=api_key,
         )
         
         # اینجا خروجی ما دیگر یک استرینگ ساده نیست، بلکه یک آبجکت چندبعدی است
