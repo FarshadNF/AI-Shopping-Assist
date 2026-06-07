@@ -47,9 +47,9 @@ if __name__ == "__main__":
     print(f"Generating structure to {output_filename}...")
     
     with open(output_filename, "w", encoding="utf-8") as f:
-        f.write("Nova Project Structure:\n")
+        f.write("Ai Project Structure:\n")
         f.write(".\n")
-        print("Nova Project Structure:")
+        print("Ai Project Structure:")
         print(".")
         print_tree(".", output_file=f)
         

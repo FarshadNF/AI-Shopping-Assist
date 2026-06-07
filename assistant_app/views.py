@@ -1,11 +1,10 @@
 from django.conf import settings
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
-from asgiref.sync import sync_to_async
 
 from .services import (
-    ask_ai_async,               
-    extract_cart_action_async,  # اصلاح مهم: ایمپورت تابع ناهمگام جدید
+    ask_ai,
+    extract_cart_action,
     get_or_create_conversation,
     load_catalog,
     record_opencart_catalog_sync,
@@ -29,65 +28,40 @@ def api_index(request):
 
 
 @api_view(["POST"])
-async def chat_api(request):
-    """
-    ارتقای معماری: این ویو حالا کاملاً Async است. 
-    در زمان پردازش طولانی هوش مصنوعی، سرور جنگو آزاد می‌ماند تا به بقیه کاربران پاسخ دهد.
-    """
-    
-    # ۱. پردازش اعتبارسنجی (عملیات Sync که در ویوی Async باید پوشش داده شود)
-    @sync_to_async
-    def validate_request():
-        serializer = ChatRequestSerializer(data=request.data)
-        if not serializer.is_valid():
-            return False, serializer.errors, None
-        return True, None, serializer.validated_data
-
-    is_valid, errors, validated_data = await validate_request()
-    
-    if not is_valid:
+def chat_api(request):
+    serializer = ChatRequestSerializer(data=request.data)
+    if not serializer.is_valid():
         return Response(
             {
                 "status": "error",
-                "reply": "فیلد message الزامی است.",
-                "errors": errors,
+                "reply": "\u0641\u06cc\u0644\u062f message \u0627\u0644\u0632\u0627\u0645\u06cc \u0627\u0633\u062a.",
+                "errors": serializer.errors,
             },
             status=400,
         )
 
-    # ۲. مدیریت نشست و دیتابیس (عملیات Sync با پایگاه داده)
-    @sync_to_async
-    def get_conversation_context():
-        conversation_id = validated_data.get("conversation_id")
+    try:
+        conversation_id = serializer.validated_data.get("conversation_id")
         session_key = None
         if not conversation_id:
             if not request.session.session_key:
                 request.session.create()
             session_key = request.session.session_key
 
-        return get_or_create_conversation(
+        conversation = get_or_create_conversation(
             conversation_id=conversation_id,
             session_key=session_key,
         )
-
-    try:
-        conversation = await get_conversation_context()
-        
-        # ۳. فراخوانی هسته هوش مصنوعی به صورت غیرمسدودکننده (Async)
-        reply = await ask_ai_async(validated_data["message"], conversation=conversation)
-        
+        reply = ask_ai(serializer.validated_data["message"], conversation=conversation)
     except Exception as exc:
         return Response({"status": "error", "reply": str(exc)}, status=502)
 
-    # ۴. ساختاردهی پاسخ نهایی
     response_data = {
         "status": "success",
         "reply": reply,
         "conversation_id": str(conversation.public_id),
     }
-    
-    # اصلاح حیاتی: استفاده از await برای اجرای صحیح پارسر ناهمگام سبد خرید
-    action = await extract_cart_action_async(reply)
+    action = extract_cart_action(reply)
     if action:
         response_data["action"] = action
 

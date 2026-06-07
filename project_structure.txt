@@ -1,4 +1,4 @@
-Nova Project Structure:
+Ai Project Structure:
 .
 ├── assistant_app [96.61KB]
 │   ├── __init__.py (2.00B)
