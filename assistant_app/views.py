@@ -1,10 +1,11 @@
 from django.conf import settings
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
+from asgiref.sync import sync_to_async
 
 from .services import (
-    ask_ai,
-    extract_cart_action,
+    ask_ai_async,
+    extract_cart_action_async,
     get_or_create_conversation,
     load_catalog,
     record_opencart_catalog_sync,
@@ -27,14 +28,26 @@ def api_index(request):
     )
 
 
+get_or_create_conversation_async = sync_to_async(get_or_create_conversation)
+
+
+@sync_to_async
+def handle_session(request):
+    if not request.session.session_key:
+        request.session.create()
+    return request.session.session_key
+
+
 @api_view(["POST"])
-def chat_api(request):
+async def chat_api(request):
     serializer = ChatRequestSerializer(data=request.data)
-    if not serializer.is_valid():
+    is_valid = await sync_to_async(serializer.is_valid)()
+    
+    if not is_valid:
         return Response(
             {
                 "status": "error",
-                "reply": "\u0641\u06cc\u0644\u062f message \u0627\u0644\u0632\u0627\u0645\u06cc \u0627\u0633\u062a.",
+                "reply": "فیلد message الزامی است.",
                 "errors": serializer.errors,
             },
             status=400,
@@ -43,25 +56,35 @@ def chat_api(request):
     try:
         conversation_id = serializer.validated_data.get("conversation_id")
         session_key = None
+        
         if not conversation_id:
-            if not request.session.session_key:
-                request.session.create()
-            session_key = request.session.session_key
+            session_key = await handle_session(request)
 
-        conversation = get_or_create_conversation(
+        conversation = await get_or_create_conversation_async(
             conversation_id=conversation_id,
             session_key=session_key,
         )
-        reply = ask_ai(serializer.validated_data["message"], conversation=conversation)
+        
+        # اینجا خروجی ما دیگر یک استرینگ ساده نیست، بلکه یک آبجکت چندبعدی است
+        agent_output = await ask_ai_async(
+            serializer.validated_data["message"], 
+            conversation=conversation
+        )
+        
     except Exception as exc:
         return Response({"status": "error", "reply": str(exc)}, status=502)
 
+    # اگر هوش مصنوعی متنی تولید نکرده باشد (فقط ابزار را صدا زده باشد)، یک پیام جایگزین نشان می‌دهیم
+    reply_text = agent_output.text if agent_output.text else "در حال پردازش درخواست شما..."
+
     response_data = {
         "status": "success",
-        "reply": reply,
+        "reply": reply_text,
         "conversation_id": str(conversation.public_id),
     }
-    action = extract_cart_action(reply)
+    
+    # کل آبجکت را به تابع استخراج می‌دهیم تا بتواند function_calls را بررسی کند
+    action = await extract_cart_action_async(agent_output)
     if action:
         response_data["action"] = action
 
@@ -100,6 +123,7 @@ def import_catalog(request):
         serializer.validated_data.get("source", ""),
         len(products),
     )
+    
     return Response(
         {
             "status": "success",

@@ -6,6 +6,7 @@ from django.db import models
 class Conversation(models.Model):
     public_id = models.UUIDField(default=uuid.uuid4, editable=False, unique=True)
     session_key = models.CharField(max_length=80, blank=True, null=True, unique=True)
+    api_key = models.CharField(max_length=255, null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
