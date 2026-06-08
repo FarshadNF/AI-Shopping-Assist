@@ -3,12 +3,9 @@ __pycache__/
 
 .venv/
 venv/
-env/
 
 db.sqlite3
 *.sqlite3
 
 django_server*.log
 staticfiles/
-
-.env
