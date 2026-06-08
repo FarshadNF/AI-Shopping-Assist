@@ -4,11 +4,11 @@
     "environment": "Development (Localhost)",
     "api_endpoints": {
       "opencart_catalog": "http://localhost/test-shop/index.php?route=extension/opencart/checkout/ai_assistant.getCatalog",
-      "ollama_chat_url": "http://127.0.0.1:11434/api/chat"
+      "gemini_api": "Google Gemini API"
     }
   },
   "ai_model_config": {
-    "model_name": "[نام مدل دقیق را اینجا وارد کن، مثلا llama3:8b]",
+    "model_name": "gemini-2.5-flash",
     "context_window": 4096,
     "temperature": 0.2,
     "system_role": "Senior Sales Consultant and Data Auditor"

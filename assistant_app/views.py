@@ -1,11 +1,10 @@
 from django.conf import settings
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
-from asgiref.sync import sync_to_async
 
 from .services import (
-    ask_ai_async,
-    extract_cart_action_async,
+    ask_ai,
+    extract_cart_action,
     get_or_create_conversation,
     load_catalog,
     record_opencart_catalog_sync,
@@ -28,22 +27,17 @@ def api_index(request):
     )
 
 
-get_or_create_conversation_async = sync_to_async(get_or_create_conversation)
-
-
-@sync_to_async
-def handle_session(request):
+def get_session_key(request):
     if not request.session.session_key:
         request.session.create()
     return request.session.session_key
 
 
 @api_view(["POST"])
-async def chat_api(request):
+def chat_api(request):
     serializer = ChatRequestSerializer(data=request.data)
-    is_valid = await sync_to_async(serializer.is_valid)()
     
-    if not is_valid:
+    if not serializer.is_valid():
         return Response(
             {
                 "status": "error",
@@ -59,17 +53,17 @@ async def chat_api(request):
         session_key = None
         
         if not conversation_id:
-            session_key = await handle_session(request)
+            session_key = get_session_key(request)
 
         # ارسال api_key به تابع دیتابیس برای ذخیره یا آپدیت
-        conversation = await get_or_create_conversation_async(
+        conversation = get_or_create_conversation(
             conversation_id=conversation_id,
             session_key=session_key,
             api_key=api_key,
         )
         
         # اینجا خروجی ما دیگر یک استرینگ ساده نیست، بلکه یک آبجکت چندبعدی است
-        agent_output = await ask_ai_async(
+        agent_output = ask_ai(
             serializer.validated_data["message"], 
             conversation=conversation
         )
@@ -87,7 +81,7 @@ async def chat_api(request):
     }
     
     # کل آبجکت را به تابع استخراج می‌دهیم تا بتواند function_calls را بررسی کند
-    action = await extract_cart_action_async(agent_output)
+    action = extract_cart_action(agent_output)
     if action:
         response_data["action"] = action
 

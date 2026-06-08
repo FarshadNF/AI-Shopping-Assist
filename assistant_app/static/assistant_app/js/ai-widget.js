@@ -125,7 +125,12 @@ class AIShoppingAssistant {
         this.setStatus('در حال پاسخ');
 
         try {
-            await this.syncCatalogIfNeeded(false);
+            try {
+                await this.syncCatalogIfNeeded(false);
+            } catch (syncError) {
+                console.warn('AI catalog sync skipped before chat:', syncError);
+                this.setStatus('در حال پاسخ');
+            }
 
             const body = { message: message };
             const conversationId = localStorage.getItem(this.keys.conversationId);

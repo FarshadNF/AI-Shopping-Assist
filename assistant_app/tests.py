@@ -1,10 +1,12 @@
 import json
 from io import BytesIO
 from pathlib import Path
+from types import SimpleNamespace
 from tempfile import TemporaryDirectory
-from unittest.mock import Mock, patch
+from unittest.mock import AsyncMock, Mock, patch
 from zipfile import ZipFile
 
+from asgiref.sync import async_to_sync
 from django.contrib.admin.helpers import ACTION_CHECKBOX_NAME
 from django.contrib.auth import get_user_model
 from django.test import TestCase, override_settings
@@ -12,6 +14,7 @@ from django.urls import reverse
 
 from . import services
 from .models import ChatMessage, Conversation, OpenCartConnectionStatus
+from .utils.ai_agent import AgentOutput, AIAgent
 
 
 class ChatApiTests(TestCase):
@@ -40,18 +43,21 @@ class ChatApiTests(TestCase):
         self.assertEqual(response.status_code, 400)
         self.assertEqual(response.json()["status"], "error")
 
-    @patch("assistant_app.services.requests.post")
-    def test_chat_calls_ollama_and_extracts_cart_action(self, post):
-        ollama_response = Mock()
-        ollama_response.raise_for_status.return_value = None
-        ollama_response.json.return_value = {
-            "message": {"content": "حتماً. [ACTION: ADD_TO_CART: iPhone]"}
-        }
-        post.return_value = ollama_response
+    @patch("assistant_app.services.ai_agent.ask_async", new_callable=AsyncMock)
+    def test_chat_calls_gemini_and_extracts_cart_action(self, ask_async):
+        ask_async.return_value = AgentOutput(
+            text="Sure.",
+            function_calls=[
+                SimpleNamespace(
+                    name="add_to_cart",
+                    args={"product_name": "iPhone", "qty": 1},
+                )
+            ],
+        )
 
         response = self.client.post(
             "/api/chat/",
-            data=json.dumps({"message": "آیفون می‌خواهم"}),
+            data=json.dumps({"message": "I want an iPhone"}),
             content_type="application/json",
         )
 
@@ -60,23 +66,14 @@ class ChatApiTests(TestCase):
         self.assertEqual(data["status"], "success")
         self.assertIn("conversation_id", data)
         self.assertEqual(data["action"]["product_id"], "40")
-        post.assert_called_once()
+        ask_async.assert_awaited_once()
 
-    @patch("assistant_app.services.requests.post")
-    def test_chat_reuses_saved_memory_with_conversation_id(self, post):
-        first_ollama_response = Mock()
-        first_ollama_response.raise_for_status.return_value = None
-        first_ollama_response.json.return_value = {
-            "message": {"content": "first reply"}
-        }
-
-        second_ollama_response = Mock()
-        second_ollama_response.raise_for_status.return_value = None
-        second_ollama_response.json.return_value = {
-            "message": {"content": "second reply"}
-        }
-
-        post.side_effect = [first_ollama_response, second_ollama_response]
+    @patch("assistant_app.services.ai_agent.ask_async", new_callable=AsyncMock)
+    def test_chat_reuses_saved_memory_with_conversation_id(self, ask_async):
+        ask_async.side_effect = [
+            AgentOutput(text="first reply"),
+            AgentOutput(text="second reply"),
+        ]
 
         first_response = self.client.post(
             "/api/chat/",
@@ -97,15 +94,15 @@ class ChatApiTests(TestCase):
         )
 
         self.assertEqual(second_response.status_code, 200)
-        second_payload = post.call_args_list[1].kwargs["json"]
-        second_messages = second_payload["messages"]
+        second_call = ask_async.call_args_list[1]
+        second_messages = second_call.args[1]
         self.assertEqual(
             [message["role"] for message in second_messages],
-            ["system", "user", "assistant", "user"],
+            ["user", "assistant"],
         )
-        self.assertEqual(second_messages[1]["content"], "first question")
-        self.assertEqual(second_messages[2]["content"], "first reply")
-        self.assertEqual(second_messages[3]["content"], "second question")
+        self.assertEqual(second_messages[0]["content"], "first question")
+        self.assertEqual(second_messages[1]["content"], "first reply")
+        self.assertEqual(second_call.args[2], "second question")
 
     def test_catalog_import_replaces_catalog(self):
         with TemporaryDirectory() as temp_dir:
@@ -179,6 +176,56 @@ class ChatApiTests(TestCase):
         self.assertEqual(status.catalog_items, 12)
         self.assertEqual(status.source, "http://shop.test/index.php?route=catalog")
         get.assert_called_once()
+
+
+class AIAgentTests(TestCase):
+    def test_optional_api_key_is_not_sent_to_generate_config(self):
+        agent = AIAgent(model_name="test-model")
+        agent.key_manager.keys = ["global-key"]
+        agent.key_manager.current_key = "global-key"
+        response = SimpleNamespace(text="ok", function_calls=[])
+        client = SimpleNamespace(
+            aio=SimpleNamespace(
+                models=SimpleNamespace(
+                    generate_content=AsyncMock(return_value=response)
+                )
+            )
+        )
+
+        with patch("assistant_app.utils.ai_agent.genai.Client", return_value=client) as client_factory:
+            result = async_to_sync(agent.ask_async)(
+                "system",
+                [],
+                "hello",
+                api_key=None,
+            )
+
+        self.assertEqual(result.text, "ok")
+        client_factory.assert_called_once_with(api_key="global-key")
+
+    def test_conversation_api_key_can_be_used_without_global_keys(self):
+        agent = AIAgent(model_name="test-model")
+        agent.key_manager.keys = []
+        agent.key_manager.current_key = None
+        response = SimpleNamespace(text="ok", function_calls=[])
+        client = SimpleNamespace(
+            aio=SimpleNamespace(
+                models=SimpleNamespace(
+                    generate_content=AsyncMock(return_value=response)
+                )
+            )
+        )
+
+        with patch("assistant_app.utils.ai_agent.genai.Client", return_value=client) as client_factory:
+            result = async_to_sync(agent.ask_async)(
+                "system",
+                [],
+                "hello",
+                api_key="conversation-key",
+            )
+
+        self.assertEqual(result.text, "ok")
+        client_factory.assert_called_once_with(api_key="conversation-key")
 
 
 class ConversationAdminExportTests(TestCase):
