@@ -1,3 +1,6 @@
+import hmac
+import logging
+import threading
 from django.conf import settings
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
@@ -12,6 +15,8 @@ from .services import (
 )
 from .serializers import CatalogImportSerializer, ChatRequestSerializer
 
+# پیکربندی لاگر برای ثبت ایمن خطاهای سرور (جلوگیری از Information Disclosure)
+logger = logging.getLogger(__name__)
 
 @api_view(["GET"])
 def api_index(request):
@@ -26,12 +31,10 @@ def api_index(request):
         }
     )
 
-
 def get_session_key(request):
     if not request.session.session_key:
         request.session.create()
     return request.session.session_key
-
 
 @api_view(["POST"])
 def chat_api(request):
@@ -49,29 +52,30 @@ def chat_api(request):
 
     try:
         conversation_id = serializer.validated_data.get("conversation_id")
-        api_key = serializer.validated_data.get("api_key")  # دریافت کلید از فرانت‌اند
-        session_key = None
-        
-        if not conversation_id:
-            session_key = get_session_key(request)
+        session_key = None if conversation_id else get_session_key(request)
 
-        # ارسال api_key به تابع دیتابیس برای ذخیره یا آپدیت
+        # فیلد api_key از ورودی کلاینت حذف شد تا امنیت حفظ شود. (Critical Vulnerability Fix)
         conversation = get_or_create_conversation(
             conversation_id=conversation_id,
             session_key=session_key,
-            api_key=api_key,
         )
         
-        # اینجا خروجی ما دیگر یک استرینگ ساده نیست، بلکه یک آبجکت چندبعدی است
         agent_output = ask_ai(
             serializer.validated_data["message"], 
             conversation=conversation
         )
         
     except Exception as exc:
-        return Response({"status": "error", "reply": str(exc)}, status=502)
+        # ثبت لاگ در سرور بدون درز اطلاعات ساختاری به کلاینت (Information Disclosure Fix)
+        logger.error("Chat API Error: %s", str(exc), exc_info=True)
+        return Response(
+            {
+                "status": "error", 
+                "reply": "خطای پردازش در سرور رخ داده است. لطفاً لحظاتی بعد تلاش کنید."
+            }, 
+            status=500
+        )
 
-    # اگر هوش مصنوعی متنی تولید نکرده باشد (فقط ابزار را صدا زده باشد)، یک پیام جایگزین نشان می‌دهیم
     reply_text = agent_output.text if agent_output.text else "در حال پردازش درخواست شما..."
 
     response_data = {
@@ -80,7 +84,6 @@ def chat_api(request):
         "conversation_id": str(conversation.public_id),
     }
     
-    # کل آبجکت را به تابع استخراج می‌دهیم تا بتواند function_calls را بررسی کند
     action = extract_cart_action(agent_output)
     if action:
         response_data["action"] = action
@@ -93,12 +96,22 @@ def health_check(request):
     return Response({"status": "ok", "catalog_items": len(load_catalog())})
 
 
+def background_catalog_sync(products, source):
+    """تابع کمکی برای اجرای همگام‌سازی در پس‌زمینه"""
+    try:
+        replaced_products = replace_catalog(products)
+        record_opencart_catalog_sync(source, len(replaced_products))
+    except Exception as e:
+        logger.error("Background Catalog Sync Error: %s", str(e), exc_info=True)
+
 @api_view(["POST"])
 def import_catalog(request):
     expected_token = settings.AI_ASSISTANT_SYNC_TOKEN
+    
     if expected_token:
         received_token = request.headers.get("X-AI-Assistant-Token", "")
-        if received_token != expected_token:
+        # استفاده از hmac برای جلوگیری از حملات زمانی (Timing Attack Fix)
+        if not hmac.compare_digest(received_token, expected_token):
             return Response(
                 {"status": "error", "reply": "Invalid catalog sync token."},
                 status=403,
@@ -115,16 +128,19 @@ def import_catalog(request):
             status=400,
         )
 
-    products = replace_catalog(serializer.validated_data["products"])
-    record_opencart_catalog_sync(
-        serializer.validated_data.get("source", ""),
-        len(products),
-    )
+    products = serializer.validated_data["products"]
+    source = serializer.validated_data.get("source", "")
+    
+    # انتقال پردازش سنگین به پس‌زمینه برای جلوگیری از تایم‌اوت شدن ریکوئست (Blocking IO Fix)
+    thread = threading.Thread(target=background_catalog_sync, args=(products, source))
+    thread.start()
     
     return Response(
         {
             "status": "success",
-            "catalog_items": len(products),
-            "source": serializer.validated_data.get("source", ""),
-        }
+            "reply": "درخواست همگام‌سازی دریافت شد و در پس‌زمینه در حال پردازش است.",
+            "catalog_items_received": len(products),
+            "source": source,
+        },
+        status=202  # کد 202 نشان‌دهنده پذیرش درخواست و پردازش غیرهمزمان است
     )

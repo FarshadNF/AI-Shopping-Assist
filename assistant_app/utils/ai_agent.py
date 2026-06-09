@@ -36,12 +36,15 @@ class GeminiKeyManager:
             self.current_key = next(self.key_cycle)
         else:
             self.current_key = None
+            
+        self._lock = asyncio.Lock()
 
-    def rotate(self):
-        if self.keys:
-            self.current_key = next(self.key_cycle)
-            logger.warning("Switched to the next configured Gemini API key.")
-        return self.current_key
+    async def rotate(self):
+        async with self._lock:
+            if self.keys:
+                self.current_key = next(self.key_cycle)
+                logger.warning("Switched to the next configured Gemini API key.")
+            return self.current_key
 
     def get_client(self):
         if not self.current_key:
@@ -95,6 +98,11 @@ class AIAgent:
     def __init__(self, model_name=None):
         self.key_manager = GeminiKeyManager()
         self.model_name = model_name or os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
+        self.base_instruction = (
+            "You are an advanced, multilingual AI shopping assistant. "
+            "You must fluently understand and respond in the exact language the user communicates in, "
+            "unless explicitly requested otherwise. Adapt your tone to be helpful and professional in that language.\n\n"
+        )
 
     def _format_history(self, chat_history):
         formatted = []
@@ -104,6 +112,14 @@ class AIAgent:
                 {"role": role, "parts": [{"text": msg["content"]}]}
             )
         return formatted
+
+    def _extract_function_calls(self, response):
+        calls = []
+        if hasattr(response, "candidates") and response.candidates:
+            for part in response.candidates[0].content.parts:
+                if hasattr(part, "function_call") and part.function_call:
+                    calls.append(part.function_call)
+        return calls
 
     async def ask_async(
         self, 
@@ -124,8 +140,10 @@ class AIAgent:
         contents = self._format_history(chat_history)
         contents.append({"role": "user", "parts": [{"text": user_message}]})
 
+        combined_instruction = self.base_instruction + (system_instruction or "")
+
         config = types.GenerateContentConfig(
-            system_instruction=system_instruction,
+            system_instruction=combined_instruction,
             temperature=temperature,
             tools=tools,
             **kwargs
@@ -133,7 +151,7 @@ class AIAgent:
 
         last_error = None
 
-        for _ in range(max_retries):
+        for attempt in range(max_retries):
             client = genai.Client(api_key=request_key) if request_key else self.key_manager.get_client()
             try:
                 response = await client.aio.models.generate_content(
@@ -142,28 +160,31 @@ class AIAgent:
                     config=config
                 )
                 
+                extracted_text = response.text if hasattr(response, "text") and response.text else ""
+                extracted_calls = self._extract_function_calls(response)
+                
                 return AgentOutput(
-                    text=response.text,
-                    function_calls=getattr(response, "function_calls", []),
+                    text=extracted_text,
+                    function_calls=extracted_calls,
                     raw_response=response
                 )
 
             except Exception as e:
                 last_error = e
                 if _is_retryable_key_error(e) and not request_key:
-                    logger.warning("Gemini API key failed or reached a limit. Trying the next configured key.")
-                    self.key_manager.rotate()
-                    await asyncio.sleep(0.5)
+                    logger.warning(f"Gemini API key failed. Attempt {attempt + 1}. Trying next key.")
+                    await self.key_manager.rotate()
+                    backoff = 0.5 * (2 ** attempt)
+                    await asyncio.sleep(backoff)
                     continue
                 else:
                     logger.error(f"AI API Error: {e}")
                     return AgentOutput(text="متأسفانه در پردازش اطلاعات فنی مشکلی پیش آمد. لطفاً چند لحظه دیگر امتحان کنید.")
 
         if last_error and _is_permission_error(last_error):
-            logger.error("All configured Gemini API keys were rejected by Google. Check project access and API key permissions.")
-            return AgentOutput(text="خطای تنظیمات: Google کلید Gemini فعلی یا پروژه متصل به آن را رد کرد. در Google AI Studio یک کلید فعال بسازید، پروژه را import کنید و مطمئن شوید کلید برای Gemini API مجاز است.")
+            logger.error("All configured Gemini API keys were rejected by Google.")
+            return AgentOutput(text="خطای تنظیمات: Google کلید Gemini فعلی یا پروژه متصل به آن را رد کرد. لطفاً تنظیمات کلید را بررسی کنید.")
 
-        return AgentOutput(text="ترافیک کاربران در حال حاضر بسیار بالاست. لطفاً یک دقیقه دیگر پیام خود را تکرار کنید.")
+        return AgentOutput(text="ترافیک سیستم در حال حاضر بسیار بالاست. لطفاً یک دقیقه دیگر پیام خود را تکرار کنید.")
 
-    
 ai_agent = AIAgent()

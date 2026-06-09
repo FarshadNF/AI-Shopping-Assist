@@ -1,56 +1,54 @@
-Nova Project Structure:
+AI chat bot Assis:
 .
-├── assistant_app [168.19KB]
-│   ├── __init__.py (1.00B)
-│   ├── admin.py (4.03KB)
-│   ├── apps.py (157.00B)
-│   ├── exporters.py (11.22KB)
-│   ├── middleware.py (1.23KB)
-│   ├── migrations [9.36KB]
-│   │   ├── 0001_initial.py (2.07KB)
-│   │   ├── 0002_opencartconnectionstatus.py (1.88KB)
+├── assistant_app [162.65KB]
+│   ├── __init__.py (2.00B)
+│   ├── admin.py (4.14KB)
+│   ├── apps.py (163.00B)
+│   ├── exporters.py (11.59KB)
+│   ├── middleware.py (1.27KB)
+│   ├── migrations [9.48KB]
+│   │   ├── 0001_initial.py (2.12KB)
+│   │   ├── 0002_opencartconnectionstatus.py (1.93KB)
 │   │   ├── 0003_conversation_api_key.py (445.00B)
-│   │   └── __init__.py (1.00B)
+│   │   └── __init__.py (2.00B)
 │   ├── models.py (2.29KB)
-│   ├── serializers.py (675.00B)
-│   ├── services.py (17.34KB)
-│   ├── static [16.30KB]
-│   │   └── assistant_app [16.30KB]
+│   ├── serializers.py (852.00B)
+│   ├── services.py (19.52KB)
+│   ├── static [16.51KB]
+│   │   └── assistant_app [16.51KB]
 │   │       ├── css [2.90KB]
 │   │       │   └── ai-widget.css (2.90KB)
-│   │       └── js [13.41KB]
-│   │           └── ai-widget.js (13.41KB)
-│   ├── templates [1.47KB]
-│   │   └── admin [1.47KB]
-│   │       └── assistant_app [1.47KB]
-│   │           └── opencartconnectionstatus [1.47KB]
-│   │               └── change_list.html (1.47KB)
-│   ├── tests.py (8.69KB)
-│   ├── urls.py (469.00B)
-│   ├── utils [21.99KB]
-│   │   ├── ai_agent.py (4.25KB)
+│   │       └── js [13.61KB]
+│   │           └── ai-widget.js (13.61KB)
+│   ├── templates [1.51KB]
+│   │   └── admin [1.51KB]
+│   │       └── assistant_app [1.51KB]
+│   │           └── opencartconnectionstatus [1.51KB]
+│   │               └── change_list.html (1.51KB)
+│   ├── tests.py (10.79KB)
+│   ├── urls.py (482.00B)
+│   ├── utils [22.96KB]
+│   │   ├── ai_agent.py (5.77KB)
 │   │   ├── core_api.py (256.00B)
 │   │   ├── deep_crawler.py (6.55KB)
 │   │   ├── fetch_catalog.py (3.38KB)
 │   │   └── test_connection.py (438.00B)
-│   └── views.py (3.83KB)
-├── db.sqlite3 (0.00B)
-├── django_server.err.log (947.00B)
-├── django_server.log (0.00B)
-├── docker-compose.yml (2.08KB)
+│   └── views.py (4.11KB)
+├── db.sqlite3 (160.00KB)
+├── docker-compose.yml (2.13KB)
 ├── docker-entrypoint.sh (207.00B)
-├── Dockerfile (568.00B)
+├── Dockerfile (591.00B)
 ├── generate_structure.py (2.04KB)
 ├── legacy [15.12KB]
 │   └── opencart_footer_widget.html (15.12KB)
-├── manage.py (283.00B)
-├── OPENCART_FOOTER_INSTALL.md (2.13KB)
+├── manage.py (297.00B)
+├── OPENCART_FOOTER_INSTALL.md (2.19KB)
 ├── project_structure.txt (0.00B)
-├── README.md (2.48KB)
-├── requirements.txt (2.08KB)
-└── shopping_assist [12.40KB]
-    ├── __init__.py (1.00B)
-    ├── asgi.py (177.00B)
-    ├── settings.py (4.33KB)
-    ├── urls.py (173.00B)
-    └── wsgi.py (177.00B)
+├── README.md (2.56KB)
+├── requirements.txt (1.03KB)
+└── shopping_assist [11.94KB]
+    ├── __init__.py (2.00B)
+    ├── asgi.py (185.00B)
+    ├── settings.py (4.48KB)
+    ├── urls.py (181.00B)
+    └── wsgi.py (185.00B)

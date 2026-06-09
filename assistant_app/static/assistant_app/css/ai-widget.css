@@ -1,15 +1,20 @@
+/* استفاده از فونت‌های استاندارد فارسی با اولویت بالا (!important) 
+   تا استایل‌های سایت اوپن‌کارت روی ظاهر ویجت شما تاثیر منفی نگذارند 
+*/
 #ai-shopping-assist-widget {
     position: fixed;
     left: 20px;
     bottom: 20px;
     z-index: 99999;
     direction: rtl;
-    font-family: inherit;
+    font-family: 'Vazirmatn', 'IRANSans', 'Tahoma', 'Arial', sans-serif !important;
     color: #17202a;
 }
+
 #ai-shopping-assist-widget * {
     box-sizing: border-box;
 }
+
 .aisa-toggle {
     border: 0;
     min-width: 128px;
@@ -21,22 +26,42 @@
     box-shadow: 0 10px 30px rgba(17, 100, 102, .24);
     cursor: pointer;
     font-weight: 700;
+    transition: transform 0.2s ease, background 0.2s ease;
 }
+
+.aisa-toggle:hover {
+    background: #0e5254;
+    transform: translateY(-2px);
+}
+
 .aisa-panel {
     width: min(390px, calc(100vw - 32px));
-    height: min(560px, calc(100vh - 104px));
+    /* [حل چالش ۵]: استفاده از dvh به جای vh برای محاسبه دقیق ارتفاع کیبورد موبایل */
+    height: min(560px, calc(100dvh - 104px));
     margin-bottom: 12px;
     border: 1px solid #d8e2e1;
-    border-radius: 8px;
+    border-radius: 12px;
     background: #fff;
     box-shadow: 0 16px 45px rgba(16, 24, 40, .18);
     overflow: hidden;
     display: flex;
     flex-direction: column;
 }
+
+/* اضافه کردن یک انیمیشن نرم برای ظاهر شدن ویجت */
+@keyframes aisa-slide-up {
+    from { opacity: 0; transform: translateY(15px) scale(0.98); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.aisa-panel:not([hidden]) {
+    animation: aisa-slide-up 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
 .aisa-panel[hidden] {
     display: none;
 }
+
 .aisa-head {
     display: flex;
     align-items: center;
@@ -47,10 +72,13 @@
     border-bottom: 1px solid #e7eeee;
     background: #f7fbfa;
 }
+
 .aisa-title {
     font-weight: 800;
     line-height: 1.4;
+    font-size: 15px;
 }
+
 .aisa-status {
     display: block;
     color: #64748b;
@@ -58,6 +86,7 @@
     font-weight: 500;
     margin-top: 2px;
 }
+
 .aisa-close {
     width: 34px;
     height: 34px;
@@ -67,34 +96,68 @@
     cursor: pointer;
     font-size: 20px;
     line-height: 1;
+    color: #64748b;
+    transition: background 0.2s, color 0.2s;
 }
+
+.aisa-close:hover {
+    background: #f1f5f9;
+    color: #ef4444;
+}
+
 .aisa-messages {
     flex: 1;
     overflow-y: auto;
     padding: 14px;
     background: #fbfdfd;
+    scroll-behavior: smooth;
 }
+
+/* زیباسازی اسکرول‌بار برای مرورگرهای دسکتاپ (WebKit) */
+.aisa-messages::-webkit-scrollbar {
+    width: 6px;
+}
+.aisa-messages::-webkit-scrollbar-track {
+    background: transparent;
+}
+.aisa-messages::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 10px;
+}
+.aisa-messages::-webkit-scrollbar-thumb:hover {
+    background: #94a3b8;
+}
+
 .aisa-message {
     width: fit-content;
     max-width: 86%;
-    margin: 0 0 10px;
-    padding: 9px 11px;
-    border-radius: 8px;
-    line-height: 1.8;
+    margin: 0 0 12px;
+    padding: 10px 14px;
+    border-radius: 12px;
+    line-height: 1.6;
     white-space: pre-wrap;
     overflow-wrap: anywhere;
     font-size: 14px;
+    /* انیمیشن نرم برای ظاهر شدن پیام‌های جدید */
+    animation: aisa-slide-up 0.2s ease-out forwards;
 }
+
 .aisa-message.user {
     margin-right: auto;
     color: #fff;
     background: #116466;
+    border-bottom-right-radius: 4px;
 }
+
 .aisa-message.bot {
     margin-left: auto;
     border: 1px solid #e1e9e8;
     background: #fff;
+    color: #334155;
+    border-bottom-left-radius: 4px;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.02);
 }
+
 .aisa-form {
     display: flex;
     gap: 8px;
@@ -102,43 +165,63 @@
     border-top: 1px solid #e7eeee;
     background: #fff;
 }
+
 .aisa-input {
     flex: 1;
     min-width: 0;
-    height: 42px;
+    height: 44px;
     border: 1px solid #cedada;
     border-radius: 8px;
-    padding: 0 12px;
+    padding: 0 14px;
     outline: none;
+    font-family: inherit;
+    font-size: 14px;
+    transition: border-color 0.2s, box-shadow 0.2s;
 }
+
 .aisa-input:focus {
     border-color: #116466;
     box-shadow: 0 0 0 3px rgba(17, 100, 102, .12);
 }
+
 .aisa-send {
     width: 72px;
-    height: 42px;
+    height: 44px;
     border: 0;
     border-radius: 8px;
     color: #fff;
     background: #17202a;
     cursor: pointer;
     font-weight: 700;
+    font-family: inherit;
+    transition: background 0.2s, transform 0.1s;
 }
+
+.aisa-send:hover:not(:disabled) {
+    background: #2c3e50;
+}
+
+.aisa-send:active:not(:disabled) {
+    transform: scale(0.96);
+}
+
 .aisa-send:disabled,
 .aisa-toggle:disabled {
     opacity: .65;
-    cursor: wait;
+    cursor: not-allowed;
 }
+
 @media (max-width: 480px) {
     #ai-shopping-assist-widget {
         left: 12px;
         right: 12px;
         bottom: 12px;
     }
+    
     .aisa-panel {
-        width: 100%;
+        width: auto; /* استفاده از auto به جای 100% برای جلوگیری از خروج از کادر به دلیل right/left */
     }
+    
     .aisa-toggle {
         width: 100%;
     }

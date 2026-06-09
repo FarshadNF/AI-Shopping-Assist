@@ -1,19 +1,19 @@
 import html
 import json
 import re
-from functools import lru_cache
 from numbers import Number
 from urllib.parse import urljoin
 import requests
 from django.conf import settings
 from django.utils import timezone
-from asgiref.sync import sync_to_async, async_to_sync
-from google.genai import types  # اضافه شدن برای تعریف ابزارها
+from django.core.cache import cache
+from asgiref.sync import async_to_sync
+from google.genai import types
+from thefuzz import fuzz
 
 from .models import ChatMessage, Conversation, OpenCartConnectionStatus
 from .utils.ai_agent import ai_agent
 
-# تعریف ساختار ابزار ثبت سفارش برای درک نیتیو توسط هوش مصنوعی
 ADD_TO_CART_TOOL = types.Tool(
     function_declarations=[
         types.FunctionDeclaration(
@@ -24,7 +24,7 @@ ADD_TO_CART_TOOL = types.Tool(
                 properties={
                     "product_name": types.Schema(
                         type=types.Type.STRING,
-                        description="The exact part number or name of the product (e.g. EDS-205)"
+                        description="The exact part number or name of the product"
                     ),
                     "qty": types.Schema(
                         type=types.Type.INTEGER,
@@ -33,7 +33,7 @@ ADD_TO_CART_TOOL = types.Tool(
                 },
                 required=["product_name", "qty"]
             )
-        )
+        ) # <--- این خط اصلاح شد (تبدیل آکولاد به پرانتز)
     ]
 )
 
@@ -42,8 +42,11 @@ def normalize_part_number(text):
         return ""
     return re.sub(r'[^a-zA-Z0-9]', '', text).lower().strip()
 
-@lru_cache(maxsize=1)
 def load_catalog():
+    cached_catalog = cache.get("products_catalog")
+    if cached_catalog is not None:
+        return cached_catalog
+
     catalog_paths = (
         settings.BASE_DIR / "products_catalog.json",
         settings.BASE_DIR / "data" / "products_catalog.json",
@@ -51,7 +54,9 @@ def load_catalog():
     for catalog_path in catalog_paths:
         try:
             with catalog_path.open("r", encoding="utf-8") as catalog_file:
-                return json.load(catalog_file)
+                data = json.load(catalog_file)
+                cache.set("products_catalog", data, timeout=None)
+                return data
         except (FileNotFoundError, json.JSONDecodeError):
             continue
     return []
@@ -67,13 +72,13 @@ def get_or_create_opencart_status():
     return status
 
 def get_opencart_catalog_url():
-    catalog_url = settings.OPENCART_CATALOG_URL.strip()
+    catalog_url = getattr(settings, 'OPENCART_CATALOG_URL', '').strip()
     if catalog_url:
         return catalog_url
-    base_url = settings.OPENCART_BASE_URL.strip()
+    base_url = getattr(settings, 'OPENCART_BASE_URL', '').strip()
     if not base_url:
         return ""
-    return urljoin(base_url.rstrip("/") + "/", settings.OPENCART_CATALOG_ROUTE)
+    return urljoin(base_url.rstrip("/") + "/", getattr(settings, 'OPENCART_CATALOG_ROUTE', ''))
 
 def _extract_catalog_rows(payload):
     if isinstance(payload, list):
@@ -97,29 +102,124 @@ def _extract_catalog_total(payload, rows):
         total = _first_present(payload["pagination"], "total", default=None)
     return _to_int(total, default=len(rows))
 
+
+# =====================================================================
+# [ارتقای معماری فاز ۵]: موتور همگام‌سازی امن کاتالوگ به صورت سرور به سرور (Server-to-Server)
+# =====================================================================
+def sync_opencart_catalog_live():
+    """
+    این متد جایگزین کدهای ناامن جاوااسکریپت فرانت‌اند شده است. 
+    جنگو مستقیماً کاتالوگ را به صورت ایمن لود کرده و دیتابیس هوش مصنوعی را بروزرسانی می‌کند.
+    """
+    catalog_url = get_opencart_catalog_url()
+    if not catalog_url:
+        raise ValueError("آدرس کاتالوگ اپن‌کارت در تنظیمات پروژه (OPENCART_BASE_URL) تعریف نشده است.")
+
+    status = get_or_create_opencart_status()
+    status.status = OpenCartConnectionStatus.STATUS_WAITING
+    status.message = "همگام‌سازی کاتالوگ از سمت سرور آغاز شد..."
+    status.save()
+
+    collected_raw_products = []
+    seen_keys = set()
+    page = 1
+    page_limit = 100
+    max_pages = 100  # لایه محافظتی برای جلوگیری از لوپ بی‌نهایت در کانال‌های بزرگ
+
+    session = requests.Session()
+    # استفاده از توکن امنیتی در هدر درخواست‌های داخلی بک‌اند به بک‌اند
+    sync_token = getattr(settings, 'OPENCART_SYNC_TOKEN', '')
+    headers = {'Content-Type': 'application/json'}
+    if sync_token:
+        headers['X-AI-Assistant-Token'] = sync_token
+
+    while page <= max_pages:
+        try:
+            response = session.get(
+                catalog_url,
+                params={"page": page, "limit": page_limit},
+                headers=headers,
+                timeout=getattr(settings, 'OPENCART_TIMEOUT', 15),
+            )
+            response.raise_for_status()
+            payload = response.json()
+
+            if isinstance(payload, dict) and payload.get("success") is False:
+                raise ValueError(payload.get("error") or "خطا در خروجی API اپن‌کارت")
+
+            rows = _extract_catalog_rows(payload)
+            if not rows:
+                break
+
+            for item in rows:
+                if not isinstance(item, dict):
+                    continue
+                name = _clean_text(_first_present(item, "name", "product_name", "title"))
+                p_id = _clean_text(_first_present(item, "product_id", "id", "productId"))
+                
+                if not name:
+                    continue
+                
+                key = p_id or name
+                if key in seen_keys:
+                    continue
+                seen_keys.add(key)
+                collected_raw_products.append(item)
+
+            total = _extract_catalog_total(payload, rows)
+            if total and len(collected_raw_products) >= total:
+                break
+            if len(rows) < page_limit:
+                break
+
+            page += 1
+        except Exception as exc:
+            status.status = OpenCartConnectionStatus.STATUS_DISCONNECTED
+            status.message = f"خطا در صفحه {page}: {str(exc)}"
+            status.save()
+            raise exc
+
+    # بهینه‌سازی، ساختاردهی و بازنویسی کاتالوگ محلی دیتابیس/وکتورها
+    final_catalog = replace_catalog(collected_raw_products)
+
+    # ثبت موفقیت وضعیت نهایی
+    now = timezone.now()
+    status.status = OpenCartConnectionStatus.STATUS_CONNECTED
+    status.source = catalog_url
+    status.catalog_items = len(final_catalog)
+    status.message = f"همگام‌سازی سرور به سرور با موفقیت انجام شد. تعداد محصولات چت‌بات: {len(final_catalog)}"
+    status.last_sync_at = now
+    status.last_checked_at = now
+    status.save()
+    
+    return final_catalog
+
+
 def record_opencart_catalog_sync(source, catalog_items):
+    """جهت حفظ سازگاری با متدهای قدیمی لایه View"""
     now = timezone.now()
     status = get_or_create_opencart_status()
     status.status = OpenCartConnectionStatus.STATUS_CONNECTED
     status.source = source or status.source
     status.catalog_items = catalog_items
-    status.message = "Catalog sync completed from OpenCart footer widget."
+    status.message = "داده‌ها با موفقیت بازنویسی شدند."
     status.last_sync_at = now
     status.last_checked_at = now
     status.save()
     return status
 
 def check_opencart_connection():
+    """تست سریع وضعیت اتصال بدون دانلود کل کاتالوگ"""
     status = get_or_create_opencart_status()
     catalog_url = get_opencart_catalog_url()
     now = timezone.now()
     if not catalog_url:
         if status.last_sync_at:
             status.status = OpenCartConnectionStatus.STATUS_CONNECTED
-            status.message = "No live OpenCart URL is configured. The latest footer catalog sync was successful."
+            status.message = "No live OpenCart URL is configured. Using cached local storage."
         else:
             status.status = OpenCartConnectionStatus.STATUS_WAITING
-            status.message = "Set OPENCART_BASE_URL or OPENCART_CATALOG_URL to enable live OpenCart checks. Footer sync status is still tracked."
+            status.message = "Set OPENCART_BASE_URL to enable live connection checks."
         status.last_checked_at = now
         status.save()
         return status
@@ -127,17 +227,17 @@ def check_opencart_connection():
         response = requests.get(
             catalog_url,
             params={"page": 1, "limit": 1},
-            timeout=settings.OPENCART_TIMEOUT,
+            timeout=getattr(settings, 'OPENCART_TIMEOUT', 10),
         )
         response.raise_for_status()
         payload = response.json()
         if isinstance(payload, dict) and payload.get("success") is False:
-            raise ValueError(payload.get("error") or "OpenCart catalog API failed.")
+            raise ValueError(payload.get("error") or "OpenCart API validation failed.")
         rows = _extract_catalog_rows(payload)
         status.status = OpenCartConnectionStatus.STATUS_CONNECTED
         status.source = catalog_url
         status.catalog_items = _extract_catalog_total(payload, rows)
-        status.message = "Live OpenCart catalog check succeeded."
+        status.message = "Live OpenCart catalog link is stable."
     except Exception as exc:
         status.status = OpenCartConnectionStatus.STATUS_DISCONNECTED
         status.source = catalog_url
@@ -198,17 +298,12 @@ def normalize_catalog_product(item):
     stock = _to_int(_first_present(item, "stock", "quantity", "qty", default=0))
     category = _clean_text(
         _first_present(item, "category", "category_name", "manufacturer"),
-        default="Industrial Automation & Networking",
+        default="General Category",
     )
     attributes = _normalize_attributes(_first_present(item, "attributes", "attribute_groups", "specifications"))
-    if not attributes:
-        attributes = {
-            "Interface": "مشخصات پورت یافت نشد",
-            "Protection": "استاندارد بدنه نامشخص",
-        }
     sales_angle = _clean_text(_first_present(item, "sales_angle", "description"))
     if not sales_angle:
-        sales_angle = f"تجهیزات باکیفیت مدل {name}. گزینه‌ای مناسب برای انتخاب دقیق‌تر بر اساس موجودی و مشخصات فروشگاه."
+        sales_angle = f"گزینه‌ای مناسب برای انتخاب دقیق‌تر بر اساس موجودی و مشخصات."
     return {
         "product_id": product_id,
         "name": name,
@@ -232,109 +327,98 @@ def replace_catalog(raw_products):
     with temp_path.open("w", encoding="utf-8") as catalog_file:
         json.dump(products, catalog_file, ensure_ascii=False, indent=4)
     temp_path.replace(catalog_path)
-    load_catalog.cache_clear()
+    cache.set("products_catalog", products, timeout=None)
     return products
 
 def get_or_create_conversation(conversation_id=None, session_key=None, api_key=None):
     if conversation_id:
         conversation, created = Conversation.objects.get_or_create(public_id=conversation_id)
-        # Update the api_key if one was provided and it differs
         if api_key and conversation.api_key != api_key:
              conversation.api_key = api_key
              conversation.save(update_fields=['api_key'])
         return conversation
     if session_key:
         conversation, created = Conversation.objects.get_or_create(session_key=session_key)
-        # Update the api_key if one was provided and it differs
         if api_key and conversation.api_key != api_key:
              conversation.api_key = api_key
              conversation.save(update_fields=['api_key'])
         return conversation
-    
-    # If neither conversation_id nor session_key is provided
     return Conversation.objects.create(api_key=api_key)
 
 def get_relevant_catalog(user_message, top_k=5):
     full_catalog = load_catalog()
     if len(user_message) < 3 or not full_catalog:
         return full_catalog[:top_k]
-    stop_words = {"دارید", "سلام", "میشه", "من", "یک", "از", "با", "به", "در", "برای", "این", "است", "و", "یا", "خرید"}
-    search_terms = set(word.lower() for word in user_message.split() if word.lower() not in stop_words)
-    if not search_terms:
-        return full_catalog[:top_k]
-    def score_product(product):
-        score = 0
+
+    scored_products = []
+    normalized_message = normalize_part_number(user_message)
+    
+    for product in full_catalog:
         p_name = product.get('name', '')
-        sales_angle = product.get('sales_angle', '')
-        category = product.get('category', '')
-        attributes = json.dumps(product.get('attributes', {}))
-        text_corpus = f"{p_name} {sales_angle} {category} {attributes}".lower()
+        score = fuzz.token_set_ratio(user_message, p_name)
+        
         normalized_name = normalize_part_number(p_name)
-        normalized_message = normalize_part_number(user_message)
         if normalized_name and normalized_name in normalized_message:
-            score += 10
-        for term in search_terms:
-            if term in text_corpus:
-                score += 1
-                if term in p_name.lower():
-                    score += 3
-        return score
-    scored_products = [(p, score_product(p)) for p in full_catalog]
-    relevant = [p for p, score in scored_products if score > 0]
-    relevant.sort(key=lambda x: score_product(x), reverse=True)
+            score += 50
+            
+        if score > 35:
+            scored_products.append((product, score))
+
+    scored_products.sort(key=lambda x: x[1], reverse=True)
+    relevant = [p[0] for p in scored_products]
+    
     return relevant[:top_k] if relevant else full_catalog[:top_k]
 
 def build_system_instruction(user_message):
     relevant_products = get_relevant_catalog(user_message)
     catalog_string = json.dumps(relevant_products, ensure_ascii=False, indent=2) if relevant_products else "درحال حاضر محصول مرتبطی پیدا نشد."
+    
+    assistant_name = getattr(settings, 'AI_ASSISTANT_NAME', 'پشتیبان هوشمند')
+    store_brand = getattr(settings, 'STORE_BRAND', 'فروشگاه ما')
+    
     return f"""
-شما یک انسان واقعی و پشتیبان فروش آنلاین در یک فروشگاه تخصصی تجهیزات اتوماسیون صنعتی و شبکه (برند Moxa) هستید. 
-نام شما Luna است. اگر مشتری اسم شما را پرسید، کوتاه و طبیعی بگویید «من Luna هستم» و مثل یک انسان گرم، صمیمی و حرفه‌ای رفتار کنید.
-هرگز از عباراتی مثل "من یک هوش مصنوعی هستم" یا "من یک مشاور ارشد هستم" استفاده نکنید! مکالمه را طبیعی پیش ببرید. (مثال: "سلام! خیلی خوش اومدید، چطور می‌تونم راهنمایی‌تون کنم؟")
+شما یک انسان واقعی و پشتیبان فروش آنلاین در {store_brand} هستید. 
+نام شما {assistant_name} است. اگر مشتری اسم شما را پرسید، کوتاه و طبیعی بگویید «من {assistant_name} هستم» و مثل یک انسان گرم، صمیمی و حرفه‌ای رفتار کنید.
+هرگز از عباراتی مثل "من یک هوش مصنوعی هستم" استفاده نکنید! مکالمه را طبیعی پیش ببرید.
  
 اطلاعات محصولاتی که الان در سیستم فروشگاه ما موجود است و به درخواست کاربر ربط دارد:
 {catalog_string}
  
 قوانین رفتار انسانی و فروشگاهی تو:
-۱. پاسخ‌ها باید کوتاه، روان و متقاعدکننده باشند: معمولاً ۱ تا ۳ جمله کافی است؛ فقط اگر کاربر توضیح فنی خواست بیشتر توضیح بده.
-۲. اول نتیجه را بگو، بعد دلیل خرید را خیلی کوتاه توضیح بده. از مقدمه‌چینی، توضیح طولانی، فهرست‌های بلند و تکرار همه مشخصات فنی پرهیز کن.
-۳. برای متقاعد کردن، روی نیاز مشتری، موجودی واقعی، مزیت عملی محصول، اطمینان خرید و قدم بعدی تمرکز کن؛ اغراق نکن و وعده‌ای نده که در کاتالوگ نیست.
-۴. اگر چند گزینه مرتبط وجود داشت، فقط بهترین پیشنهاد را برجسته کن و در صورت نیاز حداکثر دو جایگزین را خیلی خلاصه نام ببر.
-۵. هر پاسخ را با یک دعوت به اقدام کوتاه و طبیعی تمام کن؛ مثل پرسیدن تعداد، بودجه، مدل دقیق، یا اینکه آیا محصول به سبد اضافه شود.
-۶. آگاهی از محیط فروشگاه: شما داخل سایت فروشگاه ما با مشتری چت می‌کنید. اگر محصولی در کاتالوگ بالا نبود، با احترام بگویید: "اجازه بدید چک کنم... متاسفانه این مدل رو الان موجود نداریم، اما مدل‌های مشابه..."
-۷. چک کردن موجودی (Stock): همیشه فیلد موجودی (stock) محصولات را چک کنید. اگر صفر بود، اصلاً ثبت سفارش نکنید و جایگزین پیشنهاد دهید.
-۸. ابزار ثبت سفارش: فقط و فقط زمانی که مشتری قطعی گفت "همینو می‌خوام"، "اضافه کن به سبد" یا تایید نهایی کرد، ابزار `add_to_cart` را فراخوانی کنید. نیازی به توضیح درباره فراخوانی ابزار به مشتری نیست.
+۱. پاسخ‌ها باید کوتاه، روان و متقاعدکننده باشند.
+۲. اول نتیجه را بگو، بعد دلیل خرید را خیلی کوتاه توضیح بده.
+۳. برای متقاعد کردن، روی نیاز مشتری، موجودی واقعی، مزیت عملی محصول و اطمینان خرید تمرکز کن.
+۴. اگر چند گزینه مرتبط وجود داشت، فقط بهترین پیشنهاد را برجسته کن.
+۵. هر پاسخ را با یک دعوت به اقدام کوتاه تمام کن.
+۶. آگاهی از محیط فروشگاه: شما داخل سایت فروشگاه ما با مشتری چت می‌کنید.
+۷. چک کردن موجودی (Stock): همیشه فیلد موجودی (stock) محصولات را چک کنید. اگر صفر بود، اصلاً ثبت سفارش نکنید.
+۸. ابزار ثبت سفارش: فقط زمانی که مشتری قطعی گفت "همینو می‌خوام" یا تایید نهایی کرد، ابزار `add_to_cart` را فراخوانی کنید.
 """.strip()
 
-build_system_instruction_async = sync_to_async(build_system_instruction)
-load_catalog_async = sync_to_async(load_catalog)
-
-@sync_to_async
-def get_memory_messages_async(conversation):
+async def get_memory_messages_async(conversation):
     if conversation is None:
         return []
     limit = max(getattr(settings, 'CHAT_MEMORY_LIMIT', 10), 0)
-    messages = list(conversation.messages.order_by("-created_at", "-id")[:limit])
+    messages = []
+    async for message in conversation.messages.order_by("-created_at", "-id")[:limit]:
+        messages.append(message)
     messages.reverse()
-    return [{"role": message.role, "content": message.content} for message in messages]
+    return [{"role": m.role, "content": m.content} for m in messages]
 
-@sync_to_async
-def save_chat_turn_async(conversation, user_message, assistant_reply):
+async def save_chat_turn_async(conversation, user_message, assistant_reply):
     if conversation is None or not assistant_reply:
         return
-    ChatMessage.objects.bulk_create([
+    await ChatMessage.objects.abulk_create([
         ChatMessage(conversation=conversation, role=ChatMessage.ROLE_USER, content=user_message),
         ChatMessage(conversation=conversation, role=ChatMessage.ROLE_ASSISTANT, content=assistant_reply),
     ])
-    Conversation.objects.filter(pk=conversation.pk).update(updated_at=timezone.now())
+    await Conversation.objects.filter(pk=conversation.pk).aupdate(updated_at=timezone.now())
 
 async def ask_ai_async(message, conversation=None):
     memory = await get_memory_messages_async(conversation)
-    system_instruction = await build_system_instruction_async(message)
+    system_instruction = build_system_instruction(message)
     
     tools = [ADD_TO_CART_TOOL]
-    
-    # استخراج api_key در صورت وجود در آبجکت conversation
     user_api_key = conversation.api_key if conversation else None
     
     agent_output = await ai_agent.ask_async(
@@ -342,14 +426,18 @@ async def ask_ai_async(message, conversation=None):
         chat_history=memory, 
         user_message=message,
         tools=tools,
-        api_key=user_api_key # ارسال api_key اختصاصی کاربر
+        api_key=user_api_key
     )
     
-    reply_text = agent_output.text or "در حال پردازش سفارش شما..."
+    reply_text = agent_output.text or "در حال پردازش..."
     await save_chat_turn_async(conversation, message, reply_text)
     
     return agent_output
 
+
+# =====================================================================
+# [حل چالش باگ عدم تطابق نام کالا]: بازنویسی منطق استخراج اکشن‌ها به همراه Fuzzy Fallback
+# =====================================================================
 async def extract_cart_action_async(agent_output):
     if hasattr(agent_output, 'function_calls') and agent_output.function_calls:
         for call in agent_output.function_calls:
@@ -359,7 +447,9 @@ async def extract_cart_action_async(agent_output):
                 requested_qty = int(args.get("qty", 1))
                 
                 normalized_requested = normalize_part_number(requested_name)
-                catalog = await load_catalog_async()
+                catalog = load_catalog()
+                
+                # گام اول: تلاش برای یافتن انطباق دقیق آلفانومریکال
                 for product in catalog:
                     if normalize_part_number(product.get("name", "")) == normalized_requested:
                         return {
@@ -370,6 +460,26 @@ async def extract_cart_action_async(agent_output):
                             "requested_qty": requested_qty,
                             "image": product.get("image", "")
                         }
+                
+                # گام دوم (Fuzzy Fallback): اگر مدل در نوشتن نام کالا اشتباه تایپی یا ساختاری جزیی داشت
+                best_match = None
+                best_score = 0
+                for product in catalog:
+                    score = fuzz.token_set_ratio(requested_name, product.get("name", ""))
+                    if score > best_score and score > 85: # آستانه اطمینان بالای ۸۵ درصد
+                        best_score = score
+                        best_match = product
+                
+                if best_match:
+                    return {
+                        "product_name": best_match.get("name"),
+                        "product_id": best_match.get("product_id"),
+                        "price": best_match.get("price"),
+                        "stock": best_match.get("stock", 0),
+                        "requested_qty": requested_qty,
+                        "image": best_match.get("image", "")
+                    }
+                
                 return {
                     "product_name": requested_name, 
                     "requested_qty": requested_qty, 
@@ -397,7 +507,6 @@ def save_chat_turn(conversation, user_message, assistant_reply):
 def ask_ai(message, conversation=None):
     memory = get_memory_messages(conversation)
     system_instruction = build_system_instruction(message)
-    
     user_api_key = conversation.api_key if conversation else None
     
     agent_output = async_to_sync(ai_agent.ask_async)(
