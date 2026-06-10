@@ -69,6 +69,265 @@ class ChatApiTests(TestCase):
         ask_async.assert_awaited_once()
 
     @patch("assistant_app.services.ai_agent.ask_async", new_callable=AsyncMock)
+    def test_chat_preserves_quantity_and_language_for_action_only_reply(self, ask_async):
+        ask_async.return_value = AgentOutput(
+            text="",
+            function_calls=[
+                SimpleNamespace(
+                    name="add_to_cart",
+                    args={"product_name": "iPhone", "qty": 3},
+                )
+            ],
+        )
+
+        response = self.client.post(
+            "/api/chat/",
+            data=json.dumps({"message": "add 3 iPhone to my basket"}),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(data["reply"], "Adding 3 iPhone to your cart...")
+        self.assertEqual(data["action"]["product_id"], "40")
+        self.assertEqual(data["action"]["requested_qty"], 3)
+        self.assertNotRegex(data["reply"], r"[\u0590-\u08ff]")
+
+    @patch("assistant_app.services.ai_agent.ask_async", new_callable=AsyncMock)
+    def test_chat_replaces_wrong_language_cart_reply(self, ask_async):
+        ask_async.return_value = AgentOutput(
+            text="در حال اضافه کردن 3 عدد iPhone به سبد خرید شما هستم.",
+            function_calls=[
+                SimpleNamespace(
+                    name="add_to_cart",
+                    args={"product_name": "iPhone", "qty": 3},
+                )
+            ],
+        )
+
+        response = self.client.post(
+            "/api/chat/",
+            data=json.dumps({"message": "add 3 iPhone to my basket"}),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(data["reply"], "Adding 3 iPhone to your cart...")
+        self.assertEqual(data["action"]["requested_qty"], 3)
+        self.assertNotRegex(data["reply"], r"[\u0590-\u08ff]")
+
+    def test_extract_cart_action_clamps_invalid_quantity(self):
+        agent_output = AgentOutput(
+            function_calls=[
+                SimpleNamespace(
+                    name="add_to_cart",
+                    args={"product_name": "iPhone", "qty": 0},
+                )
+            ],
+        )
+
+        action = services.extract_cart_action(agent_output)
+
+        self.assertEqual(action["product_id"], "40")
+        self.assertEqual(action["requested_qty"], 1)
+
+    @patch("assistant_app.services.ai_agent.ask_async", new_callable=AsyncMock)
+    def test_chat_returns_checkout_action(self, ask_async):
+        ask_async.return_value = AgentOutput(
+            text="Taking you to checkout...",
+            function_calls=[
+                SimpleNamespace(
+                    name="redirect_to_checkout",
+                    args={"reason": "ready to pay"},
+                )
+            ],
+        )
+
+        response = self.client.post(
+            "/api/chat/",
+            data=json.dumps({"message": "take me to checkout"}),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(data["action"]["type"], "redirect_to_checkout")
+        self.assertEqual(data["actions"][0]["target"], "checkout")
+
+    @patch("assistant_app.services.ai_agent.ask_async", new_callable=AsyncMock)
+    def test_chat_returns_invoice_action(self, ask_async):
+        ask_async.return_value = AgentOutput(
+            text="I'll request the invoice for you now.",
+            function_calls=[
+                SimpleNamespace(
+                    name="send_invoice",
+                    args={
+                        "email": "buyer@example.com",
+                        "invoice_type": "proforma",
+                        "note": "Company invoice",
+                    },
+                )
+            ],
+        )
+
+        response = self.client.post(
+            "/api/chat/",
+            data=json.dumps({"message": "send a proforma invoice to buyer@example.com"}),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(data["action"]["type"], "send_invoice")
+        self.assertEqual(data["actions"][0]["email"], "buyer@example.com")
+        self.assertEqual(data["actions"][0]["invoice_type"], "proforma")
+
+    @patch("assistant_app.services.ai_agent.ask_async", new_callable=AsyncMock)
+    def test_chat_can_return_cart_then_checkout_actions(self, ask_async):
+        ask_async.return_value = AgentOutput(
+            text="Adding 2 iPhone to your cart and taking you to checkout...",
+            function_calls=[
+                SimpleNamespace(
+                    name="add_to_cart",
+                    args={"product_name": "iPhone", "qty": 2},
+                ),
+                SimpleNamespace(
+                    name="redirect_to_checkout",
+                    args={"reason": "ready to pay"},
+                ),
+            ],
+        )
+
+        response = self.client.post(
+            "/api/chat/",
+            data=json.dumps({"message": "add 2 iPhone and checkout"}),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual([action["type"] for action in data["actions"]], ["add_to_cart", "redirect_to_checkout"])
+        self.assertEqual(data["action"]["type"], "add_to_cart")
+        self.assertEqual(data["actions"][0]["requested_qty"], 2)
+
+    @patch("assistant_app.services.ai_agent.ask_async", new_callable=AsyncMock)
+    def test_chat_returns_show_cart_action(self, ask_async):
+        ask_async.return_value = AgentOutput(
+            text="Checking your basket...",
+            function_calls=[
+                SimpleNamespace(
+                    name="show_cart",
+                    args={"reason": "basket summary"},
+                )
+            ],
+        )
+
+        response = self.client.post(
+            "/api/chat/",
+            data=json.dumps({"message": "what's in my basket?"}),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(data["action"]["type"], "show_cart")
+        self.assertEqual(data["actions"][0]["type"], "show_cart")
+
+    @patch("assistant_app.services.ai_agent.ask_async", new_callable=AsyncMock)
+    def test_chat_returns_product_redirect_action(self, ask_async):
+        ask_async.return_value = AgentOutput(
+            text="Opening iMac...",
+            function_calls=[
+                SimpleNamespace(
+                    name="redirect_to_product",
+                    args={"product_name": "iMac"},
+                )
+            ],
+        )
+
+        response = self.client.post(
+            "/api/chat/",
+            data=json.dumps({"message": "go to the iMac page"}),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(data["action"]["type"], "redirect_to_product")
+        self.assertEqual(data["actions"][0]["product_id"], "41")
+        self.assertEqual(data["actions"][0]["product_name"], "iMac")
+
+    @patch("assistant_app.services.ai_agent.ask_async", new_callable=AsyncMock)
+    def test_chat_falls_back_to_product_redirect_from_persian_request(self, ask_async):
+        refusal = (
+            "\u0645\u062a\u0627\u0633\u0641\u0627\u0646\u0647\u060c "
+            "\u0645\u0646 \u0646\u0645\u06cc\u200c\u062a\u0648\u0627\u0646\u0645 "
+            "\u0634\u0645\u0627 \u0631\u0627 \u0645\u0633\u062a\u0642\u06cc\u0645\u0627 "
+            "\u0628\u0647 \u0635\u0641\u062d\u0647 \u0645\u062d\u0635\u0648\u0644 "
+            "\u0647\u062f\u0627\u06cc\u062a \u06a9\u0646\u0645."
+        )
+        ask_async.return_value = AgentOutput(text=refusal)
+
+        response = self.client.post(
+            "/api/chat/",
+            data=json.dumps(
+                {
+                    "message": (
+                        "\u0628\u0631\u0648 \u0628\u0647 \u0635\u0641\u062d\u0647 "
+                        "\u0645\u062d\u0635\u0648\u0644 \u0622\u06cc\u200c\u0645\u06a9"
+                    )
+                }
+            ),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(data["action"]["type"], "redirect_to_product")
+        self.assertEqual(data["actions"][0]["product_id"], "41")
+        self.assertNotEqual(data["reply"], refusal)
+
+    @patch("assistant_app.services.ai_agent.ask_async", new_callable=AsyncMock)
+    def test_chat_returns_update_remove_clear_and_coupon_actions(self, ask_async):
+        ask_async.return_value = AgentOutput(
+            text="Updating your basket...",
+            function_calls=[
+                SimpleNamespace(
+                    name="update_cart_item",
+                    args={"product_name": "iPhone", "qty": 4},
+                ),
+                SimpleNamespace(
+                    name="remove_from_cart",
+                    args={"product_name": "iMac"},
+                ),
+                SimpleNamespace(
+                    name="clear_cart",
+                    args={},
+                ),
+                SimpleNamespace(
+                    name="apply_coupon",
+                    args={"code": "SAVE10"},
+                ),
+            ],
+        )
+
+        response = self.client.post(
+            "/api/chat/",
+            data=json.dumps({"message": "update iphone, remove imac, clear cart, apply SAVE10"}),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(
+            [action["type"] for action in data["actions"]],
+            ["update_cart_item", "remove_from_cart", "clear_cart", "apply_coupon"],
+        )
+        self.assertEqual(data["actions"][0]["requested_qty"], 4)
+        self.assertEqual(data["actions"][3]["code"], "SAVE10")
+
+    @patch("assistant_app.services.ai_agent.ask_async", new_callable=AsyncMock)
     def test_chat_reuses_saved_memory_with_conversation_id(self, ask_async):
         ask_async.side_effect = [
             AgentOutput(text="first reply"),
@@ -131,6 +390,7 @@ class ChatApiTests(TestCase):
             with override_settings(
                 BASE_DIR=Path(temp_dir),
                 AI_ASSISTANT_SYNC_TOKEN="",
+                AI_ASSISTANT_ASYNC_CATALOG_IMPORT=False,
             ):
                 response = self.client.post(
                     "/api/catalog/import/",
@@ -248,11 +508,29 @@ class AIAgentTests(TestCase):
         self.assertEqual(result.text, "ok")
         client_factory.assert_called_once_with(api_key="conversation-key")
 
+    def test_latest_user_message_language_override_is_appended_to_config(self):
+        agent = AIAgent(model_name="test-model")
+        agent.key_manager.keys = ["global-key"]
+        agent.key_manager.current_key = "global-key"
+        response = SimpleNamespace(text="ok", function_calls=[])
+        generate_content = AsyncMock(return_value=response)
+        client = SimpleNamespace(
+            aio=SimpleNamespace(models=SimpleNamespace(generate_content=generate_content))
+        )
+
+        with patch("assistant_app.utils.ai_agent.genai.Client", return_value=client):
+            async_to_sync(agent.ask_async)("Persian store prompt", [], "Can you help me?")
+
+        config = generate_content.call_args.kwargs["config"]
+        instruction = config.system_instruction
+        self.assertIn("CRITICAL RESPONSE LANGUAGE OVERRIDE", instruction)
+        self.assertIn("RAW_USER_MESSAGE_START\nCan you help me?\nRAW_USER_MESSAGE_END", instruction)
+
     def test_retryable_gemini_unavailable_returns_error_output(self):
         agent = AIAgent(model_name="test-model")
         agent.key_manager.keys = ["key-1", "key-2"]
-        agent.key_manager.current_key = "key-1"
-        agent.key_manager.key_cycle = iter(["key-2"])
+        agent.key_manager.current_index = 0
+        agent.key_manager._key_state = {}
         agent.model_candidates = ["test-model"]
         agent.retry_attempts = 1
         client = SimpleNamespace(
@@ -277,6 +555,61 @@ class AIAgentTests(TestCase):
         self.assertIn("مدل", result.text)
         self.assertEqual(client_factory.call_args_list[0].kwargs["api_key"], "key-1")
         self.assertEqual(client_factory.call_args_list[1].kwargs["api_key"], "key-2")
+
+
+    def test_successful_requests_rotate_across_global_keys(self):
+        agent = AIAgent(model_name="test-model")
+        agent.key_manager.keys = ["key-1", "key-2"]
+        agent.key_manager.current_index = 0
+        agent.key_manager._key_state = {}
+        response = SimpleNamespace(text="ok", function_calls=[])
+        client = SimpleNamespace(
+            aio=SimpleNamespace(
+                models=SimpleNamespace(
+                    generate_content=AsyncMock(return_value=response)
+                )
+            )
+        )
+
+        with patch("assistant_app.utils.ai_agent.genai.Client", return_value=client) as client_factory:
+            first = async_to_sync(agent.ask_async)("system", [], "hello")
+            second = async_to_sync(agent.ask_async)("system", [], "hello again")
+
+        self.assertEqual(first.text, "ok")
+        self.assertEqual(second.text, "ok")
+        self.assertEqual(
+            [call.kwargs["api_key"] for call in client_factory.call_args_list],
+            ["key-1", "key-2"],
+        )
+
+    def test_permission_error_on_one_key_falls_back_to_next_key(self):
+        agent = AIAgent(model_name="test-model")
+        agent.key_manager.keys = ["bad-key", "good-key"]
+        agent.key_manager.current_index = 0
+        agent.key_manager._key_state = {}
+        agent.model_candidates = ["test-model"]
+        agent.retry_attempts = 1
+        client = SimpleNamespace(
+            aio=SimpleNamespace(
+                models=SimpleNamespace(
+                    generate_content=AsyncMock(
+                        side_effect=[
+                            Exception("403 PERMISSION_DENIED api_key_invalid"),
+                            SimpleNamespace(text="ok", function_calls=[]),
+                        ]
+                    )
+                )
+            )
+        )
+
+        with patch("assistant_app.utils.ai_agent.genai.Client", return_value=client) as client_factory:
+            result = async_to_sync(agent.ask_async)("system", [], "hello")
+
+        self.assertEqual(result.text, "ok")
+        self.assertEqual(
+            [call.kwargs["api_key"] for call in client_factory.call_args_list],
+            ["bad-key", "good-key"],
+        )
 
 
 class ConversationAdminExportTests(TestCase):

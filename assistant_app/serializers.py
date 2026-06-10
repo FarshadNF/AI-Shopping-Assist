@@ -18,6 +18,7 @@ def _clean_text(value):
 class ChatRequestSerializer(serializers.Serializer):
     conversation_id = serializers.UUIDField(required=False, allow_null=True)
     message = serializers.CharField(required=True, allow_blank=False, max_length=2000)
+    page_context = serializers.DictField(required=False, allow_empty=True)
 
 
 class ProductSerializer(serializers.Serializer):

@@ -7,9 +7,11 @@ from rest_framework.response import Response
 
 from .services import (
     ask_ai,
+    extract_assistant_actions,
     extract_cart_action,
     get_or_create_conversation,
     load_catalog,
+    normalized_reply_text,
     record_opencart_catalog_sync,
     replace_catalog,
 )
@@ -60,8 +62,9 @@ def chat_api(request):
             session_key=session_key,
         )
         
+        user_message = serializer.validated_data["message"]
         agent_output = ask_ai(
-            serializer.validated_data["message"], 
+            user_message,
             conversation=conversation
         )
         
@@ -76,7 +79,10 @@ def chat_api(request):
             status=500
         )
 
-    reply_text = agent_output.text if agent_output.text else "در حال پردازش درخواست شما..."
+    actions = extract_assistant_actions(agent_output, user_message)
+    action = next(iter(actions), None)
+    cart_action = extract_cart_action(agent_output, user_message)
+    reply_text = normalized_reply_text(user_message, agent_output, action)
 
     if agent_output.is_error:
         return Response(
@@ -95,8 +101,11 @@ def chat_api(request):
         "conversation_id": str(conversation.public_id),
     }
     
-    action = extract_cart_action(agent_output)
-    if action:
+    if actions:
+        response_data["actions"] = actions
+    if cart_action:
+        response_data["action"] = cart_action
+    elif action:
         response_data["action"] = action
 
     return Response(response_data)
@@ -142,8 +151,21 @@ def import_catalog(request):
     products = serializer.validated_data["products"]
     source = serializer.validated_data.get("source", "")
     
+    if not getattr(settings, "AI_ASSISTANT_ASYNC_CATALOG_IMPORT", True):
+        replaced_products = replace_catalog(products)
+        record_opencart_catalog_sync(source, len(replaced_products))
+        return Response(
+            {
+                "status": "success",
+                "reply": "Catalog import completed.",
+                "catalog_items": len(replaced_products),
+                "catalog_items_received": len(products),
+                "source": source,
+            }
+        )
+
     # انتقال پردازش سنگین به پس‌زمینه برای جلوگیری از تایم‌اوت شدن ریکوئست (Blocking IO Fix)
-    thread = threading.Thread(target=background_catalog_sync, args=(products, source))
+    thread = threading.Thread(target=background_catalog_sync, args=(products, source), daemon=True)
     thread.start()
     
     return Response(

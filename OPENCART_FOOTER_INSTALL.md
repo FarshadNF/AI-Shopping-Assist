@@ -67,3 +67,90 @@ OPENCART_CATALOG_URL=http://localhost/test-shop/index.php?route=extension/openca
 ویجت هر ۱۰ دقیقه یک بار کاتالوگ اوپن‌کارت را صفحه‌به‌صفحه می‌خواند، آن را به
 `/api/catalog/import/` می‌فرستد، سپس پاسخ‌های `/api/chat/` بر اساس همان
 `products_catalog.json` تازه تولید می‌شوند.
+## Assistant actions
+
+The widget can now execute multiple assistant actions returned by `/api/chat/`.
+
+Supported actions:
+
+- `add_to_cart`: posts `product_id` and `requested_qty` to OpenCart cart routes.
+- `show_cart`: reads the live cart from `cartInfoRoute`; falls back to parsing `cartRoute`; finally falls back to the widget's local cart snapshot.
+- `redirect_to_cart`: redirects the browser to `cartRoute`.
+- `redirect_to_product`: opens the product detail page by `product_url` when available, otherwise by `productRoute + product_id`, otherwise by `searchRoute`.
+- `update_cart_item`: changes a cart item quantity through `cartActionRoute` or OpenCart cart edit routes.
+- `remove_from_cart`: removes a cart item through `cartActionRoute` or OpenCart cart remove routes.
+- `clear_cart`: empties the cart through `cartActionRoute` or by removing known cart lines.
+- `apply_coupon`: applies a coupon through `cartActionRoute` or `couponRoute`.
+- `redirect_to_checkout`: redirects the browser to `checkoutRoute`.
+- `send_invoice`: posts an invoice/proforma/quote request to `invoiceRoute`.
+
+Default widget routes:
+
+```js
+cartRoute: 'index.php?route=checkout/cart',
+productRoute: 'index.php?route=product/product',
+searchRoute: 'index.php?route=product/search',
+cartInfoRoute: 'index.php?route=extension/opencart/checkout/ai_assistant.getCart',
+cartActionRoute: 'index.php?route=extension/opencart/checkout/ai_assistant.cartAction',
+checkoutRoute: 'index.php?route=checkout/checkout',
+couponRoute: 'index.php?route=extension/total/coupon.coupon',
+invoiceRoute: 'index.php?route=extension/opencart/checkout/ai_assistant.sendInvoice',
+redirectDelayMs: 700
+```
+
+For the most reliable cart actions, implement these optional OpenCart extension routes:
+
+- `cartInfoRoute`: return JSON cart contents.
+- `cartActionRoute`: accept same-origin `POST` actions.
+
+`cartInfoRoute` should return JSON shaped like:
+
+```json
+{
+  "success": true,
+  "products": [
+    {
+      "key": "cart-line-key",
+      "product_id": "40",
+      "name": "iPhone",
+      "quantity": 2,
+      "price": "$100.00",
+      "total": "$200.00"
+    }
+  ],
+  "total": "$200.00"
+}
+```
+
+`cartActionRoute` receives:
+
+```text
+action=update|remove|clear|coupon
+product_id
+key
+quantity
+code
+```
+
+Return JSON such as:
+
+```json
+{"success": true}
+```
+
+To send real invoices from OpenCart, implement `invoiceRoute` in your OpenCart extension. It should accept a same-origin `POST` with:
+
+```text
+email
+invoice_type
+note
+conversation_id
+```
+
+Return JSON such as:
+
+```json
+{"success": true}
+```
+
+If `invoiceRoute` is missing or returns an error, the widget shows a short fallback message and redirects the user to checkout.

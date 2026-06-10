@@ -9,10 +9,19 @@ If your OpenCart catalog route is different, change catalogRoute too.
 window.AI_SHOPPING_ASSIST_CONFIG = window.AI_SHOPPING_ASSIST_CONFIG || {
   apiBase: 'http://127.0.0.1:8000',
   catalogRoute: 'index.php?route=extension/opencart/checkout/ai_assistant.getCatalog',
+  cartRoute: 'index.php?route=checkout/cart',
+  productRoute: 'index.php?route=product/product',
+  searchRoute: 'index.php?route=product/search',
+  cartInfoRoute: 'index.php?route=extension/opencart/checkout/ai_assistant.getCart',
+  cartActionRoute: 'index.php?route=extension/opencart/checkout/ai_assistant.cartAction',
+  checkoutRoute: 'index.php?route=checkout/checkout',
+  couponRoute: 'index.php?route=extension/total/coupon.coupon',
+  invoiceRoute: 'index.php?route=extension/opencart/checkout/ai_assistant.sendInvoice',
   syncToken: '',
   syncIntervalMs: 10 * 60 * 1000,
   pageLimit: 100,
-  maxPages: 100
+  maxPages: 100,
+  redirectDelayMs: 700
 };
 </script>
 
@@ -24,10 +33,19 @@ window.AI_SHOPPING_ASSIST_CONFIG = window.AI_SHOPPING_ASSIST_CONFIG || {
   const defaults = {
     apiBase: 'http://127.0.0.1:8000',
     catalogRoute: 'index.php?route=extension/opencart/checkout/ai_assistant.getCatalog',
+    cartRoute: 'index.php?route=checkout/cart',
+    productRoute: 'index.php?route=product/product',
+    searchRoute: 'index.php?route=product/search',
+    cartInfoRoute: 'index.php?route=extension/opencart/checkout/ai_assistant.getCart',
+    cartActionRoute: 'index.php?route=extension/opencart/checkout/ai_assistant.cartAction',
+    checkoutRoute: 'index.php?route=checkout/checkout',
+    couponRoute: 'index.php?route=extension/total/coupon.coupon',
+    invoiceRoute: 'index.php?route=extension/opencart/checkout/ai_assistant.sendInvoice',
     syncToken: '',
     syncIntervalMs: 10 * 60 * 1000,
     pageLimit: 100,
-    maxPages: 100
+    maxPages: 100,
+    redirectDelayMs: 700
   };
   const config = Object.assign({}, defaults, window.AI_SHOPPING_ASSIST_CONFIG || {});
   config.apiBase = String(config.apiBase || '').replace(/\/+$/, '');
@@ -35,7 +53,8 @@ window.AI_SHOPPING_ASSIST_CONFIG = window.AI_SHOPPING_ASSIST_CONFIG || {
   const storagePrefix = 'ai-shopping-assist:' + location.origin;
   const keys = {
     lastSync: storagePrefix + ':last-sync',
-    conversationId: storagePrefix + ':conversation-id'
+    conversationId: storagePrefix + ':conversation-id',
+    cartSnapshot: storagePrefix + ':cart-snapshot'
   };
 
   const css = `
@@ -125,6 +144,14 @@ window.AI_SHOPPING_ASSIST_CONFIG = window.AI_SHOPPING_ASSIST_CONFIG || {
       white-space: pre-wrap;
       overflow-wrap: anywhere;
       font-size: 14px;
+    }
+    .aisa-message[dir="rtl"] {
+      direction: rtl;
+      text-align: right;
+    }
+    .aisa-message[dir="ltr"] {
+      direction: ltr;
+      text-align: left;
     }
     .aisa-message.user {
       margin-right: auto;
@@ -262,15 +289,114 @@ window.AI_SHOPPING_ASSIST_CONFIG = window.AI_SHOPPING_ASSIST_CONFIG || {
   }
 
   function addMessage(role, text) {
+    const cleanedText = stripAction(text);
+    if (!cleanedText) return;
+
     const item = document.createElement('div');
     item.className = 'aisa-message ' + (role === 'user' ? 'user' : 'bot');
-    item.textContent = stripAction(text);
+    item.dir = isRtlMessage(cleanedText) ? 'rtl' : 'ltr';
+    item.textContent = cleanedText;
     messages.appendChild(item);
     messages.scrollTop = messages.scrollHeight;
   }
 
   function stripAction(text) {
     return String(text || '').replace(/\[ACTION:\s*ADD_TO_CART:[^\]]+\]/gi, '').trim();
+  }
+
+  function isRtlMessage(text) {
+    const value = String(text || '');
+    const rtlCount = (value.match(/[\u0590-\u08ff]/g) || []).length;
+    const latinCount = (value.match(/[A-Za-z]/g) || []).length;
+    return rtlCount > latinCount;
+  }
+
+  function getRequestedQuantity(action) {
+    const rawQuantity = action && (action.requested_qty || action.qty || action.quantity);
+    const quantity = Number(rawQuantity || 1);
+    return Number.isFinite(quantity) && quantity > 0 ? Math.trunc(quantity) : 1;
+  }
+
+  function getActions(data) {
+    if (Array.isArray(data.actions)) return data.actions;
+    return data.action ? [data.action] : [];
+  }
+
+  function localizedAddedMessage(message, quantity) {
+    if (isRtlMessage(message)) {
+      return `${quantity} عدد محصول به سبد خرید شما اضافه شد.`;
+    }
+    return `Added ${quantity} ${quantity === 1 ? 'item' : 'items'} to your cart.`;
+  }
+
+  function localizedConnectionError(message) {
+    if (isRtlMessage(message)) {
+      return 'ارتباط با دستیار برقرار نشد. لطفا چند لحظه دیگر دوباره امتحان کن.';
+    }
+    return 'I could not connect to the assistant. Please try again in a moment.';
+  }
+
+  function localizedInvoiceSentMessage(message) {
+    if (isRtlMessage(message)) {
+      return 'درخواست فاکتور ثبت شد.';
+    }
+    return 'Invoice request sent.';
+  }
+
+  function localizedInvoiceFallbackMessage(message) {
+    if (isRtlMessage(message)) {
+      return 'ارسال خودکار فاکتور در دسترس نیست. شما را به صفحه پرداخت منتقل می‌کنم.';
+    }
+    return 'Automatic invoice sending is not available. I will take you to checkout.';
+  }
+
+  function localizedCartEmptyMessage(message) {
+    if (isRtlMessage(message)) {
+      return 'سبد خرید شما خالی است.';
+    }
+    return 'Your basket is empty.';
+  }
+
+  function localizedCartUnavailableMessage(message) {
+    if (isRtlMessage(message)) {
+      return 'فعلا نمی‌توانم سبد خرید زنده را بخوانم. صفحه سبد خرید را باز می‌کنم.';
+    }
+    return 'I cannot read the live basket yet. I will open the basket page.';
+  }
+
+  function localizedUpdatedMessage(message) {
+    if (isRtlMessage(message)) {
+      return 'سبد خرید به‌روزرسانی شد.';
+    }
+    return 'Your basket has been updated.';
+  }
+
+  function localizedRemovedMessage(message) {
+    if (isRtlMessage(message)) {
+      return 'محصول از سبد خرید حذف شد.';
+    }
+    return 'Removed the item from your basket.';
+  }
+
+  function localizedClearedMessage(message) {
+    if (isRtlMessage(message)) {
+      return 'سبد خرید خالی شد.';
+    }
+    return 'Your basket has been cleared.';
+  }
+
+  function localizedCouponMessage(message) {
+    if (isRtlMessage(message)) {
+      return 'کد تخفیف اعمال شد.';
+    }
+    return 'Coupon applied.';
+  }
+
+  function localizedActionFailedMessage(message) {
+    if (isRtlMessage(message)) {
+      return 'برای انجام این کار باید صفحه سبد خرید را باز کنم.';
+    }
+    return 'I need to open the basket page to complete that.';
   }
 
   async function askAssistant(message) {
@@ -312,17 +438,14 @@ window.AI_SHOPPING_ASSIST_CONFIG = window.AI_SHOPPING_ASSIST_CONFIG || {
 
       addMessage('bot', data.reply);
 
-      if (data.action && data.action.product_id) {
-        const added = await addToCart(data.action.product_id);
-        if (added) {
-          addMessage('bot', 'محصول به سبد خرید اضافه شد.');
-        }
+      for (const action of getActions(data)) {
+        await handleAction(action, message, data);
       }
 
       setStatus('آماده');
     } catch (error) {
       console.error('AI assistant error:', error);
-      addMessage('bot', 'ارتباط با دستیار برقرار نشد. لطفا چند لحظه دیگر دوباره امتحان کن.');
+      addMessage('bot', localizedConnectionError(message));
       setStatus('خطا');
     } finally {
       send.disabled = false;
@@ -419,6 +542,7 @@ window.AI_SHOPPING_ASSIST_CONFIG = window.AI_SHOPPING_ASSIST_CONFIG || {
     return {
       product_id: cleanText(firstPresent(item, ['product_id', 'id', 'productId'], '')),
       name: name,
+      product_url: cleanText(firstPresent(item, ['url', 'href', 'link', 'product_url', 'productUrl'], '')),
       price: cleanText(firstPresent(item, ['price', 'special'], '0')),
       stock: toInt(firstPresent(item, ['stock', 'quantity', 'qty'], 0)),
       category: cleanText(firstPresent(item, ['category', 'category_name', 'manufacturer'], 'Industrial Automation & Networking')),
@@ -486,14 +610,445 @@ window.AI_SHOPPING_ASSIST_CONFIG = window.AI_SHOPPING_ASSIST_CONFIG || {
     };
   }
 
-  async function addToCart(productId) {
+  async function handleAction(action, message, data) {
+    const actionType = action.type || (action.product_id ? 'add_to_cart' : '');
+
+    if (actionType === 'add_to_cart' && action.product_id) {
+      const quantity = getRequestedQuantity(action);
+      const added = await addToCart(action.product_id, quantity);
+      if (added) {
+        rememberCartItem(action, quantity);
+        addMessage('bot', localizedAddedMessage(message, quantity));
+      }
+      return;
+    }
+
+    if (actionType === 'show_cart') {
+      await showCart(message);
+      return;
+    }
+
+    if (actionType === 'redirect_to_cart') {
+      redirectToRoute(config.cartRoute);
+      return;
+    }
+
+    if (actionType === 'redirect_to_product') {
+      redirectToProduct(action);
+      return;
+    }
+
+    if (actionType === 'update_cart_item') {
+      const updated = await updateCartItem(action);
+      addMessage('bot', updated ? localizedUpdatedMessage(message) : localizedActionFailedMessage(message));
+      if (!updated) redirectToRoute(config.cartRoute);
+      return;
+    }
+
+    if (actionType === 'remove_from_cart') {
+      const removed = await removeCartItem(action);
+      addMessage('bot', removed ? localizedRemovedMessage(message) : localizedActionFailedMessage(message));
+      if (!removed) redirectToRoute(config.cartRoute);
+      return;
+    }
+
+    if (actionType === 'clear_cart') {
+      const cleared = await clearCart();
+      addMessage('bot', cleared ? localizedClearedMessage(message) : localizedActionFailedMessage(message));
+      if (!cleared) redirectToRoute(config.cartRoute);
+      return;
+    }
+
+    if (actionType === 'apply_coupon') {
+      const applied = await applyCoupon(action);
+      addMessage('bot', applied ? localizedCouponMessage(message) : localizedActionFailedMessage(message));
+      if (!applied) redirectToRoute(config.cartRoute);
+      return;
+    }
+
+    if (actionType === 'redirect_to_checkout') {
+      redirectToRoute(config.checkoutRoute);
+      return;
+    }
+
+    if (actionType === 'send_invoice') {
+      const sent = await requestInvoice(action, data);
+      if (sent) {
+        addMessage('bot', localizedInvoiceSentMessage(message));
+        return;
+      }
+      addMessage('bot', localizedInvoiceFallbackMessage(message));
+      redirectToRoute(config.checkoutRoute);
+    }
+  }
+
+  function redirectToRoute(route) {
+    if (!route) return;
+    redirectToUrl(buildShopUrl(route).toString());
+  }
+
+  function redirectToUrl(url) {
+    if (!url) return;
+    const delay = Number(config.redirectDelayMs || 0);
+    window.setTimeout(function () {
+      try {
+        window.location.assign(new URL(url, getShopBaseUrl()).toString());
+      } catch (error) {
+        window.location.assign(url);
+      }
+    }, Number.isFinite(delay) ? delay : 0);
+  }
+
+  function redirectToProduct(action) {
+    const productUrl = String(action.product_url || action.url || action.href || '');
+    if (productUrl) {
+      redirectToUrl(productUrl);
+      return;
+    }
+
+    if (action.product_id) {
+      const url = buildShopUrl(config.productRoute);
+      url.searchParams.set('product_id', String(action.product_id));
+      redirectToUrl(url.toString());
+      return;
+    }
+
+    if (action.product_name) {
+      const url = buildShopUrl(config.searchRoute);
+      url.searchParams.set('search', String(action.product_name));
+      redirectToUrl(url.toString());
+    }
+  }
+
+  async function requestInvoice(action, data) {
+    if (!config.invoiceRoute) return false;
+    const body = new URLSearchParams({
+      email: action.email || '',
+      invoice_type: action.invoice_type || 'invoice',
+      note: action.note || '',
+      conversation_id: data.conversation_id || ''
+    });
+
+    try {
+      const response = await fetch(buildShopUrl(config.invoiceRoute).toString(), {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: body
+      });
+      const payload = await response.json().catch(function () { return {}; });
+      return response.ok && payload.success !== false && payload.status !== 'error';
+    } catch (error) {
+      console.warn('OpenCart invoice request failed:', error);
+      return false;
+    }
+  }
+
+  async function showCart(message) {
+    const cart = await getCart();
+    if (cart.items.length) {
+      addMessage('bot', formatCartSummary(cart, message));
+      return;
+    }
+    if (cart.source === 'unavailable') {
+      addMessage('bot', localizedCartUnavailableMessage(message));
+      redirectToRoute(config.cartRoute);
+      return;
+    }
+    addMessage('bot', localizedCartEmptyMessage(message));
+  }
+
+  async function getCart() {
+    const jsonCart = await fetchCartJson(config.cartInfoRoute);
+    if (jsonCart) return jsonCart;
+
+    const htmlCart = await fetchCartHtml(config.cartRoute);
+    if (htmlCart) return htmlCart;
+
+    const localCart = loadLocalCart();
+    if (localCart.items.length) return Object.assign({ source: 'local' }, localCart);
+
+    return { source: 'unavailable', items: [], totals: [] };
+  }
+
+  async function fetchCartJson(route) {
+    if (!route) return null;
+    try {
+      const response = await fetch(buildShopUrl(route).toString(), {
+        credentials: 'same-origin',
+        headers: { 'Accept': 'application/json' }
+      });
+      const contentType = response.headers.get('content-type') || '';
+      if (!response.ok || !contentType.includes('json')) return null;
+      const payload = await response.json();
+      return normalizeCartPayload(payload, 'json');
+    } catch (error) {
+      console.warn('OpenCart cart JSON request failed:', error);
+      return null;
+    }
+  }
+
+  async function fetchCartHtml(route) {
+    if (!route) return null;
+    try {
+      const response = await fetch(buildShopUrl(route).toString(), {
+        credentials: 'same-origin',
+        headers: { 'Accept': 'text/html' }
+      });
+      const contentType = response.headers.get('content-type') || '';
+      if (!response.ok || !contentType.includes('html')) return null;
+      return parseCartHtml(await response.text());
+    } catch (error) {
+      console.warn('OpenCart cart HTML request failed:', error);
+      return null;
+    }
+  }
+
+  function normalizeCartPayload(payload, source) {
+    const container = payload && (payload.data || payload.cart || payload);
+    const rows = firstArray(
+      container && container.products,
+      container && container.items,
+      container && container.lines,
+      payload && payload.products,
+      payload && payload.items
+    );
+    const items = rows.map(normalizeCartItem).filter(function (item) { return item.name; });
+    const totals = firstArray(container && container.totals, payload && payload.totals);
+    return { source: source, items: items, totals: totals, total: container && (container.total || container.total_formatted || container.subtotal) || '' };
+  }
+
+  function normalizeCartItem(row) {
+    return {
+      key: String(row.key || row.cart_id || row.cartId || row.id || ''),
+      product_id: String(row.product_id || row.productId || ''),
+      name: String(row.name || row.product_name || row.title || '').trim(),
+      quantity: getRequestedQuantity({ requested_qty: row.quantity || row.qty || 1 }),
+      price: String(row.price || row.unit_price || '').trim(),
+      total: String(row.total || row.line_total || '').trim()
+    };
+  }
+
+  function parseCartHtml(html) {
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+    const rows = Array.from(doc.querySelectorAll('form table tbody tr, .table-responsive table tbody tr'));
+    const items = rows.map(function (row) {
+      const quantityInput = row.querySelector('input[name^="quantity"]');
+      const keyMatch = quantityInput && String(quantityInput.name || '').match(/\[([^\]]+)\]/);
+      const cells = Array.from(row.querySelectorAll('td'));
+      const link = row.querySelector('a[href*="product_id"], .text-start a, td a');
+      const name = link ? link.textContent.trim() : (cells[1] && cells[1].textContent.trim()) || '';
+      return {
+        key: keyMatch ? keyMatch[1] : '',
+        product_id: extractProductId((link && link.href) || ''),
+        name: name.replace(/\s+/g, ' '),
+        quantity: getRequestedQuantity({ requested_qty: quantityInput ? quantityInput.value : 1 }),
+        price: (cells[cells.length - 2] && cells[cells.length - 2].textContent.trim()) || '',
+        total: (cells[cells.length - 1] && cells[cells.length - 1].textContent.trim()) || ''
+      };
+    }).filter(function (item) { return item.name; });
+    return { source: 'html', items: items, totals: [], total: '' };
+  }
+
+  function extractProductId(url) {
+    try {
+      return new URL(url, location.href).searchParams.get('product_id') || '';
+    } catch (error) {
+      return '';
+    }
+  }
+
+  function firstArray() {
+    for (let index = 0; index < arguments.length; index += 1) {
+      if (Array.isArray(arguments[index])) return arguments[index];
+    }
+    return [];
+  }
+
+  function formatCartSummary(cart, message) {
+    const lines = cart.items.map(function (item) {
+      const qty = item.quantity || 1;
+      const total = item.total || item.price || '';
+      return total ? `${qty} x ${item.name} - ${total}` : `${qty} x ${item.name}`;
+    });
+    const totalLine = cart.total ? `\nTotal: ${cart.total}` : '';
+    if (isRtlMessage(message)) {
+      return `سبد خرید شما:\n${lines.join('\n')}${totalLine}`;
+    }
+    return `Your basket:\n${lines.join('\n')}${totalLine}`;
+  }
+
+  function loadLocalCart() {
+    try {
+      const parsed = JSON.parse(localStorage.getItem(keys.cartSnapshot) || '[]');
+      return { source: 'local', items: Array.isArray(parsed) ? parsed : [], totals: [], total: '' };
+    } catch (error) {
+      return { source: 'local', items: [], totals: [], total: '' };
+    }
+  }
+
+  function saveLocalCart(items) {
+    localStorage.setItem(keys.cartSnapshot, JSON.stringify(items));
+  }
+
+  function rememberCartItem(action, quantity) {
+    const cart = loadLocalCart();
+    const productId = String(action.product_id || '');
+    const existing = cart.items.find(function (item) {
+      return productId && String(item.product_id) === productId;
+    });
+    if (existing) {
+      existing.quantity = Number(existing.quantity || 0) + quantity;
+    } else {
+      cart.items.push({
+        key: '',
+        product_id: productId,
+        name: action.product_name || productId,
+        quantity: quantity,
+        price: action.price || '',
+        total: ''
+      });
+    }
+    saveLocalCart(cart.items);
+  }
+
+  function findCartItem(cart, action) {
+    const productId = String(action.product_id || '');
+    const name = String(action.product_name || '').toLowerCase();
+    return cart.items.find(function (item) {
+      if (productId && String(item.product_id) === productId) return true;
+      return name && String(item.name || '').toLowerCase().includes(name);
+    });
+  }
+
+  async function postCartAction(actionType, params) {
+    if (!config.cartActionRoute) return false;
+    const body = new URLSearchParams(Object.assign({ action: actionType }, params || {}));
+    try {
+      const response = await fetch(buildShopUrl(config.cartActionRoute).toString(), {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: body
+      });
+      const payload = await response.json().catch(function () { return {}; });
+      return response.ok && payload.success !== false && payload.status !== 'error';
+    } catch (error) {
+      console.warn('OpenCart cart action failed:', error);
+      return false;
+    }
+  }
+
+  async function updateCartItem(action) {
+    const quantity = getRequestedQuantity(action);
+    const cart = await getCart();
+    const item = findCartItem(cart, action);
+    const params = {
+      product_id: action.product_id || (item && item.product_id) || '',
+      key: (item && item.key) || '',
+      quantity: String(quantity)
+    };
+    if (await postCartAction('update', params)) return true;
+    if (item && item.key && await postCartEdit(item.key, quantity)) return true;
+    if (cart.source === 'local' && item) {
+      item.quantity = quantity;
+      saveLocalCart(cart.items);
+      return true;
+    }
+    return false;
+  }
+
+  async function removeCartItem(action) {
+    const cart = await getCart();
+    const item = findCartItem(cart, action);
+    const params = {
+      product_id: action.product_id || (item && item.product_id) || '',
+      key: (item && item.key) || ''
+    };
+    if (await postCartAction('remove', params)) return true;
+    if (item && item.key && await postCartRemove(item.key)) return true;
+    if (cart.source === 'local' && item) {
+      saveLocalCart(cart.items.filter(function (line) { return line !== item; }));
+      return true;
+    }
+    return false;
+  }
+
+  async function clearCart() {
+    if (await postCartAction('clear', {})) return true;
+    const cart = await getCart();
+    if (cart.items.length) {
+      const results = await Promise.all(cart.items.map(function (item) {
+        return item.key ? postCartRemove(item.key) : Promise.resolve(false);
+      }));
+      if (results.some(Boolean)) return true;
+    }
+    const localCart = loadLocalCart();
+    if (localCart.items.length) {
+      saveLocalCart([]);
+      return true;
+    }
+    return false;
+  }
+
+  async function applyCoupon(action) {
+    const code = action.code || '';
+    if (!code) return false;
+    if (await postCartAction('coupon', { code: code })) return true;
+    if (!config.couponRoute) return false;
+    try {
+      const response = await fetch(buildShopUrl(config.couponRoute).toString(), {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({ coupon: code, code: code })
+      });
+      const payload = await response.json().catch(function () { return {}; });
+      return response.ok && payload.error === undefined && payload.status !== 'error';
+    } catch (error) {
+      console.warn('OpenCart coupon request failed:', error);
+      return false;
+    }
+  }
+
+  async function postCartEdit(key, quantity) {
+    const body = new URLSearchParams({ key: key, quantity: String(quantity) });
+    body.set(`quantity[${key}]`, String(quantity));
+    return postFirstSuccessful(['index.php?route=checkout/cart.edit', 'index.php?route=checkout/cart/edit'], body);
+  }
+
+  async function postCartRemove(key) {
+    return postFirstSuccessful(
+      ['index.php?route=checkout/cart.remove', 'index.php?route=checkout/cart/remove'],
+      new URLSearchParams({ key: key })
+    );
+  }
+
+  async function postFirstSuccessful(routes, body) {
+    for (const route of routes) {
+      try {
+        const response = await fetch(buildShopUrl(route).toString(), {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: body
+        });
+        if (response.ok) return true;
+      } catch (error) {
+        console.warn('OpenCart request failed:', error);
+      }
+    }
+    return false;
+  }
+
+  async function addToCart(productId, quantity) {
     const routes = [
       'index.php?route=checkout/cart.add',
       'index.php?route=checkout/cart/add'
     ];
     const body = new URLSearchParams({
       product_id: productId,
-      quantity: '1'
+      quantity: String(quantity || 1)
     });
 
     for (const route of routes) {

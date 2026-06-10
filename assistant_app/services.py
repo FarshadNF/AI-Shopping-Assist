@@ -14,7 +14,7 @@ from thefuzz import fuzz
 from .models import ChatMessage, Conversation, OpenCartConnectionStatus
 from .utils.ai_agent import ai_agent
 
-ADD_TO_CART_TOOL = types.Tool(
+ASSISTANT_ACTION_TOOLS = types.Tool(
     function_declarations=[
         types.FunctionDeclaration(
             name="add_to_cart",
@@ -33,9 +33,161 @@ ADD_TO_CART_TOOL = types.Tool(
                 },
                 required=["product_name", "qty"]
             )
-        ) # <--- این خط اصلاح شد (تبدیل آکولاد به پرانتز)
+        ),
+        types.FunctionDeclaration(
+            name="redirect_to_checkout",
+            description="Redirects the shopper to the checkout/payment page. Call this when the user explicitly asks to checkout, pay, complete the order, or go to payment.",
+            parameters=types.Schema(
+                type=types.Type.OBJECT,
+                properties={
+                    "reason": types.Schema(
+                        type=types.Type.STRING,
+                        description="Short reason for the redirect, in the user's language"
+                    )
+                },
+                required=[]
+            )
+        ),
+        types.FunctionDeclaration(
+            name="show_cart",
+            description="Shows the shopper what is currently in their basket/cart. Call this when the user asks what is in the basket, cart contents, cart total, or basket summary.",
+            parameters=types.Schema(
+                type=types.Type.OBJECT,
+                properties={
+                    "reason": types.Schema(
+                        type=types.Type.STRING,
+                        description="Short reason for showing the cart, in the user's language"
+                    )
+                },
+                required=[]
+            )
+        ),
+        types.FunctionDeclaration(
+            name="redirect_to_cart",
+            description="Redirects the shopper to the shopping basket/cart page. Call this when the user asks to open, view, or go to their basket/cart page.",
+            parameters=types.Schema(
+                type=types.Type.OBJECT,
+                properties={
+                    "reason": types.Schema(
+                        type=types.Type.STRING,
+                        description="Short reason for opening the cart, in the user's language"
+                    )
+                },
+                required=[]
+            )
+        ),
+        types.FunctionDeclaration(
+            name="redirect_to_product",
+            description="Redirects the shopper to a product detail page. Call this when the user asks to open, view, go to, or navigate to a product page.",
+            parameters=types.Schema(
+                type=types.Type.OBJECT,
+                properties={
+                    "product_name": types.Schema(
+                        type=types.Type.STRING,
+                        description="The product name or part number the user wants to open"
+                    ),
+                    "product_id": types.Schema(
+                        type=types.Type.STRING,
+                        description="The product id if known"
+                    )
+                },
+                required=["product_name"]
+            )
+        ),
+        types.FunctionDeclaration(
+            name="update_cart_item",
+            description="Updates the quantity of an item already in the cart. Call this when the user asks to change an item's basket quantity.",
+            parameters=types.Schema(
+                type=types.Type.OBJECT,
+                properties={
+                    "product_name": types.Schema(
+                        type=types.Type.STRING,
+                        description="The product name or part number the user wants to update"
+                    ),
+                    "product_id": types.Schema(
+                        type=types.Type.STRING,
+                        description="The product id if known"
+                    ),
+                    "qty": types.Schema(
+                        type=types.Type.INTEGER,
+                        description="The final desired quantity in the cart"
+                    )
+                },
+                required=["product_name", "qty"]
+            )
+        ),
+        types.FunctionDeclaration(
+            name="remove_from_cart",
+            description="Removes an item from the cart. Call this when the user asks to remove, delete, or take an item out of the basket.",
+            parameters=types.Schema(
+                type=types.Type.OBJECT,
+                properties={
+                    "product_name": types.Schema(
+                        type=types.Type.STRING,
+                        description="The product name or part number the user wants removed"
+                    ),
+                    "product_id": types.Schema(
+                        type=types.Type.STRING,
+                        description="The product id if known"
+                    )
+                },
+                required=["product_name"]
+            )
+        ),
+        types.FunctionDeclaration(
+            name="clear_cart",
+            description="Clears all items from the cart. Call this when the user asks to empty or clear the basket/cart.",
+            parameters=types.Schema(
+                type=types.Type.OBJECT,
+                properties={
+                    "reason": types.Schema(
+                        type=types.Type.STRING,
+                        description="Short reason for clearing the cart, in the user's language"
+                    )
+                },
+                required=[]
+            )
+        ),
+        types.FunctionDeclaration(
+            name="apply_coupon",
+            description="Applies a coupon, promo, or voucher code to the cart. Call this when the user provides a discount code or asks to apply a coupon.",
+            parameters=types.Schema(
+                type=types.Type.OBJECT,
+                properties={
+                    "code": types.Schema(
+                        type=types.Type.STRING,
+                        description="Coupon or promo code"
+                    )
+                },
+                required=["code"]
+            )
+        ),
+        types.FunctionDeclaration(
+            name="send_invoice",
+            description="Requests sending an invoice, proforma invoice, or quote to the shopper. Call this when the user asks for an invoice, proforma, quote, or billing document.",
+            parameters=types.Schema(
+                type=types.Type.OBJECT,
+                properties={
+                    "email": types.Schema(
+                        type=types.Type.STRING,
+                        description="Customer email address if the user provided one, otherwise leave empty"
+                    ),
+                    "invoice_type": types.Schema(
+                        type=types.Type.STRING,
+                        description="invoice, proforma, quote, or receipt"
+                    ),
+                    "note": types.Schema(
+                        type=types.Type.STRING,
+                        description="Any customer note for the invoice request"
+                    )
+                },
+                required=[]
+            )
+        )
     ]
 )
+
+ADD_TO_CART_TOOL = ASSISTANT_ACTION_TOOLS
 
 def normalize_part_number(text):
     if not text:
@@ -60,6 +212,11 @@ def load_catalog():
         except (FileNotFoundError, json.JSONDecodeError):
             continue
     return []
+
+def _clear_load_catalog_cache():
+    cache.delete("products_catalog")
+
+load_catalog.cache_clear = _clear_load_catalog_cache
 
 def get_or_create_opencart_status():
     status, _ = OpenCartConnectionStatus.objects.get_or_create(
@@ -268,6 +425,377 @@ def _to_int(value, default=0):
     except (TypeError, ValueError):
         return default
 
+def _prefers_rtl_language(text):
+    rtl_count = len(re.findall(r"[\u0590-\u08ff]", text or ""))
+    latin_count = len(re.findall(r"[A-Za-z]", text or ""))
+    return rtl_count > latin_count
+
+def _dominant_script(text):
+    rtl_count = len(re.findall(r"[\u0590-\u08ff]", text or ""))
+    latin_count = len(re.findall(r"[A-Za-z]", text or ""))
+    if not rtl_count and not latin_count:
+        return ""
+    return "rtl" if rtl_count > latin_count else "latin"
+
+def localized_text(user_message, english, persian):
+    return persian if _prefers_rtl_language(user_message) else english
+
+def response_language_mismatch(user_message, reply_text):
+    user_script = _dominant_script(user_message)
+    reply_script = _dominant_script(reply_text)
+    return bool(user_script and reply_script and user_script != reply_script)
+
+def localized_processing_reply(user_message, is_cart_action=False):
+    if is_cart_action:
+        return localized_text(
+            user_message,
+            "Adding this to your cart...",
+            "در حال افزودن به سبد خرید شما...",
+        )
+    return localized_text(
+        user_message,
+        "I'm processing your request...",
+        "در حال پردازش درخواست شما...",
+    )
+
+def _has_add_to_cart_call(agent_output):
+    return any(
+        getattr(call, "name", "") == "add_to_cart"
+        for call in getattr(agent_output, "function_calls", []) or []
+    )
+
+def _requested_quantity(args):
+    return max(_to_int(args.get("qty", 1), default=1), 1)
+
+_PRODUCT_NAME_ALIASES = (
+    ("\u0622\u06cc\u200c\u0645\u06a9", "imac"),
+    ("\u0622\u06cc \u0645\u06a9", "imac"),
+    ("\u0622\u06cc\u0645\u06a9", "imac"),
+    ("\u0627\u06cc \u0645\u06a9", "imac"),
+    ("\u0627\u06cc\u0645\u06a9", "imac"),
+    ("\u0622\u06cc\u0641\u0648\u0646", "iphone"),
+    ("\u0627\u06cc\u0641\u0648\u0646", "iphone"),
+    ("\u0622\u06cc \u067e\u062f", "ipad"),
+    ("\u0622\u06cc\u067e\u062f", "ipad"),
+    ("\u0645\u06a9 \u0628\u0648\u06a9", "macbook"),
+    ("\u0645\u06a9\u200c\u0628\u0648\u06a9", "macbook"),
+)
+
+_PRODUCT_NAVIGATION_ENGLISH_VERBS = (
+    "open",
+    "view",
+    "go to",
+    "navigate",
+    "take me to",
+    "show me",
+)
+_PRODUCT_NAVIGATION_ENGLISH_TARGETS = ("product", "page")
+_PRODUCT_NAVIGATION_PERSIAN_VERBS = (
+    "\u0628\u0631\u0648",
+    "\u0628\u0628\u0631",
+    "\u0628\u0627\u0632",
+    "\u0646\u0645\u0627\u06cc\u0634",
+    "\u0646\u0634\u0627\u0646",
+    "\u0647\u062f\u0627\u06cc\u062a",
+)
+_PRODUCT_NAVIGATION_PERSIAN_TARGETS = (
+    "\u0635\u0641\u062d\u0647",
+    "\u0645\u062d\u0635\u0648\u0644",
+    "\u06a9\u0627\u0644\u0627",
+)
+
+def _call_args(call):
+    args = getattr(call, "args", {}) or {}
+    if hasattr(args, "items"):
+        return dict(args.items())
+    return args if isinstance(args, dict) else {}
+
+def _checkout_action(args=None):
+    args = args or {}
+    return {
+        "type": "redirect_to_checkout",
+        "target": "checkout",
+        "reason": _clean_text(args.get("reason", "")),
+    }
+
+def _cart_view_action(args=None):
+    args = args or {}
+    return {
+        "type": "show_cart",
+        "reason": _clean_text(args.get("reason", "")),
+    }
+
+def _cart_redirect_action(args=None):
+    args = args or {}
+    return {
+        "type": "redirect_to_cart",
+        "target": "cart",
+        "reason": _clean_text(args.get("reason", "")),
+    }
+
+def _product_url(product):
+    return _clean_text(
+        _first_present(product, "url", "href", "link", "product_url", "productUrl")
+    )
+
+def _human_text(value):
+    return (
+        _clean_text(value)
+        .lower()
+        .replace("\u064a", "\u06cc")
+        .replace("\u0643", "\u06a9")
+    )
+
+def _canonical_product_text(value):
+    text = _human_text(value)
+    for alias, canonical in _PRODUCT_NAME_ALIASES:
+        text = text.replace(alias, canonical)
+    return normalize_part_number(text)
+
+def _find_catalog_product(requested_name="", product_id=""):
+    requested_name = _clean_text(requested_name)
+    product_id = _clean_text(product_id)
+    normalized_requested = _canonical_product_text(requested_name)
+    catalog = load_catalog()
+
+    for product in catalog:
+        if product_id and _clean_text(product.get("product_id")) == product_id:
+            return product
+        normalized_name = _canonical_product_text(product.get("name", ""))
+        if normalized_requested and (
+            normalized_name == normalized_requested
+            or normalized_name in normalized_requested
+            or normalized_requested in normalized_name
+        ):
+            return product
+
+    best_match = None
+    best_score = 0
+    for product in catalog:
+        score = fuzz.token_set_ratio(requested_name, product.get("name", ""))
+        if score > best_score and score > 85:
+            best_score = score
+            best_match = product
+    return best_match
+
+def _product_redirect_action(args=None):
+    args = args or {}
+    requested_name = _clean_text(args.get("product_name", ""))
+    requested_id = _clean_text(args.get("product_id", ""))
+    product = _find_catalog_product(requested_name, requested_id)
+    if product:
+        return {
+            "type": "redirect_to_product",
+            "target": "product",
+            "product_name": product.get("name"),
+            "product_id": product.get("product_id"),
+            "product_url": _product_url(product),
+        }
+    return {
+        "type": "redirect_to_product",
+        "target": "product",
+        "product_name": requested_name,
+        "product_id": requested_id,
+        "product_url": "",
+    }
+
+def _is_product_navigation_request(message):
+    text = _human_text(message)
+    has_english_intent = any(term in text for term in _PRODUCT_NAVIGATION_ENGLISH_VERBS)
+    has_english_target = any(term in text for term in _PRODUCT_NAVIGATION_ENGLISH_TARGETS)
+    has_persian_intent = any(term in text for term in _PRODUCT_NAVIGATION_PERSIAN_VERBS)
+    has_persian_target = any(term in text for term in _PRODUCT_NAVIGATION_PERSIAN_TARGETS)
+    return (has_english_intent and has_english_target) or (has_persian_intent and has_persian_target)
+
+def _product_navigation_query(message):
+    query = _human_text(message)
+    removable_patterns = (
+        r"\b(?:open|view|go to|navigate to|take me to|show me)\b",
+        r"\b(?:the|a|an|product|page|for|please)\b",
+        r"(?<!\S)\u0628\u0631\u0648(?!\S)",
+        r"(?<!\S)\u0628\u0628\u0631(?!\S)",
+        r"(?<!\S)\u0628\u0627\u0632(?!\S)",
+        r"(?<!\S)\u06a9\u0646(?!\S)",
+        r"(?<!\S)\u0628\u0647(?!\S)",
+        r"(?<!\S)\u0635\u0641\u062d\u0647(?!\S)",
+        r"(?<!\S)\u0645\u062d\u0635\u0648\u0644(?!\S)",
+        r"(?<!\S)\u06a9\u0627\u0644\u0627(?!\S)",
+        r"(?<!\S)\u0646\u0645\u0627\u06cc\u0634(?!\S)",
+        r"(?<!\S)\u0646\u0634\u0627\u0646(?!\S)",
+        r"(?<!\S)\u0628\u062f\u0647(?!\S)",
+        r"(?<!\S)\u0647\u062f\u0627\u06cc\u062a(?!\S)",
+        r"(?<!\S)\u0631\u0627(?!\S)",
+    )
+    for pattern in removable_patterns:
+        query = re.sub(pattern, " ", query, flags=re.IGNORECASE)
+    return re.sub(r"\s+", " ", query).strip(" .,:;?!\u061f\u060c") or _clean_text(message)
+
+def _fallback_product_navigation_action(user_message, actions):
+    if actions or not _is_product_navigation_request(user_message):
+        return None
+    return _product_redirect_action({"product_name": _product_navigation_query(user_message)})
+
+def _update_cart_action(args=None):
+    args = args or {}
+    return {
+        "type": "update_cart_item",
+        "product_name": _clean_text(args.get("product_name", "")),
+        "product_id": _clean_text(args.get("product_id", "")),
+        "requested_qty": _requested_quantity(args),
+    }
+
+def _remove_cart_action(args=None):
+    args = args or {}
+    return {
+        "type": "remove_from_cart",
+        "product_name": _clean_text(args.get("product_name", "")),
+        "product_id": _clean_text(args.get("product_id", "")),
+    }
+
+def _clear_cart_action(args=None):
+    args = args or {}
+    return {
+        "type": "clear_cart",
+        "reason": _clean_text(args.get("reason", "")),
+    }
+
+def _coupon_action(args=None):
+    args = args or {}
+    return {
+        "type": "apply_coupon",
+        "code": _clean_text(args.get("code", "")),
+    }
+
+def _invoice_action(args=None):
+    args = args or {}
+    return {
+        "type": "send_invoice",
+        "email": _clean_text(args.get("email", "")),
+        "invoice_type": _clean_text(args.get("invoice_type", "invoice")) or "invoice",
+        "note": _clean_text(args.get("note", "")),
+    }
+
+def localized_cart_reply(user_message, action):
+    quantity = _to_int((action or {}).get("requested_qty", 1), default=1)
+    quantity = max(quantity, 1)
+    product_name = _clean_text((action or {}).get("product_name")) or localized_text(
+        user_message,
+        "this item",
+        "این محصول",
+    )
+    return localized_text(
+        user_message,
+        f"Adding {quantity} {product_name} to your cart...",
+        f"در حال اضافه کردن {quantity} عدد {product_name} به سبد خرید شما هستم.",
+    )
+
+def localized_action_reply(user_message, action):
+    action_type = (action or {}).get("type")
+    if action_type == "add_to_cart":
+        return localized_cart_reply(user_message, action)
+    if action_type == "redirect_to_checkout":
+        return localized_text(
+            user_message,
+            "Taking you to checkout...",
+            "در حال انتقال شما به صفحه پرداخت...",
+        )
+    if action_type == "show_cart":
+        return localized_text(
+            user_message,
+            "Checking your basket...",
+            "در حال بررسی سبد خرید شما...",
+        )
+    if action_type == "redirect_to_cart":
+        return localized_text(
+            user_message,
+            "Opening your basket...",
+            "در حال باز کردن سبد خرید شما...",
+        )
+    if action_type == "redirect_to_product":
+        product_name = _clean_text((action or {}).get("product_name")) or localized_text(
+            user_message,
+            "the product",
+            "صفحه محصول",
+        )
+        return localized_text(
+            user_message,
+            f"Opening {product_name}...",
+            f"در حال باز کردن صفحه {product_name}...",
+        )
+    if action_type == "update_cart_item":
+        quantity = _to_int((action or {}).get("requested_qty", 1), default=1)
+        product_name = _clean_text((action or {}).get("product_name")) or localized_text(
+            user_message,
+            "that item",
+            "این محصول",
+        )
+        return localized_text(
+            user_message,
+            f"Updating {product_name} to quantity {quantity}...",
+            f"در حال تغییر تعداد {product_name} به {quantity}...",
+        )
+    if action_type == "remove_from_cart":
+        product_name = _clean_text((action or {}).get("product_name")) or localized_text(
+            user_message,
+            "that item",
+            "این محصول",
+        )
+        return localized_text(
+            user_message,
+            f"Removing {product_name} from your basket...",
+            f"در حال حذف {product_name} از سبد خرید شما...",
+        )
+    if action_type == "clear_cart":
+        return localized_text(
+            user_message,
+            "Clearing your basket...",
+            "در حال خالی کردن سبد خرید شما...",
+        )
+    if action_type == "apply_coupon":
+        return localized_text(
+            user_message,
+            "Applying your coupon...",
+            "در حال اعمال کد تخفیف شما...",
+        )
+    if action_type == "send_invoice":
+        return localized_text(
+            user_message,
+            "I'll request the invoice for you now.",
+            "الان درخواست صدور فاکتور را برای شما ثبت می‌کنم.",
+        )
+    return localized_processing_reply(user_message, is_cart_action=False)
+
+def response_refuses_action(action, reply_text):
+    if (action or {}).get("type") != "redirect_to_product":
+        return False
+    text = _human_text(reply_text)
+    refusal_terms = (
+        "cannot",
+        "can't",
+        "unable",
+        "not able",
+        "\u0646\u0645\u06cc\u200c\u062a\u0648\u0627\u0646\u0645",
+        "\u0646\u0645\u06cc\u062a\u0648\u0627\u0646\u0645",
+        "\u0646\u0645\u06cc \u062a\u0648\u0627\u0646\u0645",
+        "\u0642\u0627\u062f\u0631 \u0646\u06cc\u0633\u062a\u0645",
+    )
+    return any(term in text for term in refusal_terms)
+
+def normalized_reply_text(user_message, agent_output, action=None):
+    reply_text = agent_output.text.strip() if agent_output.text else ""
+    if action and (
+        not reply_text
+        or response_language_mismatch(user_message, reply_text)
+        or response_refuses_action(action, reply_text)
+    ):
+        return localized_action_reply(user_message, action)
+    if not reply_text:
+        return localized_processing_reply(
+            user_message,
+            is_cart_action=bool(action) or _has_add_to_cart_call(agent_output),
+        )
+    return reply_text
+
 def _normalize_attributes(raw_attributes):
     if isinstance(raw_attributes, dict):
         return {
@@ -295,6 +823,7 @@ def _normalize_attributes(raw_attributes):
 def normalize_catalog_product(item):
     name = _clean_text(_first_present(item, "name", "product_name", "title"))
     product_id = _clean_text(_first_present(item, "product_id", "id", "productId"))
+    product_url = _clean_text(_first_present(item, "url", "href", "link", "product_url", "productUrl"))
     stock = _to_int(_first_present(item, "stock", "quantity", "qty", default=0))
     category = _clean_text(
         _first_present(item, "category", "category_name", "manufacturer"),
@@ -307,6 +836,7 @@ def normalize_catalog_product(item):
     return {
         "product_id": product_id,
         "name": name,
+        "product_url": product_url,
         "price": _clean_text(_first_present(item, "price", "special", default="0")),
         "stock": stock,
         "category": category,
@@ -376,6 +906,21 @@ Detect the language of the user's latest message and continue the conversation i
 If the user writes in Persian, answer in Persian. If the user writes in English, Arabic, Turkish, Russian, or any other language, answer in that same language.
 If the user switches languages, switch with them immediately. Do not default to the store language unless it matches the user's current message.
 
+TOOL RULE:
+When calling add_to_cart, pass qty as the exact quantity requested in the latest user message.
+For example, "add 3 imac" means qty=3, never qty=1.
+Even when you call add_to_cart, include a short visible sentence in the latest user's language confirming what you are doing.
+When the user asks what is in the basket/cart or asks for cart total, call show_cart. Do not say you cannot inspect the basket.
+When the user asks to open the basket/cart page, call redirect_to_cart.
+When the user asks to open, view, go to, or navigate to a product page, call redirect_to_product. Do not say you cannot navigate to the product page.
+When the user asks to change item quantity, call update_cart_item with the final desired qty.
+When the user asks to remove one item, call remove_from_cart.
+When the user asks to empty the whole basket/cart, call clear_cart.
+When the user gives a coupon, discount, promo, or voucher code, call apply_coupon.
+When the user asks to pay, checkout, finalize, or complete the order, call redirect_to_checkout.
+When the user asks for an invoice, proforma invoice, quote, or receipt, call send_invoice.
+If the user asks to add products and pay in one message, call add_to_cart first, then redirect_to_checkout.
+
 شما یک انسان واقعی و پشتیبان فروش آنلاین در {store_brand} هستید. 
 نام شما {assistant_name} است. اگر مشتری اسم شما را پرسید، کوتاه و طبیعی بگویید «من {assistant_name} هستم» و مثل یک انسان گرم، صمیمی و حرفه‌ای رفتار کنید.
 هرگز از عباراتی مثل "من یک هوش مصنوعی هستم" استفاده نکنید! مکالمه را طبیعی پیش ببرید.
@@ -417,7 +962,7 @@ async def ask_ai_async(message, conversation=None):
     memory = await get_memory_messages_async(conversation)
     system_instruction = build_system_instruction(message)
     
-    tools = [ADD_TO_CART_TOOL]
+    tools = [ASSISTANT_ACTION_TOOLS]
     
     agent_output = await ai_agent.ask_async(
         system_instruction=system_instruction, 
@@ -426,7 +971,12 @@ async def ask_ai_async(message, conversation=None):
         tools=tools,
     )
     
-    reply_text = agent_output.text or "در حال پردازش سفارش شما..."
+    actions = await extract_assistant_actions_async(agent_output, message)
+    reply_text = normalized_reply_text(
+        message,
+        agent_output,
+        next(iter(actions), None),
+    )
     await save_chat_turn_async(conversation, message, reply_text)
     
     return agent_output
@@ -435,54 +985,87 @@ async def ask_ai_async(message, conversation=None):
 # =====================================================================
 # [حل چالش باگ عدم تطابق نام کالا]: بازنویسی منطق استخراج اکشن‌ها به همراه Fuzzy Fallback
 # =====================================================================
-async def extract_cart_action_async(agent_output):
-    if hasattr(agent_output, 'function_calls') and agent_output.function_calls:
-        for call in agent_output.function_calls:
-            if call.name == "add_to_cart":
-                args = call.args
-                requested_name = args.get("product_name", "")
-                requested_qty = int(args.get("qty", 1))
-                
-                normalized_requested = normalize_part_number(requested_name)
-                catalog = load_catalog()
-                
-                # گام اول: تلاش برای یافتن انطباق دقیق آلفانومریکال
-                for product in catalog:
-                    if normalize_part_number(product.get("name", "")) == normalized_requested:
-                        return {
-                            "product_name": product.get("name"),
-                            "product_id": product.get("product_id"),
-                            "price": product.get("price"),
-                            "stock": product.get("stock", 0),
-                            "requested_qty": requested_qty,
-                            "image": product.get("image", "")
-                        }
-                
-                # گام دوم (Fuzzy Fallback): اگر مدل در نوشتن نام کالا اشتباه تایپی یا ساختاری جزیی داشت
-                best_match = None
-                best_score = 0
-                for product in catalog:
-                    score = fuzz.token_set_ratio(requested_name, product.get("name", ""))
-                    if score > best_score and score > 85: # آستانه اطمینان بالای ۸۵ درصد
-                        best_score = score
-                        best_match = product
-                
-                if best_match:
-                    return {
-                        "product_name": best_match.get("name"),
-                        "product_id": best_match.get("product_id"),
-                        "price": best_match.get("price"),
-                        "stock": best_match.get("stock", 0),
-                        "requested_qty": requested_qty,
-                        "image": best_match.get("image", "")
-                    }
-                
-                return {
-                    "product_name": requested_name, 
-                    "requested_qty": requested_qty, 
-                    "error": "Product metadata not found"
-                }
-    return None
+async def extract_cart_action_async(agent_output, user_message=""):
+    actions = await extract_assistant_actions_async(agent_output, user_message)
+    return next((action for action in actions if action.get("type") == "add_to_cart"), None)
+
+async def extract_assistant_actions_async(agent_output, user_message=""):
+    actions = []
+    if not getattr(agent_output, "function_calls", None):
+        fallback_action = _fallback_product_navigation_action(user_message, actions)
+        return [fallback_action] if fallback_action else actions
+
+    for call in agent_output.function_calls:
+        call_name = getattr(call, "name", "")
+        args = _call_args(call)
+
+        if call_name == "redirect_to_checkout":
+            actions.append(_checkout_action(args))
+            continue
+
+        if call_name == "show_cart":
+            actions.append(_cart_view_action(args))
+            continue
+
+        if call_name == "redirect_to_cart":
+            actions.append(_cart_redirect_action(args))
+            continue
+
+        if call_name == "redirect_to_product":
+            actions.append(_product_redirect_action(args))
+            continue
+
+        if call_name == "update_cart_item":
+            actions.append(_update_cart_action(args))
+            continue
+
+        if call_name == "remove_from_cart":
+            actions.append(_remove_cart_action(args))
+            continue
+
+        if call_name == "clear_cart":
+            actions.append(_clear_cart_action(args))
+            continue
+
+        if call_name == "apply_coupon":
+            actions.append(_coupon_action(args))
+            continue
+
+        if call_name == "send_invoice":
+            actions.append(_invoice_action(args))
+            continue
+
+        if call_name != "add_to_cart":
+            continue
+
+        requested_name = args.get("product_name", "")
+        requested_qty = _requested_quantity(args)
+        product = _find_catalog_product(requested_name, args.get("product_id", ""))
+
+        if product:
+            actions.append({
+                "type": "add_to_cart",
+                "product_name": product.get("name"),
+                "product_id": product.get("product_id"),
+                "product_url": _product_url(product),
+                "price": product.get("price"),
+                "stock": product.get("stock", 0),
+                "requested_qty": requested_qty,
+                "image": product.get("image", ""),
+            })
+        else:
+            actions.append({
+                "type": "add_to_cart",
+                "product_name": requested_name,
+                "requested_qty": requested_qty,
+                "error": "Product metadata not found",
+            })
+
+    fallback_action = _fallback_product_navigation_action(user_message, actions)
+    if fallback_action:
+        actions.append(fallback_action)
+
+    return actions
 
 def get_memory_messages(conversation):
     if conversation is None:
@@ -509,12 +1092,20 @@ def ask_ai(message, conversation=None):
         system_instruction, 
         memory, 
         message, 
-        tools=[ADD_TO_CART_TOOL],
+        tools=[ASSISTANT_ACTION_TOOLS],
     )
     if not agent_output.is_error:
-        reply_text = agent_output.text or "در حال پردازش..."
+        actions = extract_assistant_actions(agent_output, message)
+        reply_text = normalized_reply_text(
+            message,
+            agent_output,
+            next(iter(actions), None),
+        )
         save_chat_turn(conversation, message, reply_text)
     return agent_output
 
-def extract_cart_action(agent_output):
-    return async_to_sync(extract_cart_action_async)(agent_output)
+def extract_cart_action(agent_output, user_message=""):
+    return async_to_sync(extract_cart_action_async)(agent_output, user_message)
+
+def extract_assistant_actions(agent_output, user_message=""):
+    return async_to_sync(extract_assistant_actions_async)(agent_output, user_message)

@@ -1,7 +1,7 @@
 import asyncio
 import logging
 import os
-from itertools import cycle
+import time
 
 from google import genai
 from google.genai import types
@@ -48,9 +48,8 @@ class GeminiKeyManager:
             add_key(os.getenv(f"GEMINI_API_KEY_{i}"))
             add_key(os.getenv(f"GOOGLE_API_KEY_{i}"))
 
-        if not self.keys:
-            add_key(os.getenv("GEMINI_API_KEY"))
-            add_key(os.getenv("GOOGLE_API_KEY"))
+        add_key(os.getenv("GEMINI_API_KEY"))
+        add_key(os.getenv("GOOGLE_API_KEY"))
 
         # The SDK prints a warning and may prefer one env var when both singular
         # names are present. We pass keys explicitly, so clear auto-discovery.
@@ -60,25 +59,108 @@ class GeminiKeyManager:
         if not self.keys:
             logger.error("No Gemini API keys found in environment variables.")
 
-        if self.keys:
-            self.key_cycle = cycle(self.keys)
-            self.current_key = next(self.key_cycle)
-        else:
-            self.current_key = None
-
+        self.current_index = 0
+        self.current_key = self.keys[0] if self.keys else None
+        self.key_cooldown_seconds = _float_env("GEMINI_KEY_COOLDOWN_SECONDS", 30.0)
+        self.key_cooldown_max_seconds = _float_env("GEMINI_KEY_COOLDOWN_MAX_SECONDS", 300.0)
+        self.permission_cooldown_seconds = _float_env(
+            "GEMINI_KEY_PERMISSION_COOLDOWN_SECONDS",
+            3600.0,
+        )
+        self._key_state = {}
         self._lock = asyncio.Lock()
+        self._ensure_key_state()
+
+    def _ensure_key_state(self):
+        for key in self.keys:
+            self._key_state.setdefault(
+                key,
+                {
+                    "cooldown_until": 0.0,
+                    "failures": 0,
+                    "in_flight": 0,
+                },
+            )
+        for key in list(self._key_state):
+            if key not in self.keys:
+                self._key_state.pop(key, None)
+        if self.keys and self.current_index >= len(self.keys):
+            self.current_index = 0
+        self.current_key = self.keys[self.current_index] if self.keys else None
+
+    def _round_robin_offset(self, index):
+        if not self.keys:
+            return 0
+        return (index - self.current_index) % len(self.keys)
+
+    async def acquire_key(self):
+        async with self._lock:
+            self._ensure_key_state()
+            if not self.keys:
+                return None
+
+            now = time.monotonic()
+            candidates = [
+                (index, key)
+                for index, key in enumerate(self.keys)
+                if self._key_state[key]["cooldown_until"] <= now
+            ]
+            if not candidates:
+                candidates = list(enumerate(self.keys))
+                logger.warning("All Gemini API keys are cooling down; trying the earliest available key.")
+
+            index, key = min(
+                candidates,
+                key=lambda item: (
+                    self._key_state[item[1]]["cooldown_until"],
+                    self._key_state[item[1]]["in_flight"],
+                    self._round_robin_offset(item[0]),
+                ),
+            )
+            self._key_state[key]["in_flight"] += 1
+            self.current_index = (index + 1) % len(self.keys)
+            self.current_key = key
+            return key
+
+    async def release_key(self, key, error=None):
+        if not key:
+            return
+        async with self._lock:
+            self._ensure_key_state()
+            state = self._key_state.get(key)
+            if not state:
+                return
+
+            state["in_flight"] = max(int(state["in_flight"]) - 1, 0)
+            if error is None:
+                state["failures"] = 0
+                state["cooldown_until"] = 0.0
+                return
+
+            state["failures"] = int(state["failures"]) + 1
+            if _is_permission_error(error):
+                cooldown = self.permission_cooldown_seconds
+            elif _is_retryable_key_error(error):
+                cooldown = min(
+                    self.key_cooldown_seconds * (2 ** (state["failures"] - 1)),
+                    self.key_cooldown_max_seconds,
+                )
+            else:
+                return
+            state["cooldown_until"] = time.monotonic() + cooldown
 
     async def rotate(self):
-        async with self._lock:
-            if self.keys:
-                self.current_key = next(self.key_cycle)
-                logger.warning("Switched to the next configured Gemini API key.")
-            return self.current_key
+        key = await self.acquire_key()
+        logger.warning("Switched to the next configured Gemini API key.")
+        if key:
+            await self.release_key(key)
+        return key
 
-    def get_client(self):
-        if not self.current_key:
+    def get_client(self, api_key=None):
+        key = api_key or self.current_key
+        if not key:
             raise ValueError("API key is missing or not configured.")
-        return genai.Client(api_key=self.current_key)
+        return genai.Client(api_key=key)
 
 
 def _error_text(error):
@@ -127,6 +209,10 @@ def _is_retryable_key_error(error):
             "unavailable",
         )
     )
+
+
+def _should_failover_key(error):
+    return _is_retryable_key_error(error) or _is_permission_error(error)
 
 
 def _is_high_demand_error(error):
@@ -237,6 +323,20 @@ class AIAgent:
                     calls.append(part.function_call)
         return calls
 
+    def _language_override(self, user_message):
+        return (
+            "\n\nCRITICAL RESPONSE LANGUAGE OVERRIDE:\n"
+            "Detect the response language ONLY from the user's latest raw message below. "
+            "Ignore the language of these instructions, the product catalog, store rules, and older chat history when choosing the reply language.\n"
+            "RAW_USER_MESSAGE_START\n"
+            f"{user_message}\n"
+            "RAW_USER_MESSAGE_END\n"
+            "Write the entire visible final reply in the same language as RAW_USER_MESSAGE. "
+            "If RAW_USER_MESSAGE mixes languages, use the dominant language. "
+            "If the user explicitly asks for translation or for another language, follow that explicit request. "
+            "Do not explain this language rule to the user.\n"
+        )
+
     async def ask_async(
         self,
         system_instruction: str,
@@ -258,7 +358,11 @@ class AIAgent:
         contents = self._format_history(chat_history)
         contents.append({"role": "user", "parts": [{"text": user_message}]})
 
-        combined_instruction = self.base_instruction + (system_instruction or "")
+        combined_instruction = (
+            self.base_instruction
+            + (system_instruction or "")
+            + self._language_override(user_message)
+        )
         config = types.GenerateContentConfig(
             system_instruction=combined_instruction,
             temperature=temperature,
@@ -272,17 +376,24 @@ class AIAgent:
         for model_index, model_name in enumerate(self.model_candidates):
             for retry_index in range(self.retry_attempts):
                 for key_attempt in range(key_attempts):
-                    client = (
-                        genai.Client(api_key=request_key)
-                        if request_key
-                        else self.key_manager.get_client()
-                    )
+                    key = request_key
+                    client = None
                     try:
+                        if request_key:
+                            client = genai.Client(api_key=request_key)
+                        else:
+                            key = await self.key_manager.acquire_key()
+                            if not key:
+                                raise ValueError("API key is missing or not configured.")
+                            client = self.key_manager.get_client(key)
+
                         response = await client.aio.models.generate_content(
                             model=model_name,
                             contents=contents,
                             config=config,
                         )
+                        if not request_key:
+                            await self.key_manager.release_key(key)
 
                         return AgentOutput(
                             text=_response_text(response),
@@ -291,16 +402,16 @@ class AIAgent:
                         )
                     except Exception as error:
                         last_error = error
+                        if not request_key:
+                            await self.key_manager.release_key(key, error)
                         if (
-                            _is_retryable_key_error(error)
+                            _should_failover_key(error)
                             and not request_key
                             and key_attempt < key_attempts - 1
                         ):
                             logger.warning(
                                 "Gemini API key failed or reached a limit. Trying the next configured key."
                             )
-                            await self.key_manager.rotate()
-                            await asyncio.sleep(0.5)
                             continue
                         break
 

@@ -142,6 +142,16 @@
     animation: aisa-slide-up 0.2s ease-out forwards;
 }
 
+.aisa-message[dir="rtl"] {
+    direction: rtl;
+    text-align: right;
+}
+
+.aisa-message[dir="ltr"] {
+    direction: ltr;
+    text-align: left;
+}
+
 .aisa-message.user {
     margin-right: auto;
     color: #fff;
