@@ -253,6 +253,8 @@ class AIAgentTests(TestCase):
         agent.key_manager.keys = ["key-1", "key-2"]
         agent.key_manager.current_key = "key-1"
         agent.key_manager.key_cycle = iter(["key-2"])
+        agent.model_candidates = ["test-model"]
+        agent.retry_attempts = 1
         client = SimpleNamespace(
             aio=SimpleNamespace(
                 models=SimpleNamespace(
@@ -272,7 +274,7 @@ class AIAgentTests(TestCase):
         self.assertTrue(result.is_error)
         self.assertEqual(result.error_code, "ai_unavailable")
         self.assertEqual(result.status_code, 503)
-        self.assertIn("ترافیک", result.text)
+        self.assertIn("مدل", result.text)
         self.assertEqual(client_factory.call_args_list[0].kwargs["api_key"], "key-1")
         self.assertEqual(client_factory.call_args_list[1].kwargs["api_key"], "key-2")
 
