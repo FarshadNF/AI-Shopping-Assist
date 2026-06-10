@@ -293,8 +293,16 @@ window.AI_SHOPPING_ASSIST_CONFIG = window.AI_SHOPPING_ASSIST_CONFIG || {
         body: JSON.stringify(body)
       });
 
-      const data = await response.json();
+      const data = await response.json().catch(function () { return {}; });
       if (!response.ok || data.status !== 'success') {
+        if (data.conversation_id) {
+          localStorage.setItem(keys.conversationId, data.conversation_id);
+        }
+        if (data.reply) {
+          addMessage('bot', data.reply);
+          setStatus('خطا');
+          return;
+        }
         throw new Error(data.reply || 'Chat request failed');
       }
 

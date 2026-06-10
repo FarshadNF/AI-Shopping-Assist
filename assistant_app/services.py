@@ -332,18 +332,12 @@ def replace_catalog(raw_products):
 
 def get_or_create_conversation(conversation_id=None, session_key=None, api_key=None):
     if conversation_id:
-        conversation, created = Conversation.objects.get_or_create(public_id=conversation_id)
-        if api_key and conversation.api_key != api_key:
-             conversation.api_key = api_key
-             conversation.save(update_fields=['api_key'])
+        conversation, _ = Conversation.objects.get_or_create(public_id=conversation_id)
         return conversation
     if session_key:
-        conversation, created = Conversation.objects.get_or_create(session_key=session_key)
-        if api_key and conversation.api_key != api_key:
-             conversation.api_key = api_key
-             conversation.save(update_fields=['api_key'])
+        conversation, _ = Conversation.objects.get_or_create(session_key=session_key)
         return conversation
-    return Conversation.objects.create(api_key=api_key)
+    return Conversation.objects.create()
 
 def get_relevant_catalog(user_message, top_k=5):
     full_catalog = load_catalog()
@@ -419,17 +413,15 @@ async def ask_ai_async(message, conversation=None):
     system_instruction = build_system_instruction(message)
     
     tools = [ADD_TO_CART_TOOL]
-    user_api_key = conversation.api_key if conversation else None
     
     agent_output = await ai_agent.ask_async(
         system_instruction=system_instruction, 
         chat_history=memory, 
         user_message=message,
         tools=tools,
-        api_key=user_api_key
     )
     
-    reply_text = agent_output.text or "در حال پردازش..."
+    reply_text = agent_output.text or "در حال پردازش سفارش شما..."
     await save_chat_turn_async(conversation, message, reply_text)
     
     return agent_output
@@ -507,17 +499,16 @@ def save_chat_turn(conversation, user_message, assistant_reply):
 def ask_ai(message, conversation=None):
     memory = get_memory_messages(conversation)
     system_instruction = build_system_instruction(message)
-    user_api_key = conversation.api_key if conversation else None
     
     agent_output = async_to_sync(ai_agent.ask_async)(
         system_instruction, 
         memory, 
         message, 
         tools=[ADD_TO_CART_TOOL],
-        api_key=user_api_key
     )
-    reply_text = agent_output.text or "در حال پردازش..."
-    save_chat_turn(conversation, message, reply_text)
+    if not agent_output.is_error:
+        reply_text = agent_output.text or "در حال پردازش..."
+        save_chat_turn(conversation, message, reply_text)
     return agent_output
 
 def extract_cart_action(agent_output):

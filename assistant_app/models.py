@@ -25,6 +25,9 @@ class ChatMessage(models.Model):
         USER = "user", _("User")
         ASSISTANT = "assistant", _("Assistant")
 
+    ROLE_USER = Role.USER
+    ROLE_ASSISTANT = Role.ASSISTANT
+
     conversation = models.ForeignKey(
         Conversation,
         related_name="messages",
@@ -51,6 +54,10 @@ class OpenCartConnectionStatus(models.Model):
         CONNECTED = "connected", _("Connected")
         WAITING = "waiting", _("Waiting")
         DISCONNECTED = "disconnected", _("Disconnected")
+
+    STATUS_CONNECTED = Status.CONNECTED
+    STATUS_WAITING = Status.WAITING
+    STATUS_DISCONNECTED = Status.DISCONNECTED
 
     name = models.CharField(max_length=80, unique=True, default="opencart")
     status = models.CharField(

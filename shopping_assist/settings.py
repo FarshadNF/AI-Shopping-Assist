@@ -2,6 +2,7 @@ import os
 from pathlib import Path
 from urllib.parse import unquote, urlparse
 from django.core.exceptions import ImproperlyConfigured
+from corsheaders.defaults import default_headers
 from dotenv import load_dotenv
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -17,6 +18,19 @@ ALLOWED_HOSTS = [
     for host in os.getenv("DJANGO_ALLOWED_HOSTS", "localhost,127.0.0.1,[::1]").split(",")
     if host.strip()
 ]
+
+
+def env_bool(name, default=False):
+    fallback = "1" if default else "0"
+    return os.getenv(name, fallback).strip().lower() in {"1", "true", "yes", "on"}
+
+
+def env_csv(name, default=""):
+    return [
+        item.strip().rstrip("/")
+        for item in os.getenv(name, default).split(",")
+        if item.strip()
+    ]
 
 INSTALLED_APPS = [
     "django.contrib.admin",
@@ -130,17 +144,13 @@ OPENCART_CATALOG_URL = os.getenv("OPENCART_CATALOG_URL", "")
 OPENCART_TIMEOUT = float(os.getenv("OPENCART_TIMEOUT", "15"))
 
 # ----------------- تنظیمات CORS (ایمن و استاندارد) -----------------
-CORS_ALLOW_ALL_ORIGINS = False  
+CORS_ALLOW_ALL_ORIGINS = env_bool("AI_ASSISTANT_CORS_ALLOW_ALL", False)
+CORS_ALLOWED_ORIGINS = env_csv(
+    "AI_ASSISTANT_ALLOWED_ORIGINS",
+    "http://localhost,http://127.0.0.1,http://localhost:3000,http://127.0.0.1:3000",
+)
 
-CORS_ALLOWED_ORIGINS = [
-    "http://localhost:3000",
-    "http://127.0.0.1:3000",
-    # آدرس پروداکشن فرانت‌اند باید اینجا اضافه شود
-]
-
-CORS_ALLOW_HEADERS = [
-    "content-type",
+CORS_ALLOW_HEADERS = list(default_headers) + [
     "x-ai-assistant-token",
-    "authorization",
 ]
 CORS_MAX_AGE = 86400

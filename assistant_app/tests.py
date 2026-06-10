@@ -104,6 +104,27 @@ class ChatApiTests(TestCase):
         self.assertEqual(second_messages[1]["content"], "first reply")
         self.assertEqual(second_call.args[2], "second question")
 
+    @patch("assistant_app.services.ai_agent.ask_async", new_callable=AsyncMock)
+    def test_chat_reports_ai_failure_as_error_response(self, ask_async):
+        ask_async.return_value = AgentOutput(
+            text="ترافیک کاربران در حال حاضر بسیار بالاست. لطفاً یک دقیقه دیگر پیام خود را تکرار کنید.",
+            error_code="ai_unavailable",
+            status_code=503,
+        )
+
+        response = self.client.post(
+            "/api/chat/",
+            data=json.dumps({"message": "add this to cart"}),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 503)
+        data = response.json()
+        self.assertEqual(data["status"], "error")
+        self.assertEqual(data["error_code"], "ai_unavailable")
+        self.assertIn("conversation_id", data)
+        self.assertEqual(ChatMessage.objects.count(), 0)
+
     def test_catalog_import_replaces_catalog(self):
         with TemporaryDirectory() as temp_dir:
             services.load_catalog.cache_clear()
@@ -226,6 +247,34 @@ class AIAgentTests(TestCase):
 
         self.assertEqual(result.text, "ok")
         client_factory.assert_called_once_with(api_key="conversation-key")
+
+    def test_retryable_gemini_unavailable_returns_error_output(self):
+        agent = AIAgent(model_name="test-model")
+        agent.key_manager.keys = ["key-1", "key-2"]
+        agent.key_manager.current_key = "key-1"
+        agent.key_manager.key_cycle = iter(["key-2"])
+        client = SimpleNamespace(
+            aio=SimpleNamespace(
+                models=SimpleNamespace(
+                    generate_content=AsyncMock(
+                        side_effect=[
+                            Exception("503 UNAVAILABLE high demand"),
+                            Exception("503 UNAVAILABLE high demand"),
+                        ]
+                    )
+                )
+            )
+        )
+
+        with patch("assistant_app.utils.ai_agent.genai.Client", return_value=client) as client_factory:
+            result = async_to_sync(agent.ask_async)("system", [], "hello")
+
+        self.assertTrue(result.is_error)
+        self.assertEqual(result.error_code, "ai_unavailable")
+        self.assertEqual(result.status_code, 503)
+        self.assertIn("ترافیک", result.text)
+        self.assertEqual(client_factory.call_args_list[0].kwargs["api_key"], "key-1")
+        self.assertEqual(client_factory.call_args_list[1].kwargs["api_key"], "key-2")
 
 
 class ConversationAdminExportTests(TestCase):

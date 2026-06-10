@@ -131,9 +131,9 @@ class AIShoppingAssistant {
                 body: JSON.stringify(body)
             });
 
-            const data = await response.json();
+            const data = await response.json().catch(() => ({}));
             if (!response.ok || data.status !== 'success') {
-                throw new Error(data.reply || 'خطا در ارتباط با سرور');
+                throw new Error(data.reply || 'Chat request failed');
             }
 
             if (data.conversation_id) {

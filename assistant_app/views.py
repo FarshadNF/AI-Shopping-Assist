@@ -78,6 +78,17 @@ def chat_api(request):
 
     reply_text = agent_output.text if agent_output.text else "در حال پردازش درخواست شما..."
 
+    if agent_output.is_error:
+        return Response(
+            {
+                "status": "error",
+                "reply": reply_text,
+                "conversation_id": str(conversation.public_id),
+                "error_code": agent_output.error_code,
+            },
+            status=agent_output.status_code or 502,
+        )
+
     response_data = {
         "status": "success",
         "reply": reply_text,

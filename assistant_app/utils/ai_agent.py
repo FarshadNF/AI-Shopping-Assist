@@ -56,21 +56,35 @@ def _error_text(error):
     return str(error).lower()
 
 
-def _is_retryable_key_error(error):
+def _is_retryable_ai_error(error):
     error_msg = _error_text(error)
     return any(
         marker in error_msg
         for marker in (
             "429",
+            "500",
+            "502",
+            "503",
+            "504",
             "403",
             "api_key_invalid",
             "denied access",
+            "deadline",
             "exhausted",
             "forbidden",
+            "high demand",
             "permission_denied",
             "quota",
+            "temporarily",
+            "timeout",
+            "try again later",
+            "unavailable",
         )
     )
+
+
+def _is_retryable_key_error(error):
+    return _is_retryable_ai_error(error)
 
 
 def _is_permission_error(error):
@@ -88,10 +102,44 @@ def _is_permission_error(error):
 
 
 class AgentOutput:
-    def __init__(self, text=None, function_calls=None, raw_response=None):
+    def __init__(
+        self,
+        text=None,
+        function_calls=None,
+        raw_response=None,
+        error_code=None,
+        status_code=None,
+    ):
         self.text = text or ""
         self.function_calls = function_calls or []
         self.raw_response = raw_response
+        self.error_code = error_code
+        self.status_code = status_code
+
+    @property
+    def is_error(self):
+        return bool(self.error_code)
+
+
+def _agent_error(text, error_code, status_code=502):
+    return AgentOutput(text=text, error_code=error_code, status_code=status_code)
+
+
+def _response_text(response):
+    try:
+        return response.text or ""
+    except ValueError:
+        if getattr(response, "function_calls", []):
+            return ""
+        raise
+
+
+def _ai_unavailable_message():
+    return "ترافیک کاربران در حال حاضر بسیار بالاست. لطفاً یک دقیقه دیگر پیام خود را تکرار کنید."
+
+
+def _permission_message():
+    return "خطای تنظیمات: Google کلید Gemini فعلی یا پروژه متصل به آن را رد کرد. در Google AI Studio یک کلید فعال بسازید، پروژه را import کنید و مطمئن شوید کلید برای Gemini API مجاز است."
 
 
 class AIAgent:
@@ -133,7 +181,11 @@ class AIAgent:
     ) -> AgentOutput:
         request_key = api_key.strip() if api_key else None
         if not request_key and not self.key_manager.keys:
-            return AgentOutput(text="خطای سیستم: کلید API گوگل تنظیم نشده است.")
+            return _agent_error(
+                "خطای سیستم: کلید API گوگل تنظیم نشده است.",
+                error_code="missing_api_key",
+                status_code=503,
+            )
 
         max_retries = 1 if request_key else len(self.key_manager.keys)
         
@@ -164,27 +216,43 @@ class AIAgent:
                 extracted_calls = self._extract_function_calls(response)
                 
                 return AgentOutput(
-                    text=extracted_text,
-                    function_calls=extracted_calls,
+                    text=response.text,
+                    function_calls=getattr(response, "function_calls", []),
                     raw_response=response
                 )
 
             except Exception as e:
                 last_error = e
-                if _is_retryable_key_error(e) and not request_key:
-                    logger.warning(f"Gemini API key failed. Attempt {attempt + 1}. Trying next key.")
+                if _is_retryable_key_error(e) and not request_key and attempt < max_retries - 1:
+                    logger.warning("Gemini API key failed or reached a limit. Trying the next configured key.")
                     await self.key_manager.rotate()
-                    backoff = 0.5 * (2 ** attempt)
-                    await asyncio.sleep(backoff)
+                    await asyncio.sleep(0.5)
                     continue
                 else:
                     logger.error(f"AI API Error: {e}")
-                    return AgentOutput(text="متأسفانه در پردازش اطلاعات فنی مشکلی پیش آمد. لطفاً چند لحظه دیگر امتحان کنید.")
+                    if _is_permission_error(e):
+                        return _agent_error(
+                            _permission_message(),
+                            error_code="gemini_permission_denied",
+                            status_code=503,
+                        )
+                    if _is_retryable_ai_error(e):
+                        return _agent_error(
+                            _ai_unavailable_message(),
+                            error_code="ai_unavailable",
+                            status_code=503,
+                        )
+                    return _agent_error(
+                        "متأسفانه در پردازش اطلاعات فنی مشکلی پیش آمد. لطفاً چند لحظه دیگر امتحان کنید.",
+                        error_code="ai_api_error",
+                        status_code=502,
+                    )
 
         if last_error and _is_permission_error(last_error):
-            logger.error("All configured Gemini API keys were rejected by Google.")
-            return AgentOutput(text="خطای تنظیمات: Google کلید Gemini فعلی یا پروژه متصل به آن را رد کرد. لطفاً تنظیمات کلید را بررسی کنید.")
+            logger.error("All configured Gemini API keys were rejected by Google. Check project access and API key permissions.")
+            return AgentOutput(text="خطای تنظیمات: Google کلید Gemini فعلی یا پروژه متصل به آن را رد کرد. در Google AI Studio یک کلید فعال بسازید، پروژه را import کنید و مطمئن شوید کلید برای Gemini API مجاز است.")
 
-        return AgentOutput(text="ترافیک سیستم در حال حاضر بسیار بالاست. لطفاً یک دقیقه دیگر پیام خود را تکرار کنید.")
+        return AgentOutput(text="ترافیک کاربران در حال حاضر بسیار بالاست. لطفاً یک دقیقه دیگر پیام خود را تکرار کنید.")
 
+    
 ai_agent = AIAgent()
