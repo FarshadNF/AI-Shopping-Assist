@@ -5,6 +5,8 @@ class AiShoppingAssist extends \Opencart\System\Engine\Controller {
 	private const SETTING_CODE = 'module_ai_shopping_assist';
 	private const EVENT_CONTROLLER = 'ai_shopping_assist_footer_controller';
 	private const EVENT_VIEW = 'ai_shopping_assist_footer_view';
+	private const DEFAULT_LEAD_WEBHOOK_URL = 'https://script.google.com/macros/s/AKfycbwV1zaw6C3iKdWVaK-gN8hyAzvW8_RygWTp9Q2ggjYUWcAftM2c7ipOIM5l6UowTsCS/exec';
+	private const DEFAULT_LEAD_WEBHOOK_SECRET = 'f8c9d2a7e1b4c6f9a3d8e7b2c5f1a9d4';
 
 	public function index(): void {
 		$this->load->language('extension/ai_shopping_assist/module/ai_shopping_assist');
@@ -54,8 +56,8 @@ class AiShoppingAssist extends \Opencart\System\Engine\Controller {
 
 		$data['module_ai_shopping_assist_assistant_name'] = $assistant_name;
 		$data['module_ai_shopping_assist_catalog_token'] = (string)$this->config->get('module_ai_shopping_assist_catalog_token');
-		$data['module_ai_shopping_assist_lead_webhook_url'] = (string)$this->config->get('module_ai_shopping_assist_lead_webhook_url');
-		$data['module_ai_shopping_assist_lead_webhook_secret'] = (string)$this->config->get('module_ai_shopping_assist_lead_webhook_secret');
+		$data['module_ai_shopping_assist_lead_webhook_url'] = (string)($this->config->get('module_ai_shopping_assist_lead_webhook_url') ?: self::DEFAULT_LEAD_WEBHOOK_URL);
+		$data['module_ai_shopping_assist_lead_webhook_secret'] = (string)($this->config->get('module_ai_shopping_assist_lead_webhook_secret') ?: self::DEFAULT_LEAD_WEBHOOK_SECRET);
 		$data['module_ai_shopping_assist_footer_injection'] = $this->config->get('module_ai_shopping_assist_footer_injection') !== null ? (int)$this->config->get('module_ai_shopping_assist_footer_injection') : 1;
 		$data['module_ai_shopping_assist_widget_title'] = $widget_title;
 		$data['module_ai_shopping_assist_widget_button'] = $widget_button;
@@ -101,8 +103,8 @@ class AiShoppingAssist extends \Opencart\System\Engine\Controller {
 				'module_ai_shopping_assist_store_brand' => trim((string)($this->request->post['module_ai_shopping_assist_store_brand'] ?? $this->config->get('config_name'))) ?: $this->config->get('config_name'),
 				'module_ai_shopping_assist_assistant_name' => trim((string)($this->request->post['module_ai_shopping_assist_assistant_name'] ?? 'Rockford Assistant')) ?: 'Rockford Assistant',
 				'module_ai_shopping_assist_catalog_token' => trim((string)($this->request->post['module_ai_shopping_assist_catalog_token'] ?? '')),
-				'module_ai_shopping_assist_lead_webhook_url' => trim((string)($this->request->post['module_ai_shopping_assist_lead_webhook_url'] ?? '')),
-				'module_ai_shopping_assist_lead_webhook_secret' => trim((string)($this->request->post['module_ai_shopping_assist_lead_webhook_secret'] ?? '')),
+				'module_ai_shopping_assist_lead_webhook_url' => trim((string)($this->request->post['module_ai_shopping_assist_lead_webhook_url'] ?? self::DEFAULT_LEAD_WEBHOOK_URL)),
+				'module_ai_shopping_assist_lead_webhook_secret' => trim((string)($this->request->post['module_ai_shopping_assist_lead_webhook_secret'] ?? self::DEFAULT_LEAD_WEBHOOK_SECRET)),
 				'module_ai_shopping_assist_footer_injection' => (int)($this->request->post['module_ai_shopping_assist_footer_injection'] ?? 0),
 				'module_ai_shopping_assist_widget_title' => trim((string)($this->request->post['module_ai_shopping_assist_widget_title'] ?? 'Rockford Assistant')),
 				'module_ai_shopping_assist_widget_button' => trim((string)($this->request->post['module_ai_shopping_assist_widget_button'] ?? 'Chat'))
@@ -165,8 +167,8 @@ class AiShoppingAssist extends \Opencart\System\Engine\Controller {
 			'module_ai_shopping_assist_store_brand' => $this->config->get('config_name'),
 			'module_ai_shopping_assist_assistant_name' => 'Rockford Assistant',
 			'module_ai_shopping_assist_catalog_token' => '',
-			'module_ai_shopping_assist_lead_webhook_url' => '',
-			'module_ai_shopping_assist_lead_webhook_secret' => '',
+			'module_ai_shopping_assist_lead_webhook_url' => self::DEFAULT_LEAD_WEBHOOK_URL,
+			'module_ai_shopping_assist_lead_webhook_secret' => self::DEFAULT_LEAD_WEBHOOK_SECRET,
 			'module_ai_shopping_assist_footer_injection' => 1,
 			'module_ai_shopping_assist_widget_title' => 'Rockford Assistant',
 			'module_ai_shopping_assist_widget_button' => 'Chat'

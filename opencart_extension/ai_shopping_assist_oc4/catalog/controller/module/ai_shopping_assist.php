@@ -2,8 +2,10 @@
 namespace Opencart\Catalog\Controller\Extension\AiShoppingAssist\Module;
 
 class AiShoppingAssist extends \Opencart\System\Engine\Controller {
-	private const VERSION = '3.1.0';
+	private const VERSION = '3.3.0';
 	private const MARKER = '<!-- AI_SHOPPING_ASSIST_WIDGET -->';
+	private const DEFAULT_LEAD_WEBHOOK_URL = 'https://script.google.com/macros/s/AKfycbwV1zaw6C3iKdWVaK-gN8hyAzvW8_RygWTp9Q2ggjYUWcAftM2c7ipOIM5l6UowTsCS/exec';
+	private const DEFAULT_LEAD_WEBHOOK_SECRET = 'f8c9d2a7e1b4c6f9a3d8e7b2c5f1a9d4';
 
 	public function inject(&$route, &$data, &$output = null): void {
 		if (!is_string($output) || $output === '') {
@@ -97,7 +99,11 @@ class AiShoppingAssist extends \Opencart\System\Engine\Controller {
 			if ($missing_fields) {
 				$reply = $this->bulkLeadMissingMessage($missing_fields);
 			} else {
-				$this->sendBulkLeadToWebhook($lead, $conversation_id, $input);
+				$sent = $this->sendBulkLeadToWebhook($lead, $conversation_id, $input);
+				$this->writeChatLog($conversation_id, 'lead', json_encode([
+					'sent_to_google_sheet' => $sent,
+					'lead' => $lead
+				], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
 				$reply = $this->localizedText(
 					$message,
 					'Thanks. Your bulk order request has been received. Our sales team will contact you shortly.',
@@ -681,7 +687,108 @@ class AiShoppingAssist extends \Opencart\System\Engine\Controller {
 			$matched_fields++;
 		}
 
-		return $matched_fields >= 3 ? $lead : [];
+		if ($matched_fields >= 3) {
+			return $lead;
+		}
+
+		return $this->parseBulkLeadFreeform($message);
+	}
+
+	private function parseBulkLeadFreeform(string $message): array {
+		$text = trim(preg_replace('/\s+/u', ' ', $message));
+
+		if ($text === '') {
+			return [];
+		}
+
+		$email = '';
+
+		if (preg_match('/[A-Z0-9._%+\-]+@[A-Z0-9.\-]+\.[A-Z]{2,}/iu', $text, $match)) {
+			$email = $match[0];
+		}
+
+		$phone = '';
+		$phone_pattern = '/(?:\+\d{1,4}[\s\-()]*)?(?:\d[\s\-()]*){7,15}\d/u';
+
+		if (preg_match_all($phone_pattern, $text, $matches)) {
+			foreach ($matches[0] as $candidate) {
+				$digits = preg_replace('/\D+/', '', $candidate);
+
+				if (strlen($digits) >= 8 && strlen($digits) <= 16 && strpos($candidate, '-') === false) {
+					$phone = trim($candidate);
+					break;
+				}
+			}
+		}
+
+		$qty = '';
+
+		if (preg_match_all('/(?<![A-Za-z0-9\-])\d{2,6}(?![A-Za-z0-9\-])/u', $text, $qty_matches)) {
+			foreach ($qty_matches[0] as $candidate) {
+				$value = (int)$candidate;
+
+				if ($value >= 10) {
+					$qty = (string)$value;
+					break;
+				}
+			}
+		}
+
+		if ($email === '' || $phone === '' || $qty === '') {
+			return [];
+		}
+
+		$before_qty = trim(substr($text, 0, strpos($text, $qty)));
+		$after_qty = trim(substr($text, strpos($text, $qty) + strlen($qty)));
+		$product_name = $before_qty;
+		$contact_part = $after_qty;
+
+		if ($email !== '') {
+			$contact_part = str_replace($email, ' ', $contact_part);
+		}
+
+		if ($phone !== '') {
+			$contact_part = str_replace($phone, ' ', $contact_part);
+		}
+
+		$contact_part = trim(preg_replace('/\s+/u', ' ', $contact_part));
+		$after_email = '';
+
+		if ($email !== '') {
+			$email_position = strpos($text, $email);
+
+			if ($email_position !== false) {
+				$after_email = trim(substr($text, $email_position + strlen($email)));
+			}
+		}
+
+		$delivery_location = $after_email !== '' ? $after_email : '';
+
+		if ($delivery_location !== '') {
+			$contact_part = trim(str_replace($delivery_location, ' ', $contact_part));
+			$contact_part = trim(preg_replace('/\s+/u', ' ', $contact_part));
+		}
+
+		$name = '';
+		$company = '';
+		$tokens = preg_split('/\s+/u', $contact_part, -1, PREG_SPLIT_NO_EMPTY) ?: [];
+
+		if (count($tokens) >= 2) {
+			$name = implode(' ', array_slice($tokens, 0, 2));
+			$company = implode(' ', array_slice($tokens, 2));
+		} elseif (count($tokens) === 1) {
+			$name = $tokens[0];
+		}
+
+		return [
+			'product_name' => $this->shortText($product_name, 180),
+			'qty' => $qty,
+			'name' => $this->shortText($name, 180),
+			'company' => $this->shortText($company, 180),
+			'contact_number' => $this->shortText($phone, 180),
+			'email' => $this->shortText($email, 180),
+			'delivery_location' => $this->shortText($delivery_location, 500)
+		];
 	}
 
 	private function missingBulkLeadFields(array $lead): array {
@@ -714,7 +821,7 @@ class AiShoppingAssist extends \Opencart\System\Engine\Controller {
 	}
 
 	private function sendBulkLeadToWebhook(array $lead, string $conversation_id, array $input): bool {
-		$url = trim((string)$this->config->get('module_ai_shopping_assist_lead_webhook_url'));
+		$url = trim((string)($this->config->get('module_ai_shopping_assist_lead_webhook_url') ?: self::DEFAULT_LEAD_WEBHOOK_URL));
 
 		if ($url === '' || stripos($url, 'https://') !== 0) {
 			if ($url !== '') {
@@ -725,9 +832,13 @@ class AiShoppingAssist extends \Opencart\System\Engine\Controller {
 		}
 
 		$page_context = is_array($input['page_context'] ?? null) ? $input['page_context'] : [];
+		$lead_id = $conversation_id . '-' . date('YmdHis');
+		$lead_date = date('c');
 		$payload = [
-			'secret' => (string)$this->config->get('module_ai_shopping_assist_lead_webhook_secret'),
+			'secret' => (string)($this->config->get('module_ai_shopping_assist_lead_webhook_secret') ?: self::DEFAULT_LEAD_WEBHOOK_SECRET),
 			'event' => 'bulk_lead',
+			'id' => $lead_id,
+			'date' => $lead_date,
 			'store' => (string)$this->config->get('config_name'),
 			'conversation_id' => $conversation_id,
 			'customer_id' => $this->customer->isLogged() ? (int)$this->customer->getId() : 0,
@@ -735,7 +846,7 @@ class AiShoppingAssist extends \Opencart\System\Engine\Controller {
 			'page_title' => (string)($page_context['title'] ?? ''),
 			'ip' => (string)($this->request->server['REMOTE_ADDR'] ?? ''),
 			'user_agent' => substr((string)($this->request->server['HTTP_USER_AGENT'] ?? ''), 0, 255),
-			'date_added' => date('c'),
+			'date_added' => $lead_date,
 			'lead' => $lead
 		];
 

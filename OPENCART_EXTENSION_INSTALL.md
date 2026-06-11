@@ -89,6 +89,18 @@ Use this when bulk order leads should be saved into Google Sheets.
 ```javascript
 const SHEET_ID = 'PASTE_SPREADSHEET_ID_HERE';
 const SECRET = 'CHANGE_THIS_SECRET';
+const SHEET_NAME = 'Bulk Leads';
+const HEADERS = [
+  'id',
+  'Product Name',
+  'QTY',
+  'Name',
+  'Company',
+  'Contact Number',
+  'Email',
+  'Delivery Location',
+  'date'
+];
 
 function doPost(e) {
   const payload = JSON.parse((e && e.postData && e.postData.contents) || '{}');
@@ -100,33 +112,33 @@ function doPost(e) {
   }
 
   const spreadsheet = SpreadsheetApp.openById(SHEET_ID);
-  const sheet = spreadsheet.getSheetByName('Bulk Leads') || spreadsheet.insertSheet('Bulk Leads');
+  let sheet = spreadsheet.getSheetByName(SHEET_NAME);
+
+  if (sheet && sheet.getLastRow() > 0) {
+    const existingHeaders = sheet
+      .getRange(1, 1, 1, Math.min(sheet.getLastColumn(), HEADERS.length))
+      .getValues()[0]
+      .join('|');
+
+    if (existingHeaders !== HEADERS.join('|')) {
+      const backupName = SHEET_NAME + ' Backup ' + Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyyMMddHHmmss');
+      sheet.setName(backupName);
+      sheet = null;
+    }
+  }
+
+  if (!sheet) {
+    sheet = spreadsheet.insertSheet(SHEET_NAME);
+  }
 
   if (sheet.getLastRow() === 0) {
-    sheet.appendRow([
-      'Date',
-      'Store',
-      'Conversation ID',
-      'Product Name',
-      'QTY',
-      'Name',
-      'Company',
-      'Contact Number',
-      'Email',
-      'Delivery Location',
-      'Page URL',
-      'Customer ID',
-      'IP',
-      'User Agent'
-    ]);
+    sheet.appendRow(HEADERS);
   }
 
   const lead = payload.lead || {};
 
   sheet.appendRow([
-    new Date(),
-    payload.store || '',
-    payload.conversation_id || '',
+    payload.id || payload.conversation_id || '',
     lead.product_name || '',
     lead.qty || '',
     lead.name || '',
@@ -134,10 +146,7 @@ function doPost(e) {
     lead.contact_number || '',
     lead.email || '',
     lead.delivery_location || '',
-    payload.page_url || '',
-    payload.customer_id || '',
-    payload.ip || '',
-    payload.user_agent || ''
+    payload.date ? new Date(payload.date) : new Date()
   ]);
 
   return ContentService
