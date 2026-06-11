@@ -2,7 +2,7 @@
 namespace Opencart\Catalog\Controller\Extension\AiShoppingAssist\Module;
 
 class AiShoppingAssist extends \Opencart\System\Engine\Controller {
-	private const VERSION = '2.2.0';
+	private const VERSION = '2.3.0';
 	private const MARKER = '<!-- AI_SHOPPING_ASSIST_WIDGET -->';
 
 	public function inject(&$route, &$data, &$output = null): void {
@@ -19,6 +19,17 @@ class AiShoppingAssist extends \Opencart\System\Engine\Controller {
 		}
 
 		$asset_base = 'extension/ai_shopping_assist/catalog/view/javascript/ai-shopping-assist/';
+		$widget_title = (string)$this->config->get('module_ai_shopping_assist_widget_title');
+		$widget_button = (string)$this->config->get('module_ai_shopping_assist_widget_button');
+
+		if ($widget_title === '' || $widget_title === 'دستیار هوشمند خرید') {
+			$widget_title = 'Rockford Assistant';
+		}
+
+		if ($widget_button === '' || $widget_button === 'دستیار خرید') {
+			$widget_button = 'Chat';
+		}
+
 		$config = [
 			'apiBase' => '',
 			'chatRoute' => 'index.php?route=extension/ai_shopping_assist/module/ai_shopping_assist.chat',
@@ -31,9 +42,10 @@ class AiShoppingAssist extends \Opencart\System\Engine\Controller {
 			'checkoutRoute' => 'index.php?route=checkout/checkout',
 			'couponRoute' => 'index.php?route=extension/opencart/total/coupon.save',
 			'invoiceRoute' => 'index.php?route=extension/ai_shopping_assist/module/ai_shopping_assist.sendInvoice',
-			'title' => (string)($this->config->get('module_ai_shopping_assist_widget_title') ?: 'دستیار هوشمند خرید'),
-			'buttonText' => (string)($this->config->get('module_ai_shopping_assist_widget_button') ?: 'دستیار خرید'),
+			'title' => $widget_title,
+			'buttonText' => $widget_button,
 			'avatarUrl' => $asset_base . 'rockford-mas.png?v=' . self::VERSION,
+			'iconUrl' => $asset_base . 'rockford-icon.png?v=' . self::VERSION,
 			'redirectDelayMs' => 700
 		];
 
@@ -235,10 +247,10 @@ class AiShoppingAssist extends \Opencart\System\Engine\Controller {
 	}
 
 	private function askGemini(string $message, string $conversation_id): array {
-		$api_key = trim((string)$this->config->get('module_ai_shopping_assist_gemini_api_key'));
+		$api_keys = $this->getGeminiApiKeys();
 
-		if ($api_key === '') {
-			return ['status' => 500, 'body' => '', 'error' => 'Gemini API key is missing.'];
+		if (!$api_keys) {
+			return ['status' => 500, 'body' => '', 'error' => 'Gemini API keys are missing.'];
 		}
 
 		$model = trim((string)$this->config->get('module_ai_shopping_assist_gemini_model')) ?: 'gemini-2.5-flash';
@@ -263,46 +275,71 @@ class AiShoppingAssist extends \Opencart\System\Engine\Controller {
 			]
 		];
 
-		$result = $this->postJson($url, $payload, ['x-goog-api-key: ' . $api_key]);
+		$last_error = ['status' => 502, 'body' => '', 'error' => 'Gemini request failed.'];
 
-		if ($result['error']) {
-			return $result;
-		}
+		foreach ($api_keys as $api_key) {
+			$result = $this->postJson($url, $payload, ['x-goog-api-key: ' . $api_key]);
 
-		if ($result['status'] >= 400) {
-			$error_payload = json_decode($result['body'], true);
-			$error_message = $error_payload['error']['message'] ?? ('Gemini HTTP ' . $result['status']);
-			return ['status' => $result['status'], 'body' => $result['body'], 'error' => $error_message];
-		}
+			if ($result['error']) {
+				$last_error = $result;
+				continue;
+			}
 
-		$response = json_decode($result['body'], true);
-		$text = '';
+			if ($result['status'] >= 400) {
+				$error_payload = json_decode($result['body'], true);
+				$error_message = $error_payload['error']['message'] ?? ('Gemini HTTP ' . $result['status']);
+				$last_error = ['status' => $result['status'], 'body' => $result['body'], 'error' => $error_message];
+				continue;
+			}
 
-		if (isset($response['candidates'][0]['content']['parts']) && is_array($response['candidates'][0]['content']['parts'])) {
-			foreach ($response['candidates'][0]['content']['parts'] as $part) {
-				if (isset($part['text'])) {
-					$text .= (string)$part['text'];
+			$response = json_decode($result['body'], true);
+			$text = '';
+
+			if (isset($response['candidates'][0]['content']['parts']) && is_array($response['candidates'][0]['content']['parts'])) {
+				foreach ($response['candidates'][0]['content']['parts'] as $part) {
+					if (isset($part['text'])) {
+						$text .= (string)$part['text'];
+					}
 				}
+			}
+
+			if ($text === '') {
+				$last_error = ['status' => 502, 'body' => $result['body'], 'error' => 'Gemini returned no text.'];
+				continue;
+			}
+
+			return ['status' => 200, 'body' => $text, 'error' => ''];
+		}
+
+		return $last_error;
+	}
+
+	private function getGeminiApiKeys(): array {
+		$raw = (string)$this->config->get('module_ai_shopping_assist_gemini_api_key');
+		$keys = preg_split('/[\r\n,]+/', $raw);
+		$normalized = [];
+
+		foreach ($keys as $key) {
+			$key = trim($key);
+
+			if ($key !== '' && !in_array($key, $normalized, true)) {
+				$normalized[] = $key;
 			}
 		}
 
-		if ($text === '') {
-			return ['status' => 502, 'body' => $result['body'], 'error' => 'Gemini returned no text.'];
-		}
-
-		return ['status' => 200, 'body' => $text, 'error' => ''];
+		return $normalized;
 	}
 
 	private function buildGeminiPrompt(string $message, string $conversation_id): string {
 		$brand = (string)($this->config->get('module_ai_shopping_assist_store_brand') ?: $this->config->get('config_name'));
-		$assistant_name = (string)($this->config->get('module_ai_shopping_assist_assistant_name') ?: 'پشتیبان هوشمند');
+		$assistant_name = (string)($this->config->get('module_ai_shopping_assist_assistant_name') ?: 'Rockford Assistant');
 		$catalog = $this->getPromptCatalog($message);
 		$navigation = $this->getNavigationPromptCatalog();
 		$history = $this->getConversationHistory($conversation_id, $message);
 
 		return implode("\n\n", [
 			'You are a real online sales assistant inside the OpenCart store "' . $brand . '". Your name is "' . $assistant_name . '".',
-			'Reply in the exact language of the latest user message. If the user writes Persian, reply in Persian.',
+			'Default to English. If the latest user message is clearly Persian or another language, you may reply in that language, but your base persona and concise style are English-first.',
 			'Use only the product catalog below for product-specific claims. Check stock before recommending purchase. Keep replies short, natural, and sales-focused.',
 			'When the user wants an action, include it in actions. Supported action types: add_to_cart, show_cart, redirect_to_cart, redirect_to_product, redirect_to_page, update_cart_item, remove_from_cart, clear_cart, apply_coupon, redirect_to_checkout, send_invoice.',
 			'For navigating to any non-product site page, use {"type":"redirect_to_page","page":"home/contact/account/login/register/orders/wishlist/specials/search/category/information page name","route":"optional OpenCart route","url":"optional internal URL"}. Do not say you cannot navigate.',

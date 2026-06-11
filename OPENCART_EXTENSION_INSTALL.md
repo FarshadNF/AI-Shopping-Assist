@@ -35,7 +35,7 @@ Extensions > Extensions > Modules
 7. وارد تنظیمات ماژول شوید و این موارد را پر کنید:
 
 ```text
-Gemini API key = کلید API از Google AI Studio
+Gemini API keys = یک یا چند کلید API از Google AI Studio، جداشده با کاما
 Gemini model = gemini-2.5-flash
 Status = Enabled
 Auto-inject widget = Enabled
@@ -52,7 +52,13 @@ Dashboard > Developer Settings/Gear > Clear Cache
 
 ## کلید Gemini
 
-کلید را از Google AI Studio بسازید. این کلید فقط سمت سرور OpenCart استفاده می‌شود و داخل JavaScript یا مرورگر کاربر قرار نمی‌گیرد.
+کلیدها را از Google AI Studio بسازید. می‌توانید چند کلید را با کاما وارد کنید:
+
+```text
+KEY_1, KEY_2, KEY_3
+```
+
+OpenCart اگر یک کلید خطا یا محدودیت بدهد، کلید بعدی را امتحان می‌کند. این کلیدها فقط سمت سرور OpenCart استفاده می‌شوند و داخل JavaScript یا مرورگر کاربر قرار نمی‌گیرند.
 
 ## تنظیمات مهم
 

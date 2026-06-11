@@ -15,9 +15,10 @@
         checkoutRoute: 'index.php?route=checkout/checkout',
         couponRoute: 'index.php?route=extension/opencart/total/coupon.save',
         invoiceRoute: 'index.php?route=extension/ai_shopping_assist/module/ai_shopping_assist.sendInvoice',
-        title: 'دستیار هوشمند خرید',
-        buttonText: 'دستیار خرید',
+        title: 'Rockford Assistant',
+        buttonText: 'Chat',
         avatarUrl: '',
+        iconUrl: '',
         redirectDelayMs: 700,
         maxHistoryMessages: 80
       };
@@ -52,15 +53,15 @@
               <img class="aisa-avatar" alt="" hidden />
               <div>
                 <div class="aisa-title"></div>
-                <span class="aisa-status">آماده پاسخگویی</span>
+                <span class="aisa-status">Ready to help</span>
               </div>
             </div>
-            <button type="button" class="aisa-close" aria-label="بستن">×</button>
+            <button type="button" class="aisa-close" aria-label="Close">×</button>
           </header>
           <div class="aisa-messages"></div>
           <form class="aisa-form">
-            <input class="aisa-input" type="text" autocomplete="off" placeholder="سوالت درباره محصولات..." required />
-            <button class="aisa-send" type="submit">ارسال</button>
+            <input class="aisa-input" type="text" autocomplete="off" placeholder="Ask about products..." required />
+            <button class="aisa-send" type="submit">Send</button>
           </form>
         </section>
         <button type="button" class="aisa-toggle">
@@ -86,17 +87,25 @@
       this.toggleText = this.root.querySelector('.aisa-toggle-text');
       this.title.textContent = this.config.title || this.defaults.title;
       this.toggleText.textContent = this.config.buttonText || this.defaults.buttonText;
+      this.toggleBtn.setAttribute('aria-label', this.config.buttonText || this.defaults.buttonText);
+      this.toggleBtn.setAttribute('title', this.config.buttonText || this.defaults.buttonText);
       this.applyAvatar();
     }
 
     applyAvatar() {
       const avatarUrl = String(this.config.avatarUrl || '');
-      if (!avatarUrl) return;
+      const iconUrl = String(this.config.iconUrl || avatarUrl);
+      if (!avatarUrl && !iconUrl) return;
 
-      [this.avatar, this.toggleAvatar].forEach((image) => {
-        image.src = avatarUrl;
-        image.hidden = false;
-      });
+      if (avatarUrl) {
+        this.avatar.src = avatarUrl;
+        this.avatar.hidden = false;
+      }
+
+      if (iconUrl) {
+        this.toggleAvatar.src = iconUrl;
+        this.toggleAvatar.hidden = false;
+      }
     }
 
     bindEvents() {
@@ -301,7 +310,7 @@
 
     async askAssistant(message) {
       this.sendBtn.disabled = true;
-      this.setStatus('در حال تایپ...');
+      this.setStatus('Typing...');
 
       try {
         const body = {
@@ -350,7 +359,7 @@
         console.error('AI assistant error:', error);
         this.addMessage('bot', this.localizedConnectionError(message));
       } finally {
-        this.setStatus('آماده پاسخگویی');
+        this.setStatus('Ready to help');
         this.sendBtn.disabled = false;
         this.input.focus();
       }

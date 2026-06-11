@@ -35,11 +35,27 @@ class AiShoppingAssist extends \Opencart\System\Engine\Controller {
 		$data['module_ai_shopping_assist_gemini_temperature'] = (string)($this->config->get('module_ai_shopping_assist_gemini_temperature') ?: '0.3');
 		$data['module_ai_shopping_assist_catalog_limit'] = (int)($this->config->get('module_ai_shopping_assist_catalog_limit') ?: 80);
 		$data['module_ai_shopping_assist_store_brand'] = (string)($this->config->get('module_ai_shopping_assist_store_brand') ?: $this->config->get('config_name'));
-		$data['module_ai_shopping_assist_assistant_name'] = (string)($this->config->get('module_ai_shopping_assist_assistant_name') ?: 'پشتیبان هوشمند');
+		$assistant_name = (string)$this->config->get('module_ai_shopping_assist_assistant_name');
+		$widget_title = (string)$this->config->get('module_ai_shopping_assist_widget_title');
+		$widget_button = (string)$this->config->get('module_ai_shopping_assist_widget_button');
+
+		if ($assistant_name === '' || $assistant_name === 'پشتیبان هوشمند') {
+			$assistant_name = 'Rockford Assistant';
+		}
+
+		if ($widget_title === '' || $widget_title === 'دستیار هوشمند خرید') {
+			$widget_title = 'Rockford Assistant';
+		}
+
+		if ($widget_button === '' || $widget_button === 'دستیار خرید') {
+			$widget_button = 'Chat';
+		}
+
+		$data['module_ai_shopping_assist_assistant_name'] = $assistant_name;
 		$data['module_ai_shopping_assist_catalog_token'] = (string)$this->config->get('module_ai_shopping_assist_catalog_token');
 		$data['module_ai_shopping_assist_footer_injection'] = $this->config->get('module_ai_shopping_assist_footer_injection') !== null ? (int)$this->config->get('module_ai_shopping_assist_footer_injection') : 1;
-		$data['module_ai_shopping_assist_widget_title'] = (string)($this->config->get('module_ai_shopping_assist_widget_title') ?: 'دستیار هوشمند خرید');
-		$data['module_ai_shopping_assist_widget_button'] = (string)($this->config->get('module_ai_shopping_assist_widget_button') ?: 'دستیار خرید');
+		$data['module_ai_shopping_assist_widget_title'] = $widget_title;
+		$data['module_ai_shopping_assist_widget_button'] = $widget_button;
 		$data['logs'] = $this->getRecentLogs();
 
 		$data['header'] = $this->load->controller('common/header');
@@ -59,7 +75,7 @@ class AiShoppingAssist extends \Opencart\System\Engine\Controller {
 		}
 
 		$status = (int)($this->request->post['module_ai_shopping_assist_status'] ?? 0);
-		$gemini_api_key = trim((string)($this->request->post['module_ai_shopping_assist_gemini_api_key'] ?? ''));
+		$gemini_api_key = $this->normalizeApiKeys((string)($this->request->post['module_ai_shopping_assist_gemini_api_key'] ?? ''));
 
 		if (!$json && $status && $gemini_api_key === '') {
 			$json['error'] = $this->language->get('error_gemini_api_key');
@@ -80,11 +96,11 @@ class AiShoppingAssist extends \Opencart\System\Engine\Controller {
 				'module_ai_shopping_assist_gemini_temperature' => (string)$temperature,
 				'module_ai_shopping_assist_catalog_limit' => $catalog_limit,
 				'module_ai_shopping_assist_store_brand' => trim((string)($this->request->post['module_ai_shopping_assist_store_brand'] ?? $this->config->get('config_name'))) ?: $this->config->get('config_name'),
-				'module_ai_shopping_assist_assistant_name' => trim((string)($this->request->post['module_ai_shopping_assist_assistant_name'] ?? 'پشتیبان هوشمند')) ?: 'پشتیبان هوشمند',
+				'module_ai_shopping_assist_assistant_name' => trim((string)($this->request->post['module_ai_shopping_assist_assistant_name'] ?? 'Rockford Assistant')) ?: 'Rockford Assistant',
 				'module_ai_shopping_assist_catalog_token' => trim((string)($this->request->post['module_ai_shopping_assist_catalog_token'] ?? '')),
 				'module_ai_shopping_assist_footer_injection' => (int)($this->request->post['module_ai_shopping_assist_footer_injection'] ?? 0),
-				'module_ai_shopping_assist_widget_title' => trim((string)($this->request->post['module_ai_shopping_assist_widget_title'] ?? 'دستیار هوشمند خرید')),
-				'module_ai_shopping_assist_widget_button' => trim((string)($this->request->post['module_ai_shopping_assist_widget_button'] ?? 'دستیار خرید'))
+				'module_ai_shopping_assist_widget_title' => trim((string)($this->request->post['module_ai_shopping_assist_widget_title'] ?? 'Rockford Assistant')),
+				'module_ai_shopping_assist_widget_button' => trim((string)($this->request->post['module_ai_shopping_assist_widget_button'] ?? 'Chat'))
 			];
 
 			$this->model_setting_setting->editSetting(self::SETTING_CODE, $settings);
@@ -125,11 +141,11 @@ class AiShoppingAssist extends \Opencart\System\Engine\Controller {
 			'module_ai_shopping_assist_gemini_temperature' => '0.3',
 			'module_ai_shopping_assist_catalog_limit' => 80,
 			'module_ai_shopping_assist_store_brand' => $this->config->get('config_name'),
-			'module_ai_shopping_assist_assistant_name' => 'پشتیبان هوشمند',
+			'module_ai_shopping_assist_assistant_name' => 'Rockford Assistant',
 			'module_ai_shopping_assist_catalog_token' => '',
 			'module_ai_shopping_assist_footer_injection' => 1,
-			'module_ai_shopping_assist_widget_title' => 'دستیار هوشمند خرید',
-			'module_ai_shopping_assist_widget_button' => 'دستیار خرید'
+			'module_ai_shopping_assist_widget_title' => 'Rockford Assistant',
+			'module_ai_shopping_assist_widget_button' => 'Chat'
 		]);
 
 		$this->load->model('setting/event');
@@ -196,5 +212,20 @@ class AiShoppingAssist extends \Opencart\System\Engine\Controller {
 		} catch (\Throwable $exception) {
 			return [];
 		}
+	}
+
+	private function normalizeApiKeys(string $value): string {
+		$keys = preg_split('/[\r\n,]+/', $value);
+		$normalized = [];
+
+		foreach ($keys as $key) {
+			$key = trim($key);
+
+			if ($key !== '' && !in_array($key, $normalized, true)) {
+				$normalized[] = $key;
+			}
+		}
+
+		return implode(', ', $normalized);
 	}
 }

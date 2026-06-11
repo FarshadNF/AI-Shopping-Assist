@@ -11,7 +11,7 @@ $_['text_no_logs'] = 'No chat logs yet.';
 $_['text_clear_logs'] = 'Clear logs';
 
 $_['entry_status'] = 'Status';
-$_['entry_gemini_api_key'] = 'Gemini API key';
+$_['entry_gemini_api_key'] = 'Gemini API keys';
 $_['entry_gemini_model'] = 'Gemini model';
 $_['entry_gemini_temperature'] = 'Temperature';
 $_['entry_catalog_limit'] = 'Prompt catalog limit';
@@ -22,7 +22,7 @@ $_['entry_footer_injection'] = 'Auto-inject widget';
 $_['entry_widget_title'] = 'Widget title';
 $_['entry_widget_button'] = 'Button text';
 
-$_['help_gemini_api_key'] = 'Create this in Google AI Studio. It is used server-side by OpenCart and is never exposed to the browser.';
+$_['help_gemini_api_key'] = 'Add one or more Google AI Studio keys separated by commas. OpenCart tries the next key if one fails or is rate-limited. Keys are used server-side and never exposed to the browser.';
 $_['help_catalog_limit'] = 'Maximum products sent to Gemini in each prompt. Keep this moderate for speed and token cost.';
 $_['help_catalog_token'] = 'Optional. If set, catalog JSON requests must include X-AI-Assistant-Token.';
 
@@ -33,4 +33,4 @@ $_['column_role'] = 'Role';
 $_['column_content'] = 'Content';
 
 $_['error_permission'] = 'Warning: You do not have permission to modify AI Shopping Assist!';
-$_['error_gemini_api_key'] = 'Gemini API key is required when the module is enabled.';
+$_['error_gemini_api_key'] = 'At least one Gemini API key is required when the module is enabled.';

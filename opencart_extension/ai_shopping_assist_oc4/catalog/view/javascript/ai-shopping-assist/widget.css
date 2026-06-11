@@ -3,9 +3,9 @@
   left: 20px;
   bottom: 20px;
   z-index: 99999;
-  direction: rtl;
-  font-family: Vazirmatn, IRANSans, Tahoma, Arial, sans-serif !important;
-  color: #17202a;
+  direction: ltr;
+  font-family: Inter, Arial, Tahoma, sans-serif !important;
+  color: #231633;
 }
 
 #ai-shopping-assist-widget * {
@@ -13,38 +13,43 @@
 }
 
 .aisa-toggle {
-  border: 0;
-  min-width: 154px;
-  height: 56px;
-  padding: 0 16px 0 12px;
-  border-radius: 8px;
-  color: #fff;
-  background: #116466;
-  box-shadow: 0 10px 30px rgba(17, 100, 102, 0.24);
+  border: 3px solid #7b2cbf;
+  width: 74px;
+  height: 74px;
+  padding: 6px;
+  border-radius: 50%;
+  color: #5a189a;
+  background: #fff;
+  box-shadow: 0 14px 34px rgba(123, 44, 191, 0.30);
   cursor: pointer;
   font-weight: 700;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 10px;
-  transition: transform 0.2s ease, background 0.2s ease;
+  gap: 0;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
 }
 
 .aisa-toggle-avatar {
-  width: 46px;
-  height: 50px;
+  width: 62px;
+  height: 62px;
   object-fit: contain;
-  object-position: center bottom;
+  object-position: center;
   flex: 0 0 auto;
 }
 
 .aisa-toggle-text {
-  line-height: 1.2;
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
   white-space: nowrap;
 }
 
 .aisa-toggle:hover {
-  background: #0e5254;
+  border-color: #9d4edd;
+  box-shadow: 0 18px 42px rgba(157, 78, 221, 0.38);
   transform: translateY(-2px);
 }
 
@@ -52,10 +57,10 @@
   width: min(390px, calc(100vw - 32px));
   height: min(560px, calc(100dvh - 104px));
   margin-bottom: 12px;
-  border: 1px solid #d8e2e1;
+  border: 1px solid #e9d8fd;
   border-radius: 8px;
   background: #fff;
-  box-shadow: 0 16px 45px rgba(16, 24, 40, 0.18);
+  box-shadow: 0 18px 50px rgba(68, 23, 105, 0.20);
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -87,8 +92,9 @@
   gap: 10px;
   min-height: 54px;
   padding: 12px 14px;
-  border-bottom: 1px solid #e7eeee;
-  background: #f7fbfa;
+  border-bottom: 1px solid #7b2cbf;
+  background: #6f2dbd;
+  color: #fff;
 }
 
 .aisa-head-main {
@@ -99,8 +105,8 @@
 }
 
 .aisa-avatar {
-  width: 46px;
-  height: 46px;
+  width: 50px;
+  height: 50px;
   object-fit: contain;
   object-position: center bottom;
   flex: 0 0 auto;
@@ -114,7 +120,7 @@
 
 .aisa-status {
   display: block;
-  color: #64748b;
+  color: #eadcff;
   font-size: 12px;
   font-weight: 500;
   margin-top: 2px;
@@ -123,26 +129,26 @@
 .aisa-close {
   width: 34px;
   height: 34px;
-  border: 1px solid #d8e2e1;
+  border: 1px solid rgba(255, 255, 255, 0.55);
   border-radius: 8px;
   background: #fff;
   cursor: pointer;
   font-size: 20px;
   line-height: 1;
-  color: #64748b;
+  color: #5a189a;
   transition: background 0.2s, color 0.2s;
 }
 
 .aisa-close:hover {
-  background: #f1f5f9;
-  color: #ef4444;
+  background: #fff;
+  color: #7b2cbf;
 }
 
 .aisa-messages {
   flex: 1;
   overflow-y: auto;
   padding: 14px;
-  background: #fbfdfd;
+  background: #fbf8ff;
   scroll-behavior: smooth;
 }
 
@@ -155,7 +161,7 @@
 }
 
 .aisa-messages::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
+  background: #c77dff;
   border-radius: 10px;
 }
 
@@ -183,17 +189,17 @@
 }
 
 .aisa-message.user {
-  margin-right: auto;
+  margin-left: auto;
   color: #fff;
-  background: #116466;
+  background: #7b2cbf;
   border-bottom-right-radius: 4px;
 }
 
 .aisa-message.bot {
-  margin-left: auto;
-  border: 1px solid #e1e9e8;
+  margin-right: auto;
+  border: 1px solid #eadcff;
   background: #fff;
-  color: #334155;
+  color: #2d1b3d;
   border-bottom-left-radius: 4px;
   box-shadow: 0 2px 5px rgba(0, 0, 0, 0.02);
 }
@@ -202,7 +208,7 @@
   display: flex;
   gap: 8px;
   padding: 12px;
-  border-top: 1px solid #e7eeee;
+  border-top: 1px solid #eadcff;
   background: #fff;
 }
 
@@ -210,7 +216,7 @@
   flex: 1;
   min-width: 0;
   height: 44px;
-  border: 1px solid #cedada;
+  border: 1px solid #d8b4fe;
   border-radius: 8px;
   padding: 0 14px;
   outline: none;
@@ -220,8 +226,8 @@
 }
 
 .aisa-input:focus {
-  border-color: #116466;
-  box-shadow: 0 0 0 3px rgba(17, 100, 102, 0.12);
+  border-color: #7b2cbf;
+  box-shadow: 0 0 0 3px rgba(123, 44, 191, 0.14);
 }
 
 .aisa-send {
@@ -230,7 +236,7 @@
   border: 0;
   border-radius: 8px;
   color: #fff;
-  background: #17202a;
+  background: #5a189a;
   cursor: pointer;
   font-weight: 700;
   font-family: inherit;
@@ -238,7 +244,7 @@
 }
 
 .aisa-send:hover:not(:disabled) {
-  background: #2c3e50;
+  background: #7b2cbf;
 }
 
 .aisa-send:active:not(:disabled) {
@@ -263,11 +269,12 @@
   }
 
   .aisa-toggle {
-    width: 100%;
+    width: 70px;
+    height: 70px;
   }
 
   .aisa-toggle-avatar {
-    width: 42px;
-    height: 46px;
+    width: 58px;
+    height: 58px;
   }
 }

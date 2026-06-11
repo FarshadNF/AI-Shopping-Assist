@@ -11,7 +11,7 @@ $_['text_no_logs'] = 'هنوز لاگی ثبت نشده است.';
 $_['text_clear_logs'] = 'پاک‌کردن لاگ‌ها';
 
 $_['entry_status'] = 'وضعیت';
-$_['entry_gemini_api_key'] = 'کلید API جمینای';
+$_['entry_gemini_api_key'] = 'کلیدهای API جمینای';
 $_['entry_gemini_model'] = 'مدل جمینای';
 $_['entry_gemini_temperature'] = 'Temperature';
 $_['entry_catalog_limit'] = 'تعداد محصول در پرامپت';
@@ -22,7 +22,7 @@ $_['entry_footer_injection'] = 'تزریق خودکار ویجت';
 $_['entry_widget_title'] = 'عنوان ویجت';
 $_['entry_widget_button'] = 'متن دکمه';
 
-$_['help_gemini_api_key'] = 'این کلید را از Google AI Studio بسازید. کلید فقط سمت سرور OpenCart استفاده می‌شود و داخل مرورگر نمایش داده نمی‌شود.';
+$_['help_gemini_api_key'] = 'یک یا چند کلید Google AI Studio را با کاما جدا کنید. اگر یکی خطا یا محدودیت بدهد، OpenCart کلید بعدی را امتحان می‌کند. کلیدها فقط سمت سرور استفاده می‌شوند و داخل مرورگر نمایش داده نمی‌شوند.';
 $_['help_catalog_limit'] = 'حداکثر تعداد محصولی که در هر پیام برای جمینای فرستاده می‌شود. برای سرعت و هزینه توکن، مقدار متوسط بهتر است.';
 $_['help_catalog_token'] = 'اختیاری است. اگر مقدار داشته باشد، درخواست JSON کاتالوگ باید هدر X-AI-Assistant-Token بفرستد.';
 
@@ -33,4 +33,4 @@ $_['column_role'] = 'نقش';
 $_['column_content'] = 'متن';
 
 $_['error_permission'] = 'هشدار: شما اجازه ویرایش دستیار هوشمند خرید را ندارید.';
-$_['error_gemini_api_key'] = 'وقتی ماژول فعال است، کلید API جمینای الزامی است.';
+$_['error_gemini_api_key'] = 'وقتی ماژول فعال است، حداقل یک کلید API جمینای الزامی است.';
