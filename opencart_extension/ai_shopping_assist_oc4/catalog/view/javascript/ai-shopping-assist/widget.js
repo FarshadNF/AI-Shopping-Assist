@@ -22,6 +22,7 @@
         redirectDelayMs: 700,
         maxHistoryMessages: 80,
         maxConversations: 30,
+        welcomeMessage: 'Hi, I can help you find products, compare options, and check specifications.',
         starterSuggestions: [
           {
             title: 'Product Specifications',
@@ -81,8 +82,8 @@
               </div>
             </div>
             <div class="aisa-head-actions">
-              <button type="button" class="aisa-history-toggle" aria-label="Conversations" title="Conversations">Chats</button>
-              <button type="button" class="aisa-new-chat" aria-label="New chat" title="New chat">New</button>
+              <button type="button" class="aisa-history-toggle" aria-label="Conversations" title="Conversations">☰</button>
+              <button type="button" class="aisa-new-chat" aria-label="New chat" title="New chat">+</button>
               <button type="button" class="aisa-close" aria-label="Close">&times;</button>
             </div>
           </header>
@@ -148,16 +149,15 @@
 
     bindEvents() {
       this.toggleBtn.addEventListener('click', () => {
-        this.panel.hidden = false;
-        this.toggleBtn.hidden = true;
-        this.scrollMessagesToBottom();
-        this.input.focus();
+        if (this.panel.hidden) {
+          this.openPanel();
+        } else {
+          this.closePanel();
+        }
       });
 
       this.closeBtn.addEventListener('click', () => {
-        this.panel.hidden = true;
-        this.toggleBtn.hidden = false;
-        this.conversationTray.hidden = true;
+        this.closePanel();
       });
 
       this.historyToggleBtn.addEventListener('click', () => {
@@ -178,6 +178,23 @@
         this.addMessage('user', text);
         await this.askAssistant(text);
       });
+    }
+
+    openPanel() {
+      this.panel.hidden = false;
+      this.toggleBtn.hidden = true;
+      this.root.classList.add('is-open');
+      this.toggleBtn.setAttribute('aria-expanded', 'true');
+      this.scrollMessagesToBottom();
+      this.input.focus();
+    }
+
+    closePanel() {
+      this.panel.hidden = true;
+      this.toggleBtn.hidden = false;
+      this.root.classList.remove('is-open');
+      this.toggleBtn.setAttribute('aria-expanded', 'false');
+      this.conversationTray.hidden = true;
     }
 
     getShopBaseUrl() {
@@ -498,6 +515,7 @@
 
     renderStarterSuggestions() {
       if (this.loadChatHistory().length) return;
+      this.addMessage('bot', this.config.welcomeMessage || this.defaults.welcomeMessage, false);
       this.renderSuggestions(this.config.starterSuggestions || []);
       this.scrollMessagesToBottom();
     }

@@ -2,7 +2,7 @@
 namespace Opencart\Catalog\Controller\Extension\AiShoppingAssist\Module;
 
 class AiShoppingAssist extends \Opencart\System\Engine\Controller {
-	private const VERSION = '2.5.0';
+	private const VERSION = '3.1.0';
 	private const MARKER = '<!-- AI_SHOPPING_ASSIST_WIDGET -->';
 
 	public function inject(&$route, &$data, &$output = null): void {
@@ -87,6 +87,43 @@ class AiShoppingAssist extends \Opencart\System\Engine\Controller {
 
 		$conversation_id = (string)($input['conversation_id'] ?? $this->getLocalConversationId());
 		$this->writeChatLog($conversation_id, 'user', $message);
+
+		$lead = $this->parseBulkLeadSubmission($message);
+
+		if ($lead) {
+			$missing_fields = $this->missingBulkLeadFields($lead);
+			$reply = '';
+
+			if ($missing_fields) {
+				$reply = $this->bulkLeadMissingMessage($missing_fields);
+			} else {
+				$this->sendBulkLeadToWebhook($lead, $conversation_id, $input);
+				$reply = $this->localizedText(
+					$message,
+					'Thanks. Your bulk order request has been received. Our sales team will contact you shortly.',
+					'ممنون. درخواست خرید عمده شما ثبت شد و تیم فروش به‌زودی با شما تماس می‌گیرد.'
+				);
+			}
+
+			$this->writeChatLog($conversation_id, 'assistant', $reply);
+			$this->outputJson([
+				'status' => 'success',
+				'reply' => $reply,
+				'conversation_id' => $conversation_id
+			]);
+			return;
+		}
+
+		if ($this->isBulkLeadRequest($message) && !$this->isBulkLeadSubmission($message)) {
+			$reply = $this->bulkLeadMessage();
+			$this->writeChatLog($conversation_id, 'assistant', $reply);
+			$this->outputJson([
+				'status' => 'success',
+				'reply' => $reply,
+				'conversation_id' => $conversation_id
+			]);
+			return;
+		}
 
 		$result = $this->askGemini($message, $conversation_id);
 
@@ -342,6 +379,7 @@ class AiShoppingAssist extends \Opencart\System\Engine\Controller {
 			'Default to English. If the latest user message is clearly Persian or another language, you may reply in that language, but your base persona and concise style are English-first.',
 			'Use only the product catalog below for product-specific claims. Check stock before recommending purchase. Keep replies short, natural, and sales-focused.',
 			'When the user wants an action, include it in actions. Supported action types: add_to_cart, show_cart, redirect_to_cart, redirect_to_product, redirect_to_page, update_cart_item, remove_from_cart, clear_cart, apply_coupon, redirect_to_checkout, send_invoice.',
+			'For bulk, wholesale, B2B, corporate, or high-quantity requests, do not add items to cart and do not send the user to checkout. Ask for lead details using this exact field list: Product Name, QTY, Name, Company, Contact Number, Email, Delivery Location.',
 			'For navigating to any non-product site page, use {"type":"redirect_to_page","page":"home/contact/account/login/register/orders/wishlist/specials/search/category/information page name","route":"optional OpenCart route","url":"optional internal URL"}. Do not say you cannot navigate.',
 			'Return ONLY valid JSON with this shape: {"reply":"visible message","suggestions":[{"title":"Product Recommendation","text":"Can you recommend a laptop?"}],"products":[{"product_id":"id","name":"exact catalog name","reason":"Why this is a fit"}],"actions":[{"type":"add_to_cart","product_name":"exact name","product_id":"id","qty":1}]} .',
 			'Use suggestions for helpful next questions. Use product cards when recommending, comparing, showing specs, or discussing specific products. Use an empty array for suggestions/products/actions when not needed.',
@@ -502,6 +540,14 @@ class AiShoppingAssist extends \Opencart\System\Engine\Controller {
 			$reply = trim($raw_text) ?: $this->localizedText($message, 'I am ready to help.', 'آماده‌ام کمک کنم.');
 		}
 
+		if ($this->isBulkLeadRequest($message) && !$this->isBulkLeadSubmission($message)) {
+			return [
+				'status' => 'success',
+				'reply' => $this->bulkLeadMessage(),
+				'conversation_id' => $conversation_id
+			];
+		}
+
 		$raw_actions = [];
 
 		if (isset($parsed['actions']) && is_array($parsed['actions'])) {
@@ -568,6 +614,185 @@ class AiShoppingAssist extends \Opencart\System\Engine\Controller {
 		}
 
 		return ['reply' => $text, 'actions' => []];
+	}
+
+	private function bulkLeadMessage(): string {
+		return "For bulk orders, please share these details:\n\nProduct Name:\nQTY:\nName:\nCompany:\nContact Number:\nEmail:\nDelivery Location:";
+	}
+
+	private function parseBulkLeadSubmission(string $message): array {
+		$aliases = [
+			'product name' => 'product_name',
+			'product' => 'product_name',
+			'نام محصول' => 'product_name',
+			'محصول' => 'product_name',
+			'qty' => 'qty',
+			'quantity' => 'qty',
+			'تعداد' => 'qty',
+			'name' => 'name',
+			'full name' => 'name',
+			'نام' => 'name',
+			'company' => 'company',
+			'company name' => 'company',
+			'شرکت' => 'company',
+			'نام شرکت' => 'company',
+			'contact number' => 'contact_number',
+			'phone' => 'contact_number',
+			'mobile' => 'contact_number',
+			'tel' => 'contact_number',
+			'شماره تماس' => 'contact_number',
+			'موبایل' => 'contact_number',
+			'تلفن' => 'contact_number',
+			'email' => 'email',
+			'ایمیل' => 'email',
+			'delivery location' => 'delivery_location',
+			'delivery address' => 'delivery_location',
+			'address' => 'delivery_location',
+			'آدرس' => 'delivery_location',
+			'محل تحویل' => 'delivery_location',
+			'آدرس تحویل' => 'delivery_location'
+		];
+		$lead = [
+			'product_name' => '',
+			'qty' => '',
+			'name' => '',
+			'company' => '',
+			'contact_number' => '',
+			'email' => '',
+			'delivery_location' => ''
+		];
+		$matched_fields = 0;
+		$lines = preg_split('/\R+/', $message) ?: [];
+
+		foreach ($lines as $line) {
+			if (!preg_match('/^\s*([^:=]+?)\s*[:=]\s*(.*?)\s*$/u', (string)$line, $match)) {
+				continue;
+			}
+
+			$label = $this->normalizePageKey((string)$match[1]);
+			$value = trim((string)$match[2]);
+
+			if (!isset($aliases[$label])) {
+				continue;
+			}
+
+			$key = $aliases[$label];
+			$lead[$key] = $this->shortText($value, $key === 'delivery_location' ? 500 : 180);
+			$matched_fields++;
+		}
+
+		return $matched_fields >= 3 ? $lead : [];
+	}
+
+	private function missingBulkLeadFields(array $lead): array {
+		$labels = $this->bulkLeadFieldLabels();
+		$missing = [];
+
+		foreach ($labels as $key => $label) {
+			if (trim((string)($lead[$key] ?? '')) === '') {
+				$missing[] = $label;
+			}
+		}
+
+		return $missing;
+	}
+
+	private function bulkLeadMissingMessage(array $missing_fields): string {
+		return "Thanks. Please complete these missing fields so our sales team can quote you:\n\n- " . implode("\n- ", $missing_fields);
+	}
+
+	private function bulkLeadFieldLabels(): array {
+		return [
+			'product_name' => 'Product Name',
+			'qty' => 'QTY',
+			'name' => 'Name',
+			'company' => 'Company',
+			'contact_number' => 'Contact Number',
+			'email' => 'Email',
+			'delivery_location' => 'Delivery Location'
+		];
+	}
+
+	private function sendBulkLeadToWebhook(array $lead, string $conversation_id, array $input): bool {
+		$url = trim((string)$this->config->get('module_ai_shopping_assist_lead_webhook_url'));
+
+		if ($url === '' || stripos($url, 'https://') !== 0) {
+			if ($url !== '') {
+				$this->log->write('AI Shopping Assist lead webhook ignored because URL must start with https://');
+			}
+
+			return false;
+		}
+
+		$page_context = is_array($input['page_context'] ?? null) ? $input['page_context'] : [];
+		$payload = [
+			'secret' => (string)$this->config->get('module_ai_shopping_assist_lead_webhook_secret'),
+			'event' => 'bulk_lead',
+			'store' => (string)$this->config->get('config_name'),
+			'conversation_id' => $conversation_id,
+			'customer_id' => $this->customer->isLogged() ? (int)$this->customer->getId() : 0,
+			'page_url' => (string)($page_context['url'] ?? ''),
+			'page_title' => (string)($page_context['title'] ?? ''),
+			'ip' => (string)($this->request->server['REMOTE_ADDR'] ?? ''),
+			'user_agent' => substr((string)($this->request->server['HTTP_USER_AGENT'] ?? ''), 0, 255),
+			'date_added' => date('c'),
+			'lead' => $lead
+		];
+
+		$result = $this->postJson($url, $payload, [], 12);
+		$ok = $result['status'] >= 200 && $result['status'] < 300 && $result['error'] === '';
+
+		if (!$ok) {
+			$this->log->write('AI Shopping Assist lead webhook failed: HTTP ' . (int)$result['status'] . ' ' . $result['error'] . ' ' . substr((string)$result['body'], 0, 500));
+		}
+
+		return $ok;
+	}
+
+	private function isBulkLeadRequest(string $message): bool {
+		$text = $this->normalizePageKey($message);
+
+		if ($text === '') {
+			return false;
+		}
+
+		$bulk_words = [
+			'bulk',
+			'wholesale',
+			'b2b',
+			'corporate order',
+			'large order',
+			'large quantity',
+			'high quantity',
+			'many units',
+			'volume order',
+			'reseller',
+			'quotation',
+			'quote for',
+			'proforma',
+			'عمده',
+			'خرید عمده',
+			'تعداد بالا',
+			'تعداد زیاد',
+			'خرید سازمانی',
+			'سفارش سازمانی',
+			'همکاری',
+			'پیش فاکتور',
+			'پیش‌فاکتور'
+		];
+
+		foreach ($bulk_words as $word) {
+			if (strpos($text, $this->normalizePageKey($word)) !== false) {
+				return true;
+			}
+		}
+
+		return (bool)preg_match('/(?:qty|quantity|units|unit|pcs|pieces|عدد|دستگاه|تا)\s*[:=]?\s*(\d{2,})/iu', $text)
+			|| (bool)preg_match('/(\d{2,})\s*(?:qty|quantity|units|unit|pcs|pieces|عدد|دستگاه|تا)/iu', $text);
+	}
+
+	private function isBulkLeadSubmission(string $message): bool {
+		return (bool)$this->parseBulkLeadSubmission($message);
 	}
 
 	private function normalizeSuggestions($raw_suggestions): array {
@@ -1349,9 +1574,10 @@ class AiShoppingAssist extends \Opencart\System\Engine\Controller {
 		return is_array($this->request->post) ? $this->request->post : [];
 	}
 
-	private function postJson(string $url, array $payload, array $headers = []): array {
+	private function postJson(string $url, array $payload, array $headers = [], int $timeout = 35): array {
 		$body = json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
 		$request_headers = array_merge(['Accept: application/json', 'Content-Type: application/json'], $headers);
+		$timeout = max(5, min(60, $timeout));
 
 		if (function_exists('curl_init')) {
 			$handle = curl_init($url);
@@ -1359,8 +1585,12 @@ class AiShoppingAssist extends \Opencart\System\Engine\Controller {
 			curl_setopt($handle, CURLOPT_POST, true);
 			curl_setopt($handle, CURLOPT_HTTPHEADER, $request_headers);
 			curl_setopt($handle, CURLOPT_POSTFIELDS, $body);
-			curl_setopt($handle, CURLOPT_CONNECTTIMEOUT, 10);
-			curl_setopt($handle, CURLOPT_TIMEOUT, 35);
+			curl_setopt($handle, CURLOPT_CONNECTTIMEOUT, min(10, $timeout));
+			curl_setopt($handle, CURLOPT_TIMEOUT, $timeout);
+
+			if (!ini_get('open_basedir')) {
+				curl_setopt($handle, CURLOPT_FOLLOWLOCATION, true);
+			}
 
 			$response = curl_exec($handle);
 			$error = curl_error($handle);
@@ -1379,7 +1609,7 @@ class AiShoppingAssist extends \Opencart\System\Engine\Controller {
 				'method' => 'POST',
 				'header' => implode("\r\n", $request_headers) . "\r\n",
 				'content' => $body,
-				'timeout' => 35,
+				'timeout' => $timeout,
 				'ignore_errors' => true
 			]
 		]);

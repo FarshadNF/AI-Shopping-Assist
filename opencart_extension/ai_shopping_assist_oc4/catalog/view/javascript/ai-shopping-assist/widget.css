@@ -1,38 +1,60 @@
 #ai-shopping-assist-widget {
+  --aisa-accent: #5b46d8;
+  --aisa-accent-strong: #4631ba;
+  --aisa-ink: #171420;
+  --aisa-muted: #6e687b;
+  --aisa-soft: #f7f6fb;
+  --aisa-line: #ebe8f3;
+  --aisa-panel: #ffffff;
   position: fixed;
   left: 20px;
   bottom: 20px;
   z-index: 99999;
   direction: ltr;
-  font-family: Inter, Arial, Tahoma, sans-serif !important;
-  color: #231633;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, Tahoma, sans-serif !important;
+  color: var(--aisa-ink);
 }
 
 #ai-shopping-assist-widget * {
   box-sizing: border-box;
+  letter-spacing: 0;
+}
+
+#ai-shopping-assist-widget.is-open {
+  width: min(388px, calc(100vw - 32px));
 }
 
 .aisa-toggle {
-  border: 3px solid #7b2cbf;
-  width: 74px;
-  height: 74px;
-  padding: 6px;
+  position: relative;
+  width: 64px;
+  height: 64px;
+  padding: 7px;
+  border: 1px solid #e6e0fb;
   border-radius: 50%;
-  color: #5a189a;
-  background: #fff;
-  box-shadow: 0 14px 34px rgba(123, 44, 191, 0.30);
+  background: var(--aisa-panel);
+  box-shadow: 0 14px 34px rgba(38, 30, 92, 0.22);
   cursor: pointer;
-  font-weight: 700;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 0;
-  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+  transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+}
+
+.aisa-toggle::after {
+  content: "";
+  position: absolute;
+  right: 7px;
+  bottom: 7px;
+  width: 12px;
+  height: 12px;
+  border: 2px solid #fff;
+  border-radius: 50%;
+  background: #22c55e;
 }
 
 .aisa-toggle-avatar {
-  width: 62px;
-  height: 62px;
+  width: 50px;
+  height: 50px;
   object-fit: contain;
   object-position: center;
   flex: 0 0 auto;
@@ -48,19 +70,19 @@
 }
 
 .aisa-toggle:hover {
-  border-color: #9d4edd;
-  box-shadow: 0 18px 42px rgba(157, 78, 221, 0.38);
+  border-color: #cfc5f8;
+  box-shadow: 0 18px 42px rgba(38, 30, 92, 0.28);
   transform: translateY(-2px);
 }
 
 .aisa-panel {
-  width: min(390px, calc(100vw - 32px));
-  height: min(560px, calc(100dvh - 104px));
-  margin-bottom: 12px;
-  border: 1px solid #e9d8fd;
-  border-radius: 8px;
-  background: #fff;
-  box-shadow: 0 18px 50px rgba(68, 23, 105, 0.20);
+  width: min(388px, calc(100vw - 32px));
+  height: min(590px, calc(100dvh - 92px));
+  min-height: 420px;
+  border: 1px solid var(--aisa-line);
+  border-radius: 22px;
+  background: var(--aisa-panel);
+  box-shadow: 0 24px 64px rgba(22, 18, 48, 0.22);
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -69,7 +91,7 @@
 @keyframes aisa-slide-up {
   from {
     opacity: 0;
-    transform: translateY(15px) scale(0.98);
+    transform: translateY(10px) scale(0.99);
   }
   to {
     opacity: 1;
@@ -78,7 +100,7 @@
 }
 
 .aisa-panel:not([hidden]) {
-  animation: aisa-slide-up 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  animation: aisa-slide-up 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
 .aisa-panel[hidden] {
@@ -89,18 +111,17 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 10px;
-  min-height: 54px;
-  padding: 12px 14px;
-  border-bottom: 1px solid #7b2cbf;
-  background: #6f2dbd;
-  color: #fff;
+  gap: 12px;
+  min-height: 72px;
+  padding: 15px 16px;
+  border-bottom: 1px solid var(--aisa-line);
+  background: linear-gradient(180deg, #fff, #fcfbff);
 }
 
 .aisa-head-main {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 11px;
   min-width: 0;
 }
 
@@ -116,72 +137,85 @@
 }
 
 .aisa-avatar {
-  width: 50px;
-  height: 50px;
+  width: 38px;
+  height: 38px;
+  padding: 4px;
+  border-radius: 12px;
+  background: var(--aisa-accent);
   object-fit: contain;
-  object-position: center bottom;
+  object-position: center;
   flex: 0 0 auto;
+  box-shadow: 0 8px 18px rgba(91, 70, 216, 0.24);
 }
 
 .aisa-title {
-  font-weight: 800;
-  line-height: 1.4;
-  font-size: 15px;
-  max-width: 138px;
+  max-width: 152px;
   overflow: hidden;
+  color: var(--aisa-ink);
+  font-size: 15px;
+  font-weight: 800;
+  line-height: 1.25;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .aisa-status {
   display: block;
-  color: #eadcff;
+  margin-top: 3px;
+  color: var(--aisa-muted);
   font-size: 12px;
   font-weight: 500;
-  margin-top: 2px;
+  line-height: 1.25;
 }
 
 .aisa-history-toggle,
 .aisa-new-chat,
 .aisa-close {
-  width: 34px;
-  height: 34px;
-  border: 1px solid rgba(255, 255, 255, 0.55);
-  border-radius: 8px;
+  width: 32px;
+  height: 32px;
+  border: 1px solid #e5e0ef;
+  border-radius: 10px;
   background: #fff;
+  color: #554a6d;
   cursor: pointer;
-  line-height: 1;
-  color: #5a189a;
   font-family: inherit;
-  font-weight: 800;
-  transition: background 0.2s, color 0.2s;
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.16s ease, border-color 0.16s ease, color 0.16s ease;
 }
 
-.aisa-history-toggle,
-.aisa-new-chat {
-  width: auto;
-  min-width: 42px;
-  padding: 0 9px;
-  font-size: 12px;
+.aisa-history-toggle {
+  font-size: 15px;
 }
 
 .aisa-close {
+  color: #948da4;
   font-size: 20px;
+  font-weight: 400;
 }
 
 .aisa-history-toggle:hover,
 .aisa-new-chat:hover,
 .aisa-close:hover {
-  background: #fff;
-  color: #7b2cbf;
+  border-color: #cfc5f8;
+  background: #f8f6ff;
+  color: var(--aisa-accent);
 }
 
 .aisa-conversations {
   max-height: 218px;
-  border-bottom: 1px solid #eadcff;
+  margin: 12px 12px 0;
+  border: 1px solid var(--aisa-line);
+  border-radius: 16px;
   background: #fff;
+  box-shadow: 0 10px 24px rgba(22, 18, 48, 0.08);
   display: flex;
   flex-direction: column;
+  overflow: hidden;
 }
 
 .aisa-conversations[hidden] {
@@ -192,58 +226,56 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 9px 12px 7px;
-  color: #5a189a;
+  padding: 11px 12px 7px;
+  color: var(--aisa-accent);
   font-size: 12px;
-  font-weight: 900;
-  letter-spacing: 0;
+  font-weight: 800;
 }
 
 .aisa-conversation-list {
   overflow-y: auto;
-  padding: 0 10px 10px;
+  padding: 0 8px 8px;
 }
 
 .aisa-conversation-item {
   width: 100%;
-  min-height: 58px;
+  min-height: 54px;
   margin: 0 0 7px;
   padding: 9px 10px;
-  border: 1px solid #eadcff;
-  border-radius: 8px;
-  background: #fbf8ff;
-  color: #2d1b3d;
+  border: 1px solid var(--aisa-line);
+  border-radius: 13px;
+  background: #faf9fd;
+  color: var(--aisa-ink);
   cursor: pointer;
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 4px 8px;
   text-align: left;
   font-family: inherit;
-  transition: border-color 0.2s, background 0.2s, box-shadow 0.2s;
+  transition: border-color 0.16s ease, background 0.16s ease;
 }
 
 .aisa-conversation-item:hover,
 .aisa-conversation-item.is-active {
-  border-color: #9d4edd;
+  border-color: #d3c9f8;
   background: #fff;
-  box-shadow: 0 6px 18px rgba(68, 23, 105, 0.08);
 }
 
 .aisa-conversation-title {
   min-width: 0;
   overflow: hidden;
-  color: #241136;
+  color: var(--aisa-ink);
   font-size: 13px;
-  font-weight: 900;
+  font-weight: 750;
   line-height: 1.35;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .aisa-conversation-meta {
-  color: #7b2cbf;
+  color: #756aa4;
   font-size: 11px;
-  font-weight: 800;
+  font-weight: 700;
   line-height: 1.4;
   white-space: nowrap;
 }
@@ -252,7 +284,7 @@
   grid-column: 1 / -1;
   min-width: 0;
   overflow: hidden;
-  color: #6a587a;
+  color: #7d778a;
   font-size: 12px;
   line-height: 1.35;
   text-overflow: ellipsis;
@@ -263,34 +295,37 @@
   flex: 1;
   overflow-y: auto;
   padding: 14px;
-  background: #fbf8ff;
+  background: var(--aisa-soft);
   scroll-behavior: smooth;
 }
 
-.aisa-messages::-webkit-scrollbar {
+.aisa-messages::-webkit-scrollbar,
+.aisa-conversation-list::-webkit-scrollbar {
   width: 6px;
 }
 
-.aisa-messages::-webkit-scrollbar-track {
+.aisa-messages::-webkit-scrollbar-track,
+.aisa-conversation-list::-webkit-scrollbar-track {
   background: transparent;
 }
 
-.aisa-messages::-webkit-scrollbar-thumb {
-  background: #c77dff;
-  border-radius: 10px;
+.aisa-messages::-webkit-scrollbar-thumb,
+.aisa-conversation-list::-webkit-scrollbar-thumb {
+  background: #d7d0ee;
+  border-radius: 999px;
 }
 
 .aisa-message {
   width: fit-content;
   max-width: 86%;
-  margin: 0 0 12px;
-  padding: 10px 14px;
-  border-radius: 8px;
-  line-height: 1.6;
+  margin: 0 0 10px;
+  padding: 10px 13px;
+  border-radius: 15px;
+  line-height: 1.58;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
   font-size: 14px;
-  animation: aisa-slide-up 0.2s ease-out forwards;
+  animation: aisa-slide-up 0.18s ease-out forwards;
 }
 
 .aisa-message[dir="rtl"] {
@@ -306,21 +341,21 @@
 .aisa-message.user {
   margin-left: auto;
   color: #fff;
-  background: #7b2cbf;
-  border-bottom-right-radius: 4px;
+  background: var(--aisa-accent);
+  border-bottom-right-radius: 5px;
+  box-shadow: 0 8px 16px rgba(91, 70, 216, 0.18);
 }
 
 .aisa-message.bot {
   margin-right: auto;
-  border: 1px solid #eadcff;
+  border: 1px solid var(--aisa-line);
   background: #fff;
-  color: #2d1b3d;
-  border-bottom-left-radius: 4px;
-  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.02);
+  color: #262235;
+  border-bottom-left-radius: 5px;
 }
 
 .aisa-suggestions {
-  width: min(86%, 310px);
+  width: min(92%, 326px);
   margin: 0 auto 12px 0;
   display: flex;
   flex-direction: column;
@@ -332,55 +367,70 @@
   font: inherit;
   text-align: left;
   cursor: pointer;
-  transition: border-color 0.2s, background 0.2s, transform 0.15s;
+  transition: border-color 0.16s ease, background 0.16s ease, color 0.16s ease;
 }
 
 .aisa-suggestion-card {
   width: 100%;
-  border: 1px solid #eadcff;
-  border-radius: 8px;
-  background: #f4edff;
-  color: #26113d;
-  padding: 12px 13px;
+  border: 1px solid var(--aisa-line);
+  border-radius: 14px;
+  background: #fff;
+  color: var(--aisa-ink);
+  padding: 11px 12px 11px 13px;
+  position: relative;
+}
+
+.aisa-suggestion-card::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 12px;
+  bottom: 12px;
+  width: 3px;
+  border-radius: 999px;
+  background: var(--aisa-accent);
 }
 
 .aisa-suggestion-card:hover {
-  border-color: #9d4edd;
-  background: #fff;
-  transform: translateY(-1px);
+  border-color: #d3c9f8;
+  background: #fbfaff;
 }
 
 .aisa-suggestion-title {
   display: block;
   margin-bottom: 4px;
-  color: #5a189a;
+  color: #2d236c;
+  font-size: 13px;
   font-weight: 800;
   line-height: 1.35;
 }
 
 .aisa-suggestion-text {
   display: block;
-  color: #4b3b5c;
+  color: #595365;
   font-size: 13px;
-  line-height: 1.55;
+  line-height: 1.5;
 }
 
 .aisa-suggestion-chip {
   align-self: flex-end;
   max-width: 100%;
-  border: 1px solid #7b2cbf;
-  border-radius: 8px;
+  border: 1px solid #d8d1ef;
+  border-radius: 999px;
   background: #fff;
-  color: #5a189a;
-  padding: 7px 10px;
+  color: #2d236c;
+  padding: 8px 12px;
+  font-size: 13px;
+  font-weight: 700;
 }
 
 .aisa-suggestion-chip:hover {
-  background: #f4edff;
+  border-color: #c7bbf4;
+  background: #fbfaff;
 }
 
 .aisa-product-cards {
-  width: min(90%, 330px);
+  width: min(94%, 344px);
   margin: 0 auto 12px 0;
   display: flex;
   flex-direction: column;
@@ -389,22 +439,22 @@
 
 .aisa-product-card {
   display: grid;
-  grid-template-columns: 72px minmax(0, 1fr);
-  gap: 10px;
-  border: 1px solid #eadcff;
-  border-radius: 8px;
+  grid-template-columns: 70px minmax(0, 1fr);
+  gap: 11px;
+  border: 1px solid var(--aisa-line);
+  border-radius: 16px;
   background: #fff;
   padding: 10px;
-  box-shadow: 0 8px 22px rgba(68, 23, 105, 0.10);
+  box-shadow: 0 8px 20px rgba(22, 18, 48, 0.05);
 }
 
 .aisa-product-image {
-  width: 72px;
-  height: 72px;
+  width: 70px;
+  height: 70px;
   object-fit: contain;
-  border-radius: 8px;
-  background: #fbf8ff;
-  border: 1px solid #f1e6ff;
+  border-radius: 12px;
+  background: var(--aisa-soft);
+  border: 1px solid #efecf7;
 }
 
 .aisa-product-body {
@@ -412,26 +462,26 @@
 }
 
 .aisa-product-title {
-  color: #241136;
+  color: var(--aisa-ink);
   font-size: 14px;
   font-weight: 800;
-  line-height: 1.3;
+  line-height: 1.32;
   overflow-wrap: anywhere;
 }
 
 .aisa-product-meta {
   margin-top: 4px;
-  color: #7b2cbf;
+  color: var(--aisa-accent);
   font-size: 12px;
-  font-weight: 700;
+  font-weight: 750;
   line-height: 1.4;
 }
 
 .aisa-product-summary {
   margin: 7px 0 0;
-  color: #4b3b5c;
+  color: #595365;
   font-size: 13px;
-  line-height: 1.55;
+  line-height: 1.52;
   white-space: normal;
 }
 
@@ -447,7 +497,7 @@
   border: 0;
   padding: 0;
   background: transparent;
-  color: #5a189a;
+  color: #2d236c;
   cursor: pointer;
   font: inherit;
   font-size: 12px;
@@ -457,14 +507,14 @@
 .aisa-product-attrs {
   display: grid;
   grid-template-columns: max-content minmax(0, 1fr);
-  gap: 3px 7px;
+  gap: 4px 8px;
   margin: 8px 0 0;
-  color: #4b3b5c;
+  color: #595365;
   font-size: 12px;
 }
 
 .aisa-product-attrs dt {
-  color: #7b2cbf;
+  color: #2d236c;
   font-weight: 800;
 }
 
@@ -482,36 +532,40 @@
 }
 
 .aisa-product-action {
-  height: 34px;
-  border: 1px solid #7b2cbf;
-  border-radius: 8px;
+  height: 32px;
+  border: 1px solid #d8d1ef;
+  border-radius: 999px;
   background: #fff;
-  color: #5a189a;
+  color: #2d236c;
   cursor: pointer;
-  padding: 0 10px;
+  padding: 0 11px;
   font: inherit;
   font-size: 12px;
   font-weight: 800;
+  transition: border-color 0.16s ease, background 0.16s ease, color 0.16s ease;
 }
 
 .aisa-product-action.primary {
-  background: #7b2cbf;
+  border-color: var(--aisa-accent);
+  background: var(--aisa-accent);
   color: #fff;
 }
 
 .aisa-product-action:hover {
-  background: #f4edff;
+  border-color: #c7bbf4;
+  background: #fbfaff;
 }
 
 .aisa-product-action.primary:hover {
-  background: #5a189a;
+  border-color: var(--aisa-accent-strong);
+  background: var(--aisa-accent-strong);
 }
 
 .aisa-form {
   display: flex;
   gap: 8px;
   padding: 12px;
-  border-top: 1px solid #eadcff;
+  border-top: 1px solid var(--aisa-line);
   background: #fff;
 }
 
@@ -519,39 +573,46 @@
   flex: 1;
   min-width: 0;
   height: 44px;
-  border: 1px solid #d8b4fe;
-  border-radius: 8px;
+  border: 1px solid #ddd8eb;
+  border-radius: 12px;
   padding: 0 14px;
   outline: none;
+  background: #fff;
+  color: var(--aisa-ink);
   font-family: inherit;
   font-size: 14px;
-  transition: border-color 0.2s, box-shadow 0.2s;
+  transition: border-color 0.16s ease, box-shadow 0.16s ease;
+}
+
+.aisa-input::placeholder {
+  color: #918a9f;
 }
 
 .aisa-input:focus {
-  border-color: #7b2cbf;
-  box-shadow: 0 0 0 3px rgba(123, 44, 191, 0.14);
+  border-color: #a99bea;
+  box-shadow: 0 0 0 4px rgba(91, 70, 216, 0.10);
 }
 
 .aisa-send {
-  width: 72px;
+  width: 68px;
   height: 44px;
   border: 0;
-  border-radius: 8px;
+  border-radius: 12px;
   color: #fff;
-  background: #5a189a;
+  background: var(--aisa-ink);
   cursor: pointer;
-  font-weight: 700;
   font-family: inherit;
-  transition: background 0.2s, transform 0.1s;
+  font-size: 13px;
+  font-weight: 800;
+  transition: background 0.16s ease, transform 0.1s ease;
 }
 
 .aisa-send:hover:not(:disabled) {
-  background: #7b2cbf;
+  background: var(--aisa-accent);
 }
 
 .aisa-send:active:not(:disabled) {
-  transform: scale(0.96);
+  transform: scale(0.98);
 }
 
 .aisa-send:disabled,
@@ -567,27 +628,54 @@
     bottom: 12px;
   }
 
-  .aisa-panel {
+  #ai-shopping-assist-widget.is-open {
     width: auto;
   }
 
-  .aisa-toggle {
-    width: 70px;
-    height: 70px;
+  .aisa-panel {
+    width: 100%;
+    height: min(610px, calc(100dvh - 24px));
+    min-height: 0;
+    border-radius: 18px;
   }
 
-  .aisa-toggle-avatar {
-    width: 58px;
-    height: 58px;
+  .aisa-head {
+    min-height: 66px;
+    padding: 13px;
+    gap: 8px;
   }
 
   .aisa-title {
-    max-width: 104px;
+    max-width: 108px;
   }
 
-  .aisa-history-toggle,
-  .aisa-new-chat {
-    min-width: 38px;
-    padding: 0 7px;
+  .aisa-messages {
+    padding: 12px;
+  }
+
+  .aisa-product-card {
+    grid-template-columns: 62px minmax(0, 1fr);
+  }
+
+  .aisa-product-image {
+    width: 62px;
+    height: 62px;
+  }
+
+  .aisa-send {
+    width: 62px;
+  }
+}
+
+@media (max-height: 560px) {
+  .aisa-panel {
+    height: calc(100dvh - 32px);
+    min-height: 0;
+  }
+
+  .aisa-head {
+    min-height: 62px;
+    padding-top: 12px;
+    padding-bottom: 12px;
   }
 }

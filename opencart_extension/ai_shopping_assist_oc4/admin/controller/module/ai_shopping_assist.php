@@ -27,6 +27,7 @@ class AiShoppingAssist extends \Opencart\System\Engine\Controller {
 
 		$data['save'] = $this->url->link('extension/ai_shopping_assist/module/ai_shopping_assist.save', 'user_token=' . $this->session->data['user_token']);
 		$data['clear_logs'] = $this->url->link('extension/ai_shopping_assist/module/ai_shopping_assist.clearLogs', 'user_token=' . $this->session->data['user_token']);
+		$data['export_logs'] = $this->url->link('extension/ai_shopping_assist/module/ai_shopping_assist.exportLogs', 'user_token=' . $this->session->data['user_token']);
 		$data['back'] = $this->url->link('marketplace/extension', 'user_token=' . $this->session->data['user_token'] . '&type=module');
 
 		$data['module_ai_shopping_assist_status'] = (int)$this->config->get('module_ai_shopping_assist_status');
@@ -53,6 +54,8 @@ class AiShoppingAssist extends \Opencart\System\Engine\Controller {
 
 		$data['module_ai_shopping_assist_assistant_name'] = $assistant_name;
 		$data['module_ai_shopping_assist_catalog_token'] = (string)$this->config->get('module_ai_shopping_assist_catalog_token');
+		$data['module_ai_shopping_assist_lead_webhook_url'] = (string)$this->config->get('module_ai_shopping_assist_lead_webhook_url');
+		$data['module_ai_shopping_assist_lead_webhook_secret'] = (string)$this->config->get('module_ai_shopping_assist_lead_webhook_secret');
 		$data['module_ai_shopping_assist_footer_injection'] = $this->config->get('module_ai_shopping_assist_footer_injection') !== null ? (int)$this->config->get('module_ai_shopping_assist_footer_injection') : 1;
 		$data['module_ai_shopping_assist_widget_title'] = $widget_title;
 		$data['module_ai_shopping_assist_widget_button'] = $widget_button;
@@ -98,6 +101,8 @@ class AiShoppingAssist extends \Opencart\System\Engine\Controller {
 				'module_ai_shopping_assist_store_brand' => trim((string)($this->request->post['module_ai_shopping_assist_store_brand'] ?? $this->config->get('config_name'))) ?: $this->config->get('config_name'),
 				'module_ai_shopping_assist_assistant_name' => trim((string)($this->request->post['module_ai_shopping_assist_assistant_name'] ?? 'Rockford Assistant')) ?: 'Rockford Assistant',
 				'module_ai_shopping_assist_catalog_token' => trim((string)($this->request->post['module_ai_shopping_assist_catalog_token'] ?? '')),
+				'module_ai_shopping_assist_lead_webhook_url' => trim((string)($this->request->post['module_ai_shopping_assist_lead_webhook_url'] ?? '')),
+				'module_ai_shopping_assist_lead_webhook_secret' => trim((string)($this->request->post['module_ai_shopping_assist_lead_webhook_secret'] ?? '')),
 				'module_ai_shopping_assist_footer_injection' => (int)($this->request->post['module_ai_shopping_assist_footer_injection'] ?? 0),
 				'module_ai_shopping_assist_widget_title' => trim((string)($this->request->post['module_ai_shopping_assist_widget_title'] ?? 'Rockford Assistant')),
 				'module_ai_shopping_assist_widget_button' => trim((string)($this->request->post['module_ai_shopping_assist_widget_button'] ?? 'Chat'))
@@ -130,6 +135,23 @@ class AiShoppingAssist extends \Opencart\System\Engine\Controller {
 		$this->response->setOutput(json_encode($json));
 	}
 
+	public function exportLogs(): void {
+		$this->load->language('extension/ai_shopping_assist/module/ai_shopping_assist');
+
+		if (!$this->user->hasPermission('access', 'extension/ai_shopping_assist/module/ai_shopping_assist')) {
+			$this->response->addHeader(($this->request->server['SERVER_PROTOCOL'] ?? 'HTTP/1.1') . ' 403 Forbidden');
+			$this->response->setOutput($this->language->get('error_permission'));
+			return;
+		}
+
+		$filename = 'ai-shopping-assist-conversations-' . date('Y-m-d-His') . '.xls';
+
+		$this->response->addHeader('Content-Type: application/vnd.ms-excel; charset=utf-8');
+		$this->response->addHeader('Content-Disposition: attachment; filename="' . $filename . '"');
+		$this->response->addHeader('Cache-Control: max-age=0');
+		$this->response->setOutput($this->buildLogsExcel($this->getExportLogs()));
+	}
+
 	public function install(): void {
 		$this->createLogTable();
 
@@ -143,6 +165,8 @@ class AiShoppingAssist extends \Opencart\System\Engine\Controller {
 			'module_ai_shopping_assist_store_brand' => $this->config->get('config_name'),
 			'module_ai_shopping_assist_assistant_name' => 'Rockford Assistant',
 			'module_ai_shopping_assist_catalog_token' => '',
+			'module_ai_shopping_assist_lead_webhook_url' => '',
+			'module_ai_shopping_assist_lead_webhook_secret' => '',
 			'module_ai_shopping_assist_footer_injection' => 1,
 			'module_ai_shopping_assist_widget_title' => 'Rockford Assistant',
 			'module_ai_shopping_assist_widget_button' => 'Chat'
@@ -212,6 +236,84 @@ class AiShoppingAssist extends \Opencart\System\Engine\Controller {
 		} catch (\Throwable $exception) {
 			return [];
 		}
+	}
+
+	private function getExportLogs(): array {
+		try {
+			$query = $this->db->query("
+				SELECT
+					`log_id`,
+					`conversation_id`,
+					`session_id`,
+					`customer_id`,
+					`role`,
+					`content`,
+					`ip`,
+					`user_agent`,
+					`date_added`
+				FROM `" . DB_PREFIX . "ai_shopping_assist_chat_log`
+				ORDER BY `conversation_id` ASC, `log_id` ASC
+			");
+
+			return $query->rows;
+		} catch (\Throwable $exception) {
+			return [];
+		}
+	}
+
+	private function buildLogsExcel(array $rows): string {
+		$columns = [
+			['key' => 'log_id', 'title' => $this->language->get('column_log_id'), 'type' => 'Number'],
+			['key' => 'conversation_id', 'title' => $this->language->get('column_conversation'), 'type' => 'String'],
+			['key' => 'session_id', 'title' => $this->language->get('column_session'), 'type' => 'String'],
+			['key' => 'customer_id', 'title' => $this->language->get('column_customer'), 'type' => 'Number'],
+			['key' => 'role', 'title' => $this->language->get('column_role'), 'type' => 'String'],
+			['key' => 'content', 'title' => $this->language->get('column_content'), 'type' => 'String'],
+			['key' => 'ip', 'title' => $this->language->get('column_ip'), 'type' => 'String'],
+			['key' => 'user_agent', 'title' => $this->language->get('column_user_agent'), 'type' => 'String'],
+			['key' => 'date_added', 'title' => $this->language->get('column_date'), 'type' => 'String']
+		];
+
+		$output = [];
+		$output[] = '<?xml version="1.0" encoding="UTF-8"?>';
+		$output[] = '<?mso-application progid="Excel.Sheet"?>';
+		$output[] = '<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet" xmlns:html="http://www.w3.org/TR/REC-html40">';
+		$output[] = '<Styles><Style ss:ID="header"><Font ss:Bold="1"/><Interior ss:Color="#EADCFD" ss:Pattern="Solid"/></Style></Styles>';
+		$output[] = '<Worksheet ss:Name="Conversations"><Table>';
+		$output[] = '<Row>';
+
+		foreach ($columns as $column) {
+			$output[] = '<Cell ss:StyleID="header"><Data ss:Type="String">' . $this->xmlEscape($column['title']) . '</Data></Cell>';
+		}
+
+		$output[] = '</Row>';
+
+		foreach ($rows as $row) {
+			$output[] = '<Row>';
+
+			foreach ($columns as $column) {
+				$value = (string)($row[$column['key']] ?? '');
+				$type = $column['type'];
+
+				if ($type === 'Number' && $value === '') {
+					$type = 'String';
+				}
+
+				$output[] = '<Cell><Data ss:Type="' . $type . '">' . $this->xmlEscape($value) . '</Data></Cell>';
+			}
+
+			$output[] = '</Row>';
+		}
+
+		$output[] = '</Table></Worksheet></Workbook>';
+
+		return implode("\n", $output);
+	}
+
+	private function xmlEscape(string $value): string {
+		$value = preg_replace('/[^\x{9}\x{A}\x{D}\x{20}-\x{D7FF}\x{E000}-\x{FFFD}]/u', '', $value) ?? '';
+
+		return htmlspecialchars($value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 	}
 
 	private function normalizeApiKeys(string $value): string {

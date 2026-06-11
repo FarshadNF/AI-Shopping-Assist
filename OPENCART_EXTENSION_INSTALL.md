@@ -78,6 +78,87 @@ OpenCart اگر یک کلید خطا یا محدودیت بدهد، کلید ب�
 
 ## routeهای داخلی اکستنشن
 
+## Google Sheets lead webhook
+
+Use this when bulk order leads should be saved into Google Sheets.
+
+1. Create a Google Sheet and copy its spreadsheet ID from the URL.
+2. Go to `Extensions > Apps Script`.
+3. Paste this script and replace `SHEET_ID` and `SECRET`.
+
+```javascript
+const SHEET_ID = 'PASTE_SPREADSHEET_ID_HERE';
+const SECRET = 'CHANGE_THIS_SECRET';
+
+function doPost(e) {
+  const payload = JSON.parse((e && e.postData && e.postData.contents) || '{}');
+
+  if (SECRET && payload.secret !== SECRET) {
+    return ContentService
+      .createTextOutput(JSON.stringify({ ok: false, error: 'unauthorized' }))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+
+  const spreadsheet = SpreadsheetApp.openById(SHEET_ID);
+  const sheet = spreadsheet.getSheetByName('Bulk Leads') || spreadsheet.insertSheet('Bulk Leads');
+
+  if (sheet.getLastRow() === 0) {
+    sheet.appendRow([
+      'Date',
+      'Store',
+      'Conversation ID',
+      'Product Name',
+      'QTY',
+      'Name',
+      'Company',
+      'Contact Number',
+      'Email',
+      'Delivery Location',
+      'Page URL',
+      'Customer ID',
+      'IP',
+      'User Agent'
+    ]);
+  }
+
+  const lead = payload.lead || {};
+
+  sheet.appendRow([
+    new Date(),
+    payload.store || '',
+    payload.conversation_id || '',
+    lead.product_name || '',
+    lead.qty || '',
+    lead.name || '',
+    lead.company || '',
+    lead.contact_number || '',
+    lead.email || '',
+    lead.delivery_location || '',
+    payload.page_url || '',
+    payload.customer_id || '',
+    payload.ip || '',
+    payload.user_agent || ''
+  ]);
+
+  return ContentService
+    .createTextOutput(JSON.stringify({ ok: true }))
+    .setMimeType(ContentService.MimeType.JSON);
+}
+```
+
+4. Deploy it from `Deploy > New deployment > Web app`.
+5. Set `Execute as` to your account.
+6. Set `Who has access` to `Anyone`.
+7. Copy the Web App URL ending in `/exec`.
+8. In OpenCart admin, open `AI Shopping Assist` and fill:
+
+```text
+Lead webhook URL = Google Apps Script Web App URL
+Lead webhook secret = same SECRET value used in Apps Script
+```
+
+## Internal extension routes
+
 ```text
 index.php?route=extension/ai_shopping_assist/module/ai_shopping_assist.chat
 index.php?route=extension/ai_shopping_assist/module/ai_shopping_assist.getCatalog
