@@ -2,7 +2,7 @@
 namespace Opencart\Catalog\Controller\Extension\AiShoppingAssist\Module;
 
 class AiShoppingAssist extends \Opencart\System\Engine\Controller {
-	private const VERSION = '2.3.0';
+	private const VERSION = '2.5.0';
 	private const MARKER = '<!-- AI_SHOPPING_ASSIST_WIDGET -->';
 
 	public function inject(&$route, &$data, &$output = null): void {
@@ -343,7 +343,8 @@ class AiShoppingAssist extends \Opencart\System\Engine\Controller {
 			'Use only the product catalog below for product-specific claims. Check stock before recommending purchase. Keep replies short, natural, and sales-focused.',
 			'When the user wants an action, include it in actions. Supported action types: add_to_cart, show_cart, redirect_to_cart, redirect_to_product, redirect_to_page, update_cart_item, remove_from_cart, clear_cart, apply_coupon, redirect_to_checkout, send_invoice.',
 			'For navigating to any non-product site page, use {"type":"redirect_to_page","page":"home/contact/account/login/register/orders/wishlist/specials/search/category/information page name","route":"optional OpenCart route","url":"optional internal URL"}. Do not say you cannot navigate.',
-			'Return ONLY valid JSON with this shape: {"reply":"visible message","actions":[{"type":"add_to_cart","product_name":"exact name","product_id":"id","qty":1}]} . Use an empty actions array when no action is needed.',
+			'Return ONLY valid JSON with this shape: {"reply":"visible message","suggestions":[{"title":"Product Recommendation","text":"Can you recommend a laptop?"}],"products":[{"product_id":"id","name":"exact catalog name","reason":"Why this is a fit"}],"actions":[{"type":"add_to_cart","product_name":"exact name","product_id":"id","qty":1}]} .',
+			'Use suggestions for helpful next questions. Use product cards when recommending, comparing, showing specs, or discussing specific products. Use an empty array for suggestions/products/actions when not needed.',
 			'Conversation history JSON: ' . json_encode($history, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
 			'Known site pages JSON: ' . json_encode($navigation, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
 			'Product catalog JSON: ' . json_encode($catalog, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
@@ -456,6 +457,8 @@ class AiShoppingAssist extends \Opencart\System\Engine\Controller {
 				'price' => $product['price'],
 				'stock' => $product['stock'],
 				'category' => $product['category'],
+				'image' => $product['image'],
+				'summary' => $this->shortText($product['sales_angle'], 260),
 				'attributes' => array_slice($product['attributes'], 0, 12, true)
 			];
 		}
@@ -508,6 +511,12 @@ class AiShoppingAssist extends \Opencart\System\Engine\Controller {
 		}
 
 		$actions = $this->normalizeAssistantActions($raw_actions);
+		$suggestions = $this->normalizeSuggestions($parsed['suggestions'] ?? []);
+		$products = $this->normalizeProductCards($parsed['products'] ?? ($parsed['product_cards'] ?? []));
+
+		if (!$products) {
+			$products = $this->productCardsFromActions($actions);
+		}
 
 		if (!$actions) {
 			$fallback_action = $this->fallbackPageNavigationAction($message);
@@ -526,6 +535,14 @@ class AiShoppingAssist extends \Opencart\System\Engine\Controller {
 		if ($actions) {
 			$response['actions'] = $actions;
 			$response['action'] = $actions[0];
+		}
+
+		if ($suggestions) {
+			$response['suggestions'] = $suggestions;
+		}
+
+		if ($products) {
+			$response['products'] = $products;
 		}
 
 		return $response;
@@ -551,6 +568,114 @@ class AiShoppingAssist extends \Opencart\System\Engine\Controller {
 		}
 
 		return ['reply' => $text, 'actions' => []];
+	}
+
+	private function normalizeSuggestions($raw_suggestions): array {
+		if (!is_array($raw_suggestions)) {
+			return [];
+		}
+
+		$suggestions = [];
+
+		foreach ($raw_suggestions as $suggestion) {
+			if (is_string($suggestion)) {
+				$text = trim($suggestion);
+				$title = '';
+			} elseif (is_array($suggestion)) {
+				$text = trim((string)($suggestion['text'] ?? $suggestion['message'] ?? $suggestion['prompt'] ?? ''));
+				$title = trim((string)($suggestion['title'] ?? $suggestion['label'] ?? ''));
+			} else {
+				continue;
+			}
+
+			if ($text === '') {
+				continue;
+			}
+
+			$suggestions[] = [
+				'title' => $this->shortText($title, 70),
+				'text' => $this->shortText($text, 180)
+			];
+
+			if (count($suggestions) >= 4) {
+				break;
+			}
+		}
+
+		return $suggestions;
+	}
+
+	private function normalizeProductCards($raw_products): array {
+		if (!is_array($raw_products)) {
+			return [];
+		}
+
+		$cards = [];
+		$seen = [];
+
+		foreach ($raw_products as $raw_product) {
+			if (is_string($raw_product)) {
+				$raw_product = ['name' => $raw_product];
+			}
+
+			if (!is_array($raw_product)) {
+				continue;
+			}
+
+			$product = $this->findCatalogProduct(
+				(string)($raw_product['name'] ?? $raw_product['product_name'] ?? ''),
+				(string)($raw_product['product_id'] ?? $raw_product['id'] ?? '')
+			);
+
+			if (!$product) {
+				continue;
+			}
+
+			$key = $product['product_id'] ?: $product['name'];
+
+			if (isset($seen[$key])) {
+				continue;
+			}
+
+			$seen[$key] = true;
+			$reason = trim((string)($raw_product['reason'] ?? $raw_product['summary'] ?? $raw_product['description'] ?? $product['sales_angle']));
+
+			$cards[] = [
+				'product_id' => $product['product_id'],
+				'name' => $product['name'],
+				'product_url' => $product['product_url'],
+				'price' => $product['price'],
+				'stock' => $product['stock'],
+				'image' => $product['image'],
+				'category' => $product['category'],
+				'summary' => $this->shortText($reason, 360),
+				'attributes' => array_slice($product['attributes'], 0, 6, true)
+			];
+
+			if (count($cards) >= 4) {
+				break;
+			}
+		}
+
+		return $cards;
+	}
+
+	private function productCardsFromActions(array $actions): array {
+		$raw_products = [];
+
+		foreach ($actions as $action) {
+			if (!in_array($action['type'] ?? '', ['add_to_cart', 'redirect_to_product', 'update_cart_item', 'remove_from_cart'])) {
+				continue;
+			}
+
+			$raw_products[] = [
+				'product_id' => $action['product_id'] ?? '',
+				'name' => $action['product_name'] ?? '',
+				'reason' => ''
+			];
+		}
+
+		return $this->normalizeProductCards($raw_products);
 	}
 
 	private function fallbackPageNavigationAction(string $message): array {
@@ -1337,6 +1462,20 @@ class AiShoppingAssist extends \Opencart\System\Engine\Controller {
 
 	private function cleanText(string $value): string {
 		return trim(html_entity_decode(strip_tags($value), ENT_QUOTES, 'UTF-8'));
+	}
+
+	private function shortText(string $value, int $limit): string {
+		$value = trim(preg_replace('/\s+/u', ' ', $this->cleanText($value)));
+
+		if ($value === '' || $limit <= 0) {
+			return $value;
+		}
+
+		if (function_exists('mb_strlen') && function_exists('mb_substr')) {
+			return mb_strlen($value, 'UTF-8') > $limit ? rtrim(mb_substr($value, 0, $limit, 'UTF-8')) . '...' : $value;
+		}
+
+		return strlen($value) > $limit ? rtrim(substr($value, 0, $limit)) . '...' : $value;
 	}
 
 	private function outputJson(array $json, int $status = 200): void {

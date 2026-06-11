@@ -20,18 +20,40 @@
         avatarUrl: '',
         iconUrl: '',
         redirectDelayMs: 700,
-        maxHistoryMessages: 80
+        maxHistoryMessages: 80,
+        maxConversations: 30,
+        starterSuggestions: [
+          {
+            title: 'Product Specifications',
+            text: 'What are the specifications of your best-selling product?'
+          },
+          {
+            title: 'Product Recommendation',
+            text: 'Can you recommend a product for my needs?'
+          },
+          {
+            title: 'Compare Products',
+            text: 'Can you compare two popular products?'
+          },
+          {
+            title: 'Accessory Suggestion',
+            text: 'Can you recommend a useful accessory?'
+          }
+        ]
       };
 
       this.config = Object.assign({}, this.defaults, customConfig || {});
       this.config.apiBase = String(this.config.apiBase || '').replace(/\/+$/, '');
 
-      const storagePrefix = 'ai-shopping-assist:' + location.origin;
+      this.storagePrefix = 'ai-shopping-assist:' + location.origin;
       this.keys = {
-        conversationId: storagePrefix + ':conversation-id',
-        chatHistory: storagePrefix + ':chat-history',
-        cartSnapshot: storagePrefix + ':cart-snapshot'
+        conversationId: this.storagePrefix + ':conversation-id',
+        conversations: this.storagePrefix + ':conversations',
+        chatHistory: this.storagePrefix + ':chat-history',
+        legacyMigrated: this.storagePrefix + ':legacy-history-migrated',
+        cartSnapshot: this.storagePrefix + ':cart-snapshot'
       };
+      this.currentConversationId = this.initializeConversations();
 
       this.init();
     }
@@ -39,7 +61,9 @@
     init() {
       this.renderDOM();
       this.cacheElements();
+      this.renderConversationList();
       this.restoreChatHistory();
+      this.renderStarterSuggestions();
       this.bindEvents();
     }
 
@@ -56,8 +80,18 @@
                 <span class="aisa-status">Ready to help</span>
               </div>
             </div>
-            <button type="button" class="aisa-close" aria-label="Close">×</button>
+            <div class="aisa-head-actions">
+              <button type="button" class="aisa-history-toggle" aria-label="Conversations" title="Conversations">Chats</button>
+              <button type="button" class="aisa-new-chat" aria-label="New chat" title="New chat">New</button>
+              <button type="button" class="aisa-close" aria-label="Close">&times;</button>
+            </div>
           </header>
+          <div class="aisa-conversations" hidden>
+            <div class="aisa-conversations-head">
+              <span>Conversations</span>
+            </div>
+            <div class="aisa-conversation-list"></div>
+          </div>
           <div class="aisa-messages"></div>
           <form class="aisa-form">
             <input class="aisa-input" type="text" autocomplete="off" placeholder="Ask about products..." required />
@@ -76,6 +110,10 @@
       this.panel = this.root.querySelector('.aisa-panel');
       this.toggleBtn = this.root.querySelector('.aisa-toggle');
       this.closeBtn = this.root.querySelector('.aisa-close');
+      this.historyToggleBtn = this.root.querySelector('.aisa-history-toggle');
+      this.newChatBtn = this.root.querySelector('.aisa-new-chat');
+      this.conversationTray = this.root.querySelector('.aisa-conversations');
+      this.conversationList = this.root.querySelector('.aisa-conversation-list');
       this.messagesContainer = this.root.querySelector('.aisa-messages');
       this.form = this.root.querySelector('.aisa-form');
       this.input = this.root.querySelector('.aisa-input');
@@ -119,6 +157,16 @@
       this.closeBtn.addEventListener('click', () => {
         this.panel.hidden = true;
         this.toggleBtn.hidden = false;
+        this.conversationTray.hidden = true;
+      });
+
+      this.historyToggleBtn.addEventListener('click', () => {
+        this.renderConversationList();
+        this.conversationTray.hidden = !this.conversationTray.hidden;
+      });
+
+      this.newChatBtn.addEventListener('click', () => {
+        this.startNewConversation();
       });
 
       this.form.addEventListener('submit', async (event) => {
@@ -149,58 +197,336 @@
       return this.config.apiBase + '/api/chat/';
     }
 
+    initializeConversations() {
+      this.migrateLegacyHistory();
+
+      let conversations = this.loadConversations();
+      let activeId = localStorage.getItem(this.keys.conversationId) || '';
+
+      if (activeId && !conversations.some((conversation) => conversation.id === activeId)) {
+        conversations.unshift(this.createConversationMeta(activeId, 'New conversation'));
+        this.saveConversations(conversations);
+      }
+
+      conversations = this.loadConversations();
+
+      if (!activeId || !conversations.some((conversation) => conversation.id === activeId)) {
+        activeId = conversations.length ? conversations[0].id : this.createConversationRecord('New conversation').id;
+      }
+
+      this.setActiveConversationId(activeId);
+      return activeId;
+    }
+
+    readJson(key, fallback) {
+      try {
+        const value = JSON.parse(localStorage.getItem(key) || '');
+        return value === null ? fallback : value;
+      } catch (error) {
+        return fallback;
+      }
+    }
+
+    generateConversationId() {
+      return 'web-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 10);
+    }
+
+    getHistoryKey(conversationId) {
+      return this.storagePrefix + ':conversation:' + encodeURIComponent(String(conversationId || 'default')) + ':messages';
+    }
+
+    getActiveConversationId() {
+      if (this.currentConversationId) return this.currentConversationId;
+
+      const storedId = localStorage.getItem(this.keys.conversationId);
+      if (storedId) {
+        this.currentConversationId = storedId;
+        return storedId;
+      }
+
+      const conversation = this.createConversationRecord('New conversation');
+      this.setActiveConversationId(conversation.id);
+      return conversation.id;
+    }
+
+    setActiveConversationId(conversationId) {
+      this.currentConversationId = String(conversationId || '');
+      if (this.currentConversationId) {
+        localStorage.setItem(this.keys.conversationId, this.currentConversationId);
+      }
+    }
+
+    createConversationMeta(conversationId, title) {
+      const now = Date.now();
+      return {
+        id: String(conversationId || this.generateConversationId()),
+        title: this.shortenText(title || 'New conversation', 46),
+        preview: '',
+        createdAt: now,
+        updatedAt: now
+      };
+    }
+
+    createConversationRecord(title) {
+      const conversation = this.createConversationMeta(this.generateConversationId(), title || 'New conversation');
+      const conversations = this.loadConversations().filter((item) => item.id !== conversation.id);
+      conversations.unshift(conversation);
+      this.saveConversations(conversations);
+      return conversation;
+    }
+
+    loadConversations() {
+      const parsed = this.readJson(this.keys.conversations, []);
+      if (!Array.isArray(parsed)) return [];
+
+      return parsed.map((conversation) => {
+        if (!conversation || typeof conversation !== 'object') return null;
+        const id = String(conversation.id || '').trim();
+        if (!id) return null;
+
+        return {
+          id: id,
+          title: this.shortenText(conversation.title || 'New conversation', 46),
+          preview: this.shortenText(conversation.preview || '', 70),
+          createdAt: Number(conversation.createdAt || Date.now()),
+          updatedAt: Number(conversation.updatedAt || conversation.createdAt || Date.now())
+        };
+      }).filter(Boolean).sort((left, right) => right.updatedAt - left.updatedAt);
+    }
+
+    saveConversations(conversations) {
+      const seen = {};
+      const limit = Math.max(1, Number(this.config.maxConversations) || 30);
+      const normalized = [];
+
+      conversations.forEach((conversation) => {
+        if (!conversation || !conversation.id || seen[conversation.id]) return;
+        seen[conversation.id] = true;
+        normalized.push(conversation);
+      });
+
+      localStorage.setItem(this.keys.conversations, JSON.stringify(normalized.slice(0, limit)));
+    }
+
+    migrateLegacyHistory() {
+      if (localStorage.getItem(this.keys.legacyMigrated) === '1') return;
+
+      const legacyMessages = this.sanitizeMessages(this.readJson(this.keys.chatHistory, []));
+      if (legacyMessages.length) {
+        const legacyId = localStorage.getItem(this.keys.conversationId) || this.generateConversationId();
+        const legacyHistoryKey = this.getHistoryKey(legacyId);
+
+        if (!localStorage.getItem(legacyHistoryKey)) {
+          localStorage.setItem(legacyHistoryKey, JSON.stringify(legacyMessages));
+        }
+
+        const conversations = this.loadConversations();
+        if (!conversations.some((conversation) => conversation.id === legacyId)) {
+          const title = this.deriveConversationTitle(legacyMessages) || 'Previous conversation';
+          const updatedAt = legacyMessages[legacyMessages.length - 1].createdAt || Date.now();
+          conversations.unshift(Object.assign(this.createConversationMeta(legacyId, title), {
+            preview: this.shortenText(legacyMessages[legacyMessages.length - 1].text || '', 70),
+            updatedAt: updatedAt
+          }));
+          this.saveConversations(conversations);
+        }
+      }
+
+      localStorage.setItem(this.keys.legacyMigrated, '1');
+    }
+
+    sanitizeMessages(messages) {
+      if (!Array.isArray(messages)) return [];
+
+      return messages.filter((message) => {
+        return message
+          && (message.role === 'user' || message.role === 'bot')
+          && (
+            (typeof message.text === 'string' && message.text.trim())
+            || (Array.isArray(message.suggestions) && message.suggestions.length)
+            || (Array.isArray(message.products) && message.products.length)
+          );
+      }).map((message) => ({
+        role: message.role === 'user' ? 'user' : 'bot',
+        text: String(message.text || ''),
+        suggestions: this.normalizeSuggestions(message.suggestions || []),
+        products: this.normalizeProducts(message.products || []),
+        createdAt: Number(message.createdAt || Date.now())
+      }));
+    }
+
+    loadMessagesForConversation(conversationId) {
+      return this.sanitizeMessages(this.readJson(this.getHistoryKey(conversationId), []));
+    }
+
+    startNewConversation() {
+      if (this.sendBtn.disabled) return;
+      const conversation = this.createConversationRecord('New conversation');
+      this.switchConversation(conversation.id);
+    }
+
+    switchConversation(conversationId) {
+      if (this.sendBtn.disabled || !conversationId) return;
+
+      this.setActiveConversationId(conversationId);
+      this.messagesContainer.innerHTML = '';
+      this.restoreChatHistory();
+      this.renderStarterSuggestions();
+      this.renderConversationList();
+      this.conversationTray.hidden = true;
+      this.scrollMessagesToBottom();
+      this.input.focus();
+    }
+
+    renderConversationList() {
+      if (!this.conversationList) return;
+
+      const activeId = this.getActiveConversationId();
+      const conversations = this.loadConversations();
+      this.conversationList.innerHTML = '';
+
+      conversations.forEach((conversation) => {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'aisa-conversation-item';
+        if (conversation.id === activeId) button.classList.add('is-active');
+
+        const title = document.createElement('span');
+        title.className = 'aisa-conversation-title';
+        title.textContent = conversation.title || 'New conversation';
+        button.appendChild(title);
+
+        const meta = document.createElement('span');
+        meta.className = 'aisa-conversation-meta';
+        meta.textContent = this.formatConversationTime(conversation.updatedAt);
+        button.appendChild(meta);
+
+        if (conversation.preview) {
+          const preview = document.createElement('span');
+          preview.className = 'aisa-conversation-preview';
+          preview.textContent = conversation.preview;
+          button.appendChild(preview);
+        }
+
+        button.addEventListener('click', () => this.switchConversation(conversation.id));
+        this.conversationList.appendChild(button);
+      });
+    }
+
+    updateConversationMeta(conversationId, message) {
+      const conversations = this.loadConversations();
+      let conversation = conversations.find((item) => item.id === conversationId);
+
+      if (!conversation) {
+        conversation = this.createConversationMeta(conversationId, 'New conversation');
+        conversations.unshift(conversation);
+      }
+
+      const text = String((message && message.text) || '').replace(/\s+/g, ' ').trim();
+      if (message && message.role === 'user' && text && (!conversation.title || conversation.title === 'New conversation')) {
+        conversation.title = this.shortenText(text, 46);
+      }
+      if (text) conversation.preview = this.shortenText(text, 70);
+      conversation.updatedAt = Number((message && message.createdAt) || Date.now());
+
+      this.saveConversations(conversations);
+      this.renderConversationList();
+    }
+
+    deriveConversationTitle(messages) {
+      const firstUserMessage = (messages || []).find((message) => {
+        return message && message.role === 'user' && String(message.text || '').trim();
+      });
+
+      return firstUserMessage ? this.shortenText(firstUserMessage.text, 46) : '';
+    }
+
+    shortenText(text, limit) {
+      const value = String(text || '').replace(/\s+/g, ' ').trim();
+      const max = Math.max(1, Number(limit) || 46);
+      return value.length > max ? value.slice(0, max - 3).trim() + '...' : value;
+    }
+
+    formatConversationTime(timestamp) {
+      const value = Number(timestamp || Date.now());
+      try {
+        return new Intl.DateTimeFormat(undefined, {
+          month: 'short',
+          day: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit'
+        }).format(new Date(value));
+      } catch (error) {
+        return '';
+      }
+    }
+
     setStatus(text) {
       this.statusLabel.textContent = text;
     }
 
-    addMessage(role, text, persist) {
+    addMessage(role, text, persist, extras) {
       const cleanedText = this.stripAction(text);
-      if (!cleanedText) return;
+      const messageExtras = extras || {};
+      const products = this.normalizeProducts(messageExtras.products);
+      const suggestions = this.normalizeSuggestions(messageExtras.suggestions);
+      if (!cleanedText && !products.length && !suggestions.length) return;
 
       const item = document.createElement('div');
       item.className = 'aisa-message ' + (role === 'user' ? 'user' : 'bot');
       item.dir = this.isRtlMessage(cleanedText) ? 'rtl' : 'ltr';
-      item.textContent = cleanedText;
+      if (cleanedText) {
+        item.textContent = cleanedText;
+      }
 
       this.messagesContainer.appendChild(item);
+
+      if (role !== 'user') {
+        this.renderProductCards(products);
+        this.renderSuggestions(suggestions);
+      }
+
       this.scrollMessagesToBottom();
 
       if (persist !== false) {
-        this.rememberChatMessage(role, cleanedText);
+        this.rememberChatMessage(role, cleanedText, {
+          products: products,
+          suggestions: suggestions
+        });
       }
     }
 
-    loadChatHistory() {
-      try {
-        const parsed = JSON.parse(localStorage.getItem(this.keys.chatHistory) || '[]');
-        if (!Array.isArray(parsed)) return [];
+    renderStarterSuggestions() {
+      if (this.loadChatHistory().length) return;
+      this.renderSuggestions(this.config.starterSuggestions || []);
+      this.scrollMessagesToBottom();
+    }
 
-        return parsed.filter((message) => {
-          return message
-            && (message.role === 'user' || message.role === 'bot')
-            && typeof message.text === 'string'
-            && message.text.trim();
-        });
-      } catch (error) {
-        return [];
-      }
+    loadChatHistory() {
+      return this.loadMessagesForConversation(this.getActiveConversationId());
     }
 
     saveChatHistory(messages) {
       const limit = Math.max(1, Number(this.config.maxHistoryMessages) || 80);
       const trimmed = messages.slice(-limit);
-      localStorage.setItem(this.keys.chatHistory, JSON.stringify(trimmed));
+      localStorage.setItem(this.getHistoryKey(this.getActiveConversationId()), JSON.stringify(trimmed));
+      return trimmed;
     }
 
-    rememberChatMessage(role, text) {
+    rememberChatMessage(role, text, extras) {
       try {
+        const conversationId = this.getActiveConversationId();
         const messages = this.loadChatHistory();
-        messages.push({
+        const message = {
           role: role === 'user' ? 'user' : 'bot',
           text: String(text || ''),
+          suggestions: this.normalizeSuggestions((extras && extras.suggestions) || []),
+          products: this.normalizeProducts((extras && extras.products) || []),
           createdAt: Date.now()
-        });
+        };
+        messages.push(message);
         this.saveChatHistory(messages);
+        this.updateConversationMeta(conversationId, message);
       } catch (error) {
         console.warn('AI assistant could not save chat history:', error);
       }
@@ -209,9 +535,195 @@
     restoreChatHistory() {
       const messages = this.loadChatHistory();
       messages.forEach((message) => {
-        this.addMessage(message.role, message.text, false);
+        this.addMessage(message.role, message.text, false, {
+          suggestions: message.suggestions || [],
+          products: message.products || []
+        });
       });
       this.scrollMessagesToBottom();
+    }
+
+    normalizeSuggestions(suggestions) {
+      if (!Array.isArray(suggestions)) return [];
+      return suggestions.map((suggestion) => {
+        if (typeof suggestion === 'string') {
+          return { title: '', text: suggestion.trim() };
+        }
+        if (!suggestion || typeof suggestion !== 'object') return null;
+        return {
+          title: String(suggestion.title || suggestion.label || '').trim(),
+          text: String(suggestion.text || suggestion.message || suggestion.prompt || '').trim()
+        };
+      }).filter((suggestion) => suggestion && suggestion.text).slice(0, 6);
+    }
+
+    normalizeProducts(products) {
+      if (!Array.isArray(products)) return [];
+      return products.map((product) => {
+        if (!product || typeof product !== 'object') return null;
+        return {
+          product_id: String(product.product_id || product.id || ''),
+          name: String(product.name || product.product_name || product.title || '').trim(),
+          product_url: String(product.product_url || product.url || product.href || '').trim(),
+          price: String(product.price || '').trim(),
+          stock: Number(product.stock || product.quantity || 0),
+          image: String(product.image || '').trim(),
+          category: String(product.category || '').trim(),
+          summary: String(product.summary || product.reason || product.description || '').trim(),
+          attributes: product.attributes && typeof product.attributes === 'object' ? product.attributes : {}
+        };
+      }).filter((product) => product && product.name).slice(0, 4);
+    }
+
+    renderSuggestions(suggestions) {
+      const normalized = this.normalizeSuggestions(suggestions);
+      if (!normalized.length) return;
+
+      const wrap = document.createElement('div');
+      wrap.className = 'aisa-suggestions';
+
+      normalized.forEach((suggestion) => {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = suggestion.title ? 'aisa-suggestion-card' : 'aisa-suggestion-chip';
+
+        if (suggestion.title) {
+          const title = document.createElement('span');
+          title.className = 'aisa-suggestion-title';
+          title.textContent = suggestion.title;
+          button.appendChild(title);
+        }
+
+        const text = document.createElement('span');
+        text.className = 'aisa-suggestion-text';
+        text.textContent = suggestion.text;
+        button.appendChild(text);
+
+        button.addEventListener('click', () => {
+          this.submitSuggestion(suggestion.text);
+        });
+
+        wrap.appendChild(button);
+      });
+
+      this.messagesContainer.appendChild(wrap);
+    }
+
+    async submitSuggestion(text) {
+      const value = String(text || '').trim();
+      if (!value || this.sendBtn.disabled) return;
+      this.input.value = '';
+      this.addMessage('user', value);
+      await this.askAssistant(value);
+    }
+
+    renderProductCards(products) {
+      const normalized = this.normalizeProducts(products);
+      if (!normalized.length) return;
+
+      const wrap = document.createElement('div');
+      wrap.className = 'aisa-product-cards';
+
+      normalized.forEach((product) => {
+        wrap.appendChild(this.createProductCard(product));
+      });
+
+      this.messagesContainer.appendChild(wrap);
+    }
+
+    createProductCard(product) {
+      const card = document.createElement('article');
+      card.className = 'aisa-product-card';
+
+      if (product.image) {
+        const image = document.createElement('img');
+        image.className = 'aisa-product-image';
+        image.src = product.image;
+        image.alt = product.name;
+        card.appendChild(image);
+      }
+
+      const body = document.createElement('div');
+      body.className = 'aisa-product-body';
+
+      const title = document.createElement('div');
+      title.className = 'aisa-product-title';
+      title.textContent = product.name;
+      body.appendChild(title);
+
+      const meta = document.createElement('div');
+      meta.className = 'aisa-product-meta';
+      const metaParts = [];
+      if (product.price) metaParts.push(product.price);
+      if (Number.isFinite(product.stock)) metaParts.push(product.stock > 0 ? `In stock: ${product.stock}` : 'Out of stock');
+      meta.textContent = metaParts.join(' • ');
+      if (meta.textContent) body.appendChild(meta);
+
+      if (product.summary) {
+        const summary = document.createElement('p');
+        summary.className = 'aisa-product-summary';
+        summary.textContent = product.summary;
+        body.appendChild(summary);
+
+        if (product.summary.length > 170) {
+          card.classList.add('is-collapsed');
+          const showMore = document.createElement('button');
+          showMore.type = 'button';
+          showMore.className = 'aisa-show-more';
+          showMore.textContent = 'Show more';
+          showMore.addEventListener('click', () => {
+            card.classList.toggle('is-collapsed');
+            showMore.textContent = card.classList.contains('is-collapsed') ? 'Show more' : 'Show less';
+            this.scrollMessagesToBottom();
+          });
+          body.appendChild(showMore);
+        }
+      }
+
+      const attrEntries = Object.entries(product.attributes || {}).slice(0, 4);
+      if (attrEntries.length) {
+        const attrs = document.createElement('dl');
+        attrs.className = 'aisa-product-attrs';
+        attrEntries.forEach(([key, value]) => {
+          const dt = document.createElement('dt');
+          dt.textContent = key;
+          const dd = document.createElement('dd');
+          dd.textContent = String(value);
+          attrs.appendChild(dt);
+          attrs.appendChild(dd);
+        });
+        body.appendChild(attrs);
+      }
+
+      const actions = document.createElement('div');
+      actions.className = 'aisa-product-actions';
+
+      const learn = document.createElement('button');
+      learn.type = 'button';
+      learn.className = 'aisa-product-action primary';
+      learn.textContent = 'Learn more';
+      learn.addEventListener('click', () => this.redirectToProduct(product));
+      actions.appendChild(learn);
+
+      if (product.product_id && product.stock !== 0) {
+        const add = document.createElement('button');
+        add.type = 'button';
+        add.className = 'aisa-product-action';
+        add.textContent = 'Add to cart';
+        add.addEventListener('click', async () => {
+          const added = await this.addToCart(product.product_id, 1);
+          if (added) {
+            this.rememberCartItem(Object.assign({}, product, { product_name: product.name }), 1);
+            this.addMessage('bot', `Added ${product.name} to your cart.`);
+          }
+        });
+        actions.appendChild(add);
+      }
+
+      body.appendChild(actions);
+      card.appendChild(body);
+
+      return card;
     }
 
     scrollMessagesToBottom() {
@@ -320,7 +832,7 @@
             title: document.title
           }
         };
-        const conversationId = localStorage.getItem(this.keys.conversationId);
+        const conversationId = this.getActiveConversationId();
         if (conversationId) {
           body.conversation_id = conversationId;
         }
@@ -337,20 +849,26 @@
         const data = await response.json().catch(() => ({}));
         if (!response.ok || data.status !== 'success') {
           if (data.conversation_id) {
-            localStorage.setItem(this.keys.conversationId, data.conversation_id);
+            this.setActiveConversationId(data.conversation_id);
           }
           if (data.reply) {
-            this.addMessage('bot', data.reply);
+            this.addMessage('bot', data.reply, true, {
+              suggestions: data.suggestions || [],
+              products: data.products || []
+            });
             return;
           }
           throw new Error(data.reply || 'Chat request failed');
         }
 
         if (data.conversation_id) {
-          localStorage.setItem(this.keys.conversationId, data.conversation_id);
+          this.setActiveConversationId(data.conversation_id);
         }
 
-        this.addMessage('bot', data.reply);
+        this.addMessage('bot', data.reply, true, {
+          suggestions: data.suggestions || [],
+          products: data.products || []
+        });
 
         for (const action of this.getActions(data)) {
           await this.handleAction(action, message, data);
@@ -674,7 +1192,7 @@
         cart.items.push({
           key: '',
           product_id: productId,
-          name: action.product_name || productId,
+          name: action.product_name || action.name || productId,
           quantity: quantity,
           price: action.price || '',
           total: ''
