@@ -1,0 +1,165 @@
+{{ header }}{{ column_left }}
+<div id="content">
+  <div class="page-header">
+    <div class="container-fluid">
+      <div class="float-end">
+        <button type="submit" form="form-module" data-bs-toggle="tooltip" title="{{ button_save }}" class="btn btn-primary"><i class="fa-solid fa-save"></i></button>
+        <a href="{{ back }}" data-bs-toggle="tooltip" title="{{ button_back }}" class="btn btn-light"><i class="fa-solid fa-reply"></i></a>
+      </div>
+      <h1>{{ heading_title }}</h1>
+      <ol class="breadcrumb">
+        {% for breadcrumb in breadcrumbs %}
+          <li class="breadcrumb-item"><a href="{{ breadcrumb.href }}">{{ breadcrumb.text }}</a></li>
+        {% endfor %}
+      </ol>
+    </div>
+  </div>
+
+  <div class="container-fluid">
+    <div class="card mb-4">
+      <div class="card-header"><i class="fa-solid fa-robot"></i> {{ text_edit }}</div>
+      <div class="card-body">
+        <form id="form-module" action="{{ save }}" method="post" data-oc-toggle="ajax">
+          <div class="row mb-3">
+            <label class="col-sm-2 col-form-label">{{ entry_status }}</label>
+            <div class="col-sm-10">
+              <div class="form-check form-switch form-switch-lg">
+                <input type="hidden" name="module_ai_shopping_assist_status" value="0"/>
+                <input type="checkbox" name="module_ai_shopping_assist_status" value="1" id="input-status" class="form-check-input"{% if module_ai_shopping_assist_status %} checked{% endif %}/>
+              </div>
+            </div>
+          </div>
+
+          <div class="row mb-3">
+            <label for="input-gemini-api-key" class="col-sm-2 col-form-label">{{ entry_gemini_api_key }}</label>
+            <div class="col-sm-10">
+              <input type="password" name="module_ai_shopping_assist_gemini_api_key" value="{{ module_ai_shopping_assist_gemini_api_key }}" id="input-gemini-api-key" class="form-control" autocomplete="off"/>
+              <div class="form-text">{{ help_gemini_api_key }}</div>
+            </div>
+          </div>
+
+          <div class="row mb-3">
+            <label for="input-gemini-model" class="col-sm-2 col-form-label">{{ entry_gemini_model }}</label>
+            <div class="col-sm-10">
+              <input type="text" name="module_ai_shopping_assist_gemini_model" value="{{ module_ai_shopping_assist_gemini_model }}" placeholder="gemini-2.5-flash" id="input-gemini-model" class="form-control"/>
+            </div>
+          </div>
+
+          <div class="row mb-3">
+            <label for="input-gemini-temperature" class="col-sm-2 col-form-label">{{ entry_gemini_temperature }}</label>
+            <div class="col-sm-10">
+              <input type="number" step="0.1" min="0" max="1" name="module_ai_shopping_assist_gemini_temperature" value="{{ module_ai_shopping_assist_gemini_temperature }}" id="input-gemini-temperature" class="form-control"/>
+            </div>
+          </div>
+
+          <div class="row mb-3">
+            <label for="input-catalog-limit" class="col-sm-2 col-form-label">{{ entry_catalog_limit }}</label>
+            <div class="col-sm-10">
+              <input type="number" min="5" max="200" name="module_ai_shopping_assist_catalog_limit" value="{{ module_ai_shopping_assist_catalog_limit }}" id="input-catalog-limit" class="form-control"/>
+              <div class="form-text">{{ help_catalog_limit }}</div>
+            </div>
+          </div>
+
+          <div class="row mb-3">
+            <label for="input-store-brand" class="col-sm-2 col-form-label">{{ entry_store_brand }}</label>
+            <div class="col-sm-10">
+              <input type="text" name="module_ai_shopping_assist_store_brand" value="{{ module_ai_shopping_assist_store_brand }}" id="input-store-brand" class="form-control"/>
+            </div>
+          </div>
+
+          <div class="row mb-3">
+            <label for="input-assistant-name" class="col-sm-2 col-form-label">{{ entry_assistant_name }}</label>
+            <div class="col-sm-10">
+              <input type="text" name="module_ai_shopping_assist_assistant_name" value="{{ module_ai_shopping_assist_assistant_name }}" id="input-assistant-name" class="form-control"/>
+            </div>
+          </div>
+
+          <div class="row mb-3">
+            <label for="input-catalog-token" class="col-sm-2 col-form-label">{{ entry_catalog_token }}</label>
+            <div class="col-sm-10">
+              <input type="text" name="module_ai_shopping_assist_catalog_token" value="{{ module_ai_shopping_assist_catalog_token }}" id="input-catalog-token" class="form-control"/>
+              <div class="form-text">{{ help_catalog_token }}</div>
+            </div>
+          </div>
+
+          <div class="row mb-3">
+            <label class="col-sm-2 col-form-label">{{ entry_footer_injection }}</label>
+            <div class="col-sm-10">
+              <div class="form-check form-switch form-switch-lg">
+                <input type="hidden" name="module_ai_shopping_assist_footer_injection" value="0"/>
+                <input type="checkbox" name="module_ai_shopping_assist_footer_injection" value="1" id="input-footer-injection" class="form-check-input"{% if module_ai_shopping_assist_footer_injection %} checked{% endif %}/>
+              </div>
+            </div>
+          </div>
+
+          <div class="row mb-3">
+            <label for="input-widget-title" class="col-sm-2 col-form-label">{{ entry_widget_title }}</label>
+            <div class="col-sm-10">
+              <input type="text" name="module_ai_shopping_assist_widget_title" value="{{ module_ai_shopping_assist_widget_title }}" id="input-widget-title" class="form-control"/>
+            </div>
+          </div>
+
+          <div class="row mb-3">
+            <label for="input-widget-button" class="col-sm-2 col-form-label">{{ entry_widget_button }}</label>
+            <div class="col-sm-10">
+              <input type="text" name="module_ai_shopping_assist_widget_button" value="{{ module_ai_shopping_assist_widget_button }}" id="input-widget-button" class="form-control"/>
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header d-flex align-items-center justify-content-between">
+        <span><i class="fa-solid fa-comments"></i> {{ text_logs }}</span>
+        <button type="button" id="button-clear-logs" data-url="{{ clear_logs }}" class="btn btn-sm btn-outline-danger">{{ text_clear_logs }}</button>
+      </div>
+      <div class="table-responsive">
+        <table class="table table-hover mb-0">
+          <thead>
+            <tr>
+              <th>{{ column_date }}</th>
+              <th>{{ column_conversation }}</th>
+              <th>{{ column_customer }}</th>
+              <th>{{ column_role }}</th>
+              <th>{{ column_content }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% if logs %}
+              {% for log in logs %}
+                <tr>
+                  <td class="text-nowrap">{{ log.date_added }}</td>
+                  <td><code>{{ log.conversation_id }}</code></td>
+                  <td>{{ log.customer_id ? log.customer_id : '-' }}</td>
+                  <td>{{ log.role }}</td>
+                  <td style="max-width: 560px; white-space: normal;">{{ log.content|slice(0, 240) }}{% if log.content|length > 240 %}...{% endif %}</td>
+                </tr>
+              {% endfor %}
+            {% else %}
+              <tr>
+                <td colspan="5" class="text-center text-muted py-4">{{ text_no_logs }}</td>
+              </tr>
+            {% endif %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+var aiShoppingAssistClearButton = document.getElementById('button-clear-logs');
+
+if (aiShoppingAssistClearButton) {
+  aiShoppingAssistClearButton.addEventListener('click', function () {
+    if (!confirm('{{ text_clear_logs|e('js') }}?')) {
+      return;
+    }
+
+    fetch(this.dataset.url, { method: 'POST', credentials: 'same-origin' })
+      .then(function (response) { return response.json(); })
+      .then(function () { window.location.reload(); });
+  });
+}
+</script>
+{{ footer }}

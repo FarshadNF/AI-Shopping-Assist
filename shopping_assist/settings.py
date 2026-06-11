@@ -139,9 +139,10 @@ AI_ASSISTANT_ASYNC_CATALOG_IMPORT = env_bool("AI_ASSISTANT_ASYNC_CATALOG_IMPORT"
 OPENCART_BASE_URL = os.getenv("OPENCART_BASE_URL", "")
 OPENCART_CATALOG_ROUTE = os.getenv(
     "OPENCART_CATALOG_ROUTE",
-    "index.php?route=extension/opencart/checkout/ai_assistant.getCatalog",
+    "index.php?route=extension/ai_shopping_assist/module/ai_shopping_assist.getCatalog",
 )
 OPENCART_CATALOG_URL = os.getenv("OPENCART_CATALOG_URL", "")
+OPENCART_SYNC_TOKEN = os.getenv("OPENCART_SYNC_TOKEN", AI_ASSISTANT_SYNC_TOKEN)
 OPENCART_TIMEOUT = float(os.getenv("OPENCART_TIMEOUT", "15"))
 
 # ----------------- تنظیمات CORS (ایمن و استاندارد) -----------------
