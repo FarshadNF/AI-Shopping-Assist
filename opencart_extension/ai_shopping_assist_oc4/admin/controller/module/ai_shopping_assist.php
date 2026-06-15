@@ -28,6 +28,8 @@ class AiShoppingAssist extends \Opencart\System\Engine\Controller {
 		$data['save'] = $this->url->link('extension/ai_shopping_assist/module/ai_shopping_assist.save', 'user_token=' . $this->session->data['user_token']);
 		$data['clear_logs'] = $this->url->link('extension/ai_shopping_assist/module/ai_shopping_assist.clearLogs', 'user_token=' . $this->session->data['user_token']);
 		$data['export_logs'] = $this->url->link('extension/ai_shopping_assist/module/ai_shopping_assist.exportLogs', 'user_token=' . $this->session->data['user_token']);
+		$data['import_knowledge'] = $this->url->link('extension/ai_shopping_assist/module/ai_shopping_assist.importKnowledge', 'user_token=' . $this->session->data['user_token']);
+		$data['clear_knowledge'] = $this->url->link('extension/ai_shopping_assist/module/ai_shopping_assist.clearKnowledge', 'user_token=' . $this->session->data['user_token']);
 		$data['back'] = $this->url->link('marketplace/extension', 'user_token=' . $this->session->data['user_token'] . '&type=module');
 
 		$data['module_ai_shopping_assist_status'] = (int)$this->config->get('module_ai_shopping_assist_status');
@@ -59,6 +61,7 @@ class AiShoppingAssist extends \Opencart\System\Engine\Controller {
 		$data['module_ai_shopping_assist_footer_injection'] = $this->config->get('module_ai_shopping_assist_footer_injection') !== null ? (int)$this->config->get('module_ai_shopping_assist_footer_injection') : 1;
 		$data['module_ai_shopping_assist_widget_title'] = $widget_title;
 		$data['module_ai_shopping_assist_widget_button'] = $widget_button;
+		$data['knowledge_count'] = $this->getKnowledgeCount();
 		$data['logs'] = $this->getRecentLogs();
 
 		$data['header'] = $this->load->controller('common/header');
@@ -135,6 +138,74 @@ class AiShoppingAssist extends \Opencart\System\Engine\Controller {
 		$this->response->setOutput(json_encode($json));
 	}
 
+	public function importKnowledge(): void {
+		$this->load->language('extension/ai_shopping_assist/module/ai_shopping_assist');
+
+		$json = [];
+
+		if (!$this->user->hasPermission('modify', 'extension/ai_shopping_assist/module/ai_shopping_assist')) {
+			$json['error'] = $this->language->get('error_permission');
+		}
+
+		$file = $this->request->files['knowledge_file'] ?? [];
+
+		if (!$json && (!$file || (int)($file['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK)) {
+			$json['error'] = $this->language->get('error_knowledge_file');
+		}
+
+		if (!$json && (int)($file['size'] ?? 0) > 25 * 1024 * 1024) {
+			$json['error'] = $this->language->get('error_knowledge_size');
+		}
+
+		if (!$json) {
+			$contents = file_get_contents((string)$file['tmp_name']);
+			$payload = is_string($contents) ? json_decode($contents, true) : null;
+
+			if (!is_array($payload) || json_last_error() !== JSON_ERROR_NONE) {
+				$json['error'] = $this->language->get('error_knowledge_json');
+			} else {
+				try {
+					$this->createKnowledgeTable();
+					$count = $this->replaceKnowledge($payload);
+
+					if ($count < 1) {
+						$json['error'] = $this->language->get('error_knowledge_empty');
+					} else {
+						$json['success'] = sprintf($this->language->get('text_knowledge_imported'), $count);
+					}
+				} catch (\Throwable $exception) {
+					$this->log->write('AI Shopping Assist knowledge import failed: ' . $exception->getMessage());
+					$json['error'] = $this->language->get('error_knowledge_import');
+				}
+			}
+		}
+
+		$this->response->addHeader('Content-Type: application/json');
+		$this->response->setOutput(json_encode($json));
+	}
+
+	public function clearKnowledge(): void {
+		$this->load->language('extension/ai_shopping_assist/module/ai_shopping_assist');
+
+		$json = [];
+
+		if (!$this->user->hasPermission('modify', 'extension/ai_shopping_assist/module/ai_shopping_assist')) {
+			$json['error'] = $this->language->get('error_permission');
+		}
+
+		if (!$json) {
+			try {
+				$this->db->query('DELETE FROM `' . DB_PREFIX . 'ai_shopping_assist_knowledge`');
+				$json['success'] = $this->language->get('text_knowledge_cleared');
+			} catch (\Throwable $exception) {
+				$json['error'] = $this->language->get('error_knowledge_import');
+			}
+		}
+
+		$this->response->addHeader('Content-Type: application/json');
+		$this->response->setOutput(json_encode($json));
+	}
+
 	public function exportLogs(): void {
 		$this->load->language('extension/ai_shopping_assist/module/ai_shopping_assist');
 
@@ -154,6 +225,7 @@ class AiShoppingAssist extends \Opencart\System\Engine\Controller {
 
 	public function install(): void {
 		$this->createLogTable();
+		$this->createKnowledgeTable();
 
 		$this->load->model('setting/setting');
 		$this->model_setting_setting->editSetting(self::SETTING_CODE, [
@@ -193,6 +265,8 @@ class AiShoppingAssist extends \Opencart\System\Engine\Controller {
 			'status' => 1,
 			'sort_order' => 10
 		]);
+
+		$this->importBundledKnowledge();
 	}
 
 	public function uninstall(): void {
@@ -221,6 +295,191 @@ class AiShoppingAssist extends \Opencart\System\Engine\Controller {
 				KEY `date_added` (`date_added`)
 			) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
 		");
+	}
+
+	private function createKnowledgeTable(): void {
+		$this->db->query("
+			CREATE TABLE IF NOT EXISTS `" . DB_PREFIX . "ai_shopping_assist_knowledge` (
+				`knowledge_id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+				`source_key` varchar(64) NOT NULL,
+				`product_id` varchar(100) NOT NULL DEFAULT '',
+				`name` varchar(512) NOT NULL DEFAULT '',
+				`brand` varchar(255) NOT NULL DEFAULT '',
+				`source_url` text NOT NULL,
+				`content_type` varchar(40) NOT NULL DEFAULT 'product',
+				`content` mediumtext NOT NULL,
+				`date_modified` datetime NOT NULL,
+				PRIMARY KEY (`knowledge_id`),
+				UNIQUE KEY `source_key` (`source_key`),
+				KEY `product_id` (`product_id`),
+				KEY `name` (`name`(191))
+			) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+		");
+	}
+
+	private function getKnowledgeCount(): int {
+		try {
+			$query = $this->db->query('SELECT COUNT(*) AS `total` FROM `' . DB_PREFIX . 'ai_shopping_assist_knowledge`');
+
+			return (int)($query->row['total'] ?? 0);
+		} catch (\Throwable $exception) {
+			return 0;
+		}
+	}
+
+	private function importBundledKnowledge(): void {
+		$candidates = [
+			dirname(__DIR__, 3) . '/install_data/enriched_cache.json'
+		];
+
+		if (defined('DIR_EXTENSION')) {
+			array_unshift($candidates, rtrim(DIR_EXTENSION, '/\\') . '/ai_shopping_assist/install_data/enriched_cache.json');
+		}
+
+		foreach ($candidates as $path) {
+			if (!is_file($path)) {
+				continue;
+			}
+
+			try {
+				$payload = json_decode((string)file_get_contents($path), true);
+
+				if (is_array($payload) && json_last_error() === JSON_ERROR_NONE) {
+					$this->replaceKnowledge($payload);
+				}
+			} catch (\Throwable $exception) {
+				$this->log->write('AI Shopping Assist bundled knowledge import failed: ' . $exception->getMessage());
+			}
+
+			return;
+		}
+	}
+
+	private function replaceKnowledge(array $payload): int {
+		$rows = $this->buildKnowledgeRows($payload);
+
+		if (!$rows) {
+			return 0;
+		}
+
+		$this->db->query('START TRANSACTION');
+
+		try {
+			$this->db->query('DELETE FROM `' . DB_PREFIX . 'ai_shopping_assist_knowledge`');
+
+			foreach ($rows as $row) {
+				$this->db->query("
+					INSERT INTO `" . DB_PREFIX . "ai_shopping_assist_knowledge`
+					SET
+						`source_key` = '" . $this->db->escape($row['source_key']) . "',
+						`product_id` = '" . $this->db->escape($row['product_id']) . "',
+						`name` = '" . $this->db->escape($row['name']) . "',
+						`brand` = '" . $this->db->escape($row['brand']) . "',
+						`source_url` = '" . $this->db->escape($row['source_url']) . "',
+						`content_type` = '" . $this->db->escape($row['content_type']) . "',
+						`content` = '" . $this->db->escape($row['content']) . "',
+						`date_modified` = NOW()
+				");
+			}
+
+			$this->db->query('COMMIT');
+		} catch (\Throwable $exception) {
+			$this->db->query('ROLLBACK');
+			throw $exception;
+		}
+
+		return count($rows);
+	}
+
+	private function buildKnowledgeRows(array $payload): array {
+		$rows = [];
+
+		foreach ($payload as $source => $item) {
+			if (!is_array($item) || array_key_exists('is_product', $item) && !$item['is_product']) {
+				continue;
+			}
+
+			$source_url = is_string($source) ? trim($source) : '';
+			$product_id = $this->limitKnowledgeText((string)($item['product_id'] ?? ''), 100);
+			$name = $this->limitKnowledgeText((string)($item['name'] ?? $item['title'] ?? ''), 512);
+			$brand = $this->limitKnowledgeText((string)($item['brand'] ?? ''), 255);
+			$description = trim((string)($item['full_description'] ?? $item['description'] ?? ''));
+			$sales_angle = trim((string)($item['sales_angle'] ?? ''));
+			$attributes = $item['technical_attributes'] ?? $item['attributes'] ?? [];
+			$attributes_text = '';
+
+			if (is_array($attributes) && $attributes) {
+				$attributes_text = (string)json_encode($attributes, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+			} elseif (is_scalar($attributes)) {
+				$attributes_text = trim((string)$attributes);
+			}
+
+			$content_parts = array_filter([
+				$name !== '' ? 'Product: ' . $name : '',
+				$product_id !== '' ? 'Product ID: ' . $product_id : '',
+				$brand !== '' ? 'Brand: ' . $brand : '',
+				$description !== '' ? "Description:\n" . $description : '',
+				$attributes_text !== '' ? "Technical attributes:\n" . $attributes_text : '',
+				$sales_angle !== '' ? "Sales notes:\n" . $sales_angle : ''
+			]);
+
+			if ($content_parts) {
+				$rows[] = $this->makeKnowledgeRow(
+					$source_url,
+					$product_id,
+					$name,
+					$brand,
+					'product',
+					implode("\n\n", $content_parts)
+				);
+			}
+
+			$datasheet = trim((string)($item['datasheet_content'] ?? ''));
+
+			if ($datasheet !== '') {
+				$rows[] = $this->makeKnowledgeRow(
+					$source_url,
+					$product_id,
+					$name,
+					$brand,
+					'datasheet',
+					$datasheet
+				);
+			}
+		}
+
+		return $rows;
+	}
+
+	private function makeKnowledgeRow(
+		string $source_url,
+		string $product_id,
+		string $name,
+		string $brand,
+		string $content_type,
+		string $content
+	): array {
+		$identity = $source_url . '|' . $product_id . '|' . $name . '|' . $content_type;
+
+		return [
+			'source_key' => hash('sha256', $identity),
+			'product_id' => $product_id,
+			'name' => $name,
+			'brand' => $brand,
+			'source_url' => $this->limitKnowledgeText($source_url, 4000),
+			'content_type' => $content_type,
+			'content' => $this->limitKnowledgeText($content, 500000)
+		];
+	}
+
+	private function limitKnowledgeText(string $value, int $limit): string {
+		$value = str_replace(["\r\n", "\r"], "\n", trim($value));
+
+		if (function_exists('mb_substr')) {
+			return mb_substr($value, 0, $limit);
+		}
+
+		return substr($value, 0, $limit);
 	}
 
 	private function getRecentLogs(): array {

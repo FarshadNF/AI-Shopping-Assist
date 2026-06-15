@@ -1,6 +1,6 @@
 # AI Shopping Assist
 
-نسخه Django/DRF دستیار خرید هوشمند. این پروژه API JSON برای چت، همگام‌سازی کاتالوگ، و اتصال به OpenCart ارائه می‌کند. موتور هوش مصنوعی پیش‌فرض از Google Gemini استفاده می‌کند.
+این repository شامل API اختیاری Django/DRF و extension مستقل OpenCart است. فایل `dist/ai_shopping_assist.ocmod.zip` فقط با PHP و MySQL خود OpenCart اجرا می‌شود و به Django، Python، Docker یا ChromaDB وابسته نیست.
 
 ## اجرای Docker
 
@@ -87,3 +87,19 @@ OPENCART_CATALOG_URL=
 ```
 
 اگر `OPENCART_CATALOG_URL` خالی باشد، مسیر از `OPENCART_BASE_URL` و `OPENCART_CATALOG_ROUTE` ساخته می‌شود.
+
+این تنظیمات فقط مربوط به API مستقل Django هستند. extension نسخه 3.3.0 مستقیماً کاتالوگ و پایگاه دانش MySQL خود OpenCart را می‌خواند و هیچ درخواستی به این API نمی‌فرستد.
+
+## همگام‌سازی Vector Brain
+
+با هر import کاتالوگ، اطلاعات محصول به‌صورت خودکار وارد Vector Brain می‌شود. برای crawl عمیق صفحه محصولات و PDFهای datasheet اجرا کنید:
+
+```powershell
+python manage.py sync_vector_brain
+```
+
+برای نادیده گرفتن cache قبلی:
+
+```powershell
+python manage.py sync_vector_brain --force
+```

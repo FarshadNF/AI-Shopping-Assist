@@ -1,72 +1,148 @@
-import os
-import chromadb
-from chromadb.utils import embedding_functions
+import hashlib
+import logging
+from pathlib import Path
+
 from django.conf import settings
+
+logger = logging.getLogger(__name__)
+
+
+class VectorStoreUnavailable(RuntimeError):
+    pass
+
 
 class RockfordVectorStore:
     def __init__(self):
-        # تعریف مسیر ذخیره‌سازی محلی دیتابیس برداری در روت پروژه شما
-        self.db_path = os.path.join(settings.BASE_DIR, "rockford_vector_db")
-        
-        # استفاده از تنظیمات کلید پروژه‌تان برای تولید امبدینگ استاندارد
-        self.openai_ef = embedding_functions.OpenAIEmbeddingFunction(
-            api_key=getattr(settings, "OPENAI_API_KEY", ""),
-            model_name="text-embedding-3-small"
+        try:
+            import chromadb
+            from chromadb.utils import embedding_functions
+        except ImportError as exc:
+            raise VectorStoreUnavailable(
+                "chromadb is not installed; vector search is disabled."
+            ) from exc
+
+        db_path = getattr(
+            settings,
+            "AI_ASSISTANT_VECTOR_DB_PATH",
+            Path(settings.BASE_DIR) / "rockford_vector_db",
         )
-        
-        # راه‌اندازی کلاینت کروما دی‌بی
-        self.chroma_client = chromadb.PersistentClient(path=self.db_path)
-        self.collection = self.chroma_client.get_or_create_collection(
-            name="rockford_knowledge",
-            embedding_function=self.openai_ef
+        collection_name = getattr(
+            settings,
+            "AI_ASSISTANT_VECTOR_COLLECTION",
+            "rockford_knowledge",
         )
 
-    def inject_knowledge_base(self, extracted_data):
-        """دریافت داده‌های کرالر، خرد کردن متون بزرگ و تزریق به دیتابیس برداری"""
+        self.db_path = Path(db_path)
+        self.db_path.mkdir(parents=True, exist_ok=True)
+        self.chroma_client = chromadb.PersistentClient(path=str(self.db_path))
+        self.collection = self.chroma_client.get_or_create_collection(
+            name=collection_name,
+            embedding_function=embedding_functions.DefaultEmbeddingFunction(),
+        )
+
+    @staticmethod
+    def _chunks(content, chunk_size=1200, overlap=150):
+        text = str(content or "").strip()
+        if not text:
+            return []
+
+        chunk_size = max(int(chunk_size), 200)
+        overlap = min(max(int(overlap), 0), chunk_size - 1)
+        step = chunk_size - overlap
+        return [
+            text[start : start + chunk_size]
+            for start in range(0, len(text), step)
+            if text[start : start + chunk_size].strip()
+        ]
+
+    def inject_knowledge_base(
+        self,
+        extracted_data,
+        namespace="deep_crawler",
+        replace_namespace=False,
+    ):
+        namespace = str(namespace or "default")
+        if replace_namespace:
+            self.collection.delete(where={"namespace": namespace})
+
         ids = []
         documents = []
         metadatas = []
-        
-        counter = 0
+        chunk_size = getattr(settings, "AI_ASSISTANT_VECTOR_CHUNK_SIZE", 1200)
+        overlap = getattr(settings, "AI_ASSISTANT_VECTOR_CHUNK_OVERLAP", 150)
+
         for item in extracted_data:
-            content = item["content"]
-            source = item["source"]
-            content_type = item["type"]
-            
-            # خرد کردن متون طولانی (مثل داکیومنت‌ها) به بخش‌های ۱۰۰۰ کاراکتری برای درک دقیق‌تر هوش مصنوعی
-            chunks = [content[i:i+1000] for i in range(0, len(content), 1000)]
-            
-            for idx, chunk in enumerate(chunks):
-                counter += 1
-                ids.append(f"id_{content_type}_{counter}_{idx}")
+            content = str(item.get("content", "")).strip()
+            source = str(item.get("source", "")).strip()
+            content_type = str(item.get("type", "document")).strip() or "document"
+
+            for index, chunk in enumerate(
+                self._chunks(content, chunk_size=chunk_size, overlap=overlap)
+            ):
+                digest = hashlib.sha256(
+                    f"{namespace}\0{source}\0{content_type}\0{index}\0{chunk}".encode(
+                        "utf-8"
+                    )
+                ).hexdigest()
+                ids.append(digest)
                 documents.append(chunk)
-                metadatas.append({"source": source, "type": content_type})
-                
-        if documents:
-            # ذخیره‌سازی نهایی در مغز پایدار دیتابیس
+                metadatas.append(
+                    {
+                        "namespace": namespace,
+                        "source": source,
+                        "type": content_type,
+                    }
+                )
+
+        batch_size = 200
+        for start in range(0, len(documents), batch_size):
+            end = start + batch_size
             self.collection.upsert(
-                ids=ids,
-                documents=documents,
-                metadatas=metadatas
+                ids=ids[start:end],
+                documents=documents[start:end],
+                metadatas=metadatas[start:end],
             )
-            print(f"[VECTOR-STORE] Successfully indexed {len(documents)} text chunks into Vector DB.")
+
+        logger.info(
+            "Indexed %s text chunks in vector namespace %s.",
+            len(documents),
+            namespace,
+        )
+        return len(documents)
 
     def query_relevant_knowledge(self, user_query, n_results=4):
-        """جستجوی سریع معنایی بر اساس سوال کاربر"""
+        query = str(user_query or "").strip()
+        collection_count = self.collection.count()
+        if not query or collection_count < 1:
+            return ""
+
+        result_count = min(max(int(n_results), 1), collection_count)
         try:
             results = self.collection.query(
-                query_texts=[user_query],
-                n_results=n_results
+                query_texts=[query],
+                n_results=result_count,
+                include=["documents", "metadatas"],
             )
-            
-            # چسباندن بخش‌های یافت شده برای ارسال به پرامپت مغز چت‌بات
-            context_list = []
-            if results and 'documents' in results and results['documents']:
-                for doc_group in results['documents']:
-                    for doc in doc_group:
-                        context_list.append(doc)
-                        
-            return "\n\n---\n\n".join(context_list)
-        except Exception as e:
-            print(f"[VECTOR-QUERY-ERROR] {str(e)}")
+        except Exception:
+            logger.exception("Vector knowledge query failed.")
             return ""
+
+        documents = (results or {}).get("documents") or []
+        metadatas = (results or {}).get("metadatas") or []
+        context = []
+
+        for group_index, document_group in enumerate(documents):
+            metadata_group = (
+                metadatas[group_index] if group_index < len(metadatas) else []
+            )
+            for document_index, document in enumerate(document_group):
+                metadata = (
+                    metadata_group[document_index]
+                    if document_index < len(metadata_group)
+                    else {}
+                )
+                source = str((metadata or {}).get("source", "")).strip()
+                prefix = f"Source: {source}\n" if source else ""
+                context.append(prefix + str(document))
+
+        return "\n\n---\n\n".join(context)

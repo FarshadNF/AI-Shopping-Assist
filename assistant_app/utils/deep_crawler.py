@@ -1,111 +1,147 @@
+import io
+import json
 import os
 import sys
-import django
-import json
 import time
-import requests
-import io
 import xml.etree.ElementTree as ET
-from bs4 import BeautifulSoup
-from pypdf import PdfReader
+from pathlib import Path
 from urllib.parse import urljoin, urlparse
 
-# ۱. تنظیم محیط جانگو (باید قبل از هر چیز دیگری باشد)
-PROJECT_ROOT = r"C:\AI_Assistant_Project"
-sys.path.append(PROJECT_ROOT)
+import django
+import requests
+from bs4 import BeautifulSoup
+from django.conf import settings
+from pypdf import PdfReader
 
-os.environ['DEBUG'] = 'True'
-os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'shopping_assist.settings')
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+DATA_DIR = PROJECT_ROOT / "data"
+DISCOVERED_URLS_PATH = DATA_DIR / "discovered_urls.json"
+ENRICHED_CACHE_PATH = DATA_DIR / "enriched_cache.json"
 
-try:
+DATA_DIR.mkdir(parents=True, exist_ok=True)
+
+
+def setup_django():
+    project_root = str(PROJECT_ROOT)
+    if project_root not in sys.path:
+        sys.path.insert(0, project_root)
+    os.environ.setdefault("DJANGO_SETTINGS_MODULE", "shopping_assist.settings")
     django.setup()
-except Exception as e:
-    print(f"[ERROR] Could not setup Django: {e}")
-    sys.exit(1)
 
-# وارد کردن موتور دیتابیس برداری
-try:
-    from assistant_app.utils.vector_handler import RockfordVectorStore
-except ImportError:
-    from .vector_handler import RockfordVectorStore
 
-# تنظیم مسیر فایل‌های کش در پوشه data
-DATA_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "data")
-os.makedirs(DATA_DIR, exist_ok=True)
+def is_internal_url(candidate, base_url):
+    candidate_url = urlparse(urljoin(base_url + "/", candidate))
+    base = urlparse(base_url)
+    return candidate_url.scheme in {"http", "https"} and candidate_url.netloc == base.netloc
 
-DISCOVERED_URLS_PATH = os.path.join(DATA_DIR, "discovered_urls.json")
-ENRICHED_CACHE_PATH = os.path.join(DATA_DIR, "enriched_cache.json")
 
 def extract_pdf_text_from_url(pdf_url):
-    """دانلود در لحظه و استخراج متن جداول فنی داخل فایل‌های PDF"""
-    headers = {"User-Agent": "RockfordAI-DatasheetParser/3.0"}
+    headers = {"User-Agent": "RockfordAI-DatasheetParser/3.1"}
+    max_bytes = int(
+        getattr(settings, "AI_ASSISTANT_CRAWLER_MAX_PDF_BYTES", 15 * 1024 * 1024)
+    )
+    max_pages = int(getattr(settings, "AI_ASSISTANT_CRAWLER_MAX_PDF_PAGES", 80))
+
     try:
         print(f"   [PDF-EXTRACT] Downloading datasheet: {pdf_url}")
-        response = requests.get(pdf_url, headers=headers, timeout=20)
-        if response.status_code != 200:
+        response = requests.get(pdf_url, headers=headers, timeout=30)
+        response.raise_for_status()
+        if len(response.content) > max_bytes:
+            print(f"   [PDF-SKIP] File exceeds {max_bytes} bytes.")
             return ""
-            
-        pdf_file = io.BytesIO(response.content)
-        reader = PdfReader(pdf_file)
-        
-        pdf_text = ""
-        for page_num, page in enumerate(reader.pages):
+
+        reader = PdfReader(io.BytesIO(response.content))
+        pages = []
+        for page_number, page in enumerate(reader.pages[:max_pages], start=1):
             page_content = page.extract_text()
             if page_content:
-                pdf_text += f"\n--- Datasheet Page {page_num+1} ---\n" + page_content
-        return pdf_text.strip()
-    except Exception as e:
-        print(f"   [PDF-ERROR] Failed to parse PDF: {str(e)}")
+                pages.append(
+                    f"--- Datasheet Page {page_number} ---\n{page_content.strip()}"
+                )
+        return "\n\n".join(pages)
+    except Exception as exc:
+        print(f"   [PDF-ERROR] Failed to parse PDF: {exc}")
         return ""
 
+
+def _sitemap_locations(sitemap_url, base_url, headers, depth=0):
+    if depth > 1:
+        return set()
+
+    response = requests.get(sitemap_url, headers=headers, timeout=20)
+    response.raise_for_status()
+    root = ET.fromstring(response.content)
+    locations = {
+        element.text.strip()
+        for element in root.iter()
+        if element.tag.endswith("loc") and element.text
+    }
+
+    if root.tag.endswith("sitemapindex"):
+        discovered = set()
+        for nested_sitemap in list(locations)[:50]:
+            if is_internal_url(nested_sitemap, base_url):
+                try:
+                    discovered.update(
+                        _sitemap_locations(
+                            nested_sitemap,
+                            base_url,
+                            headers,
+                            depth=depth + 1,
+                        )
+                    )
+                except Exception:
+                    continue
+        return discovered
+
+    return {
+        location
+        for location in locations
+        if is_internal_url(location, base_url)
+    }
+
+
 def auto_discover_urls(base_url):
-    """ربات جستجوگر برای پیدا کردن خودکار تمام لینک‌های سایت راکفورد"""
     print("[SPIDER] Initiating auto-discovery of site structure...")
-    discovered_urls = set()
-    headers = {"User-Agent": "RockfordAI-Spider/3.0"}
-    
-    # روش اول: استفاده از فید استاندارد و قدرتمند Sitemap XML اپن‌کارت (بهترین و سریع‌ترین راه)
+    headers = {"User-Agent": "RockfordAI-Spider/3.1"}
     xml_sitemaps = [
         f"{base_url}/sitemap.xml",
         f"{base_url}/index.php?route=feed/google_sitemap",
-        f"{base_url}/index.php?route=extension/feed/google_sitemap"
+        f"{base_url}/index.php?route=extension/feed/google_sitemap",
     ]
-    
+
     for sitemap in xml_sitemaps:
         try:
-            response = requests.get(sitemap, headers=headers, timeout=15)
-            if response.status_code == 200 and 'xml' in response.headers.get('Content-Type', '').lower():
-                print(f"[SPIDER] Found active XML sitemap: {sitemap}")
-                root = ET.fromstring(response.content)
-                for loc in root.iter('{http://www.sitemaps.org/schemas/sitemap/0.9}loc'):
-                    if loc.text and base_url in loc.text:
-                        discovered_urls.add(loc.text.strip())
-                if discovered_urls:
-                    print(f"[SPIDER] Extracted {len(discovered_urls)} URLs from XML Sitemap.")
-                    return list(discovered_urls)
+            discovered_urls = _sitemap_locations(sitemap, base_url, headers)
+            if discovered_urls:
+                print(
+                    f"[SPIDER] Extracted {len(discovered_urls)} URLs from {sitemap}."
+                )
+                return sorted(discovered_urls)
         except Exception:
             continue
 
-    # روش دوم (جایگزین): استخراج از صفحه HTML سایت‌مپ که در تنظیمات فرستادید
-    print("[SPIDER] XML not found. Falling back to HTML Sitemap parsing...")
+    print("[SPIDER] XML not found. Falling back to HTML sitemap parsing...")
+    discovered_urls = set()
     html_sitemap = f"{base_url}/index.php?route=information/sitemap"
     try:
-        response = requests.get(html_sitemap, headers=headers, timeout=15)
-        soup = BeautifulSoup(response.text, 'html.parser')
-        for link in soup.find_all('a', href=True):
-            href = link['href']
-            # فقط لینک‌های داخلی سایت خودمان را جمع می‌کنیم
-            if href.startswith(base_url) or href.startswith('/'):
-                full_url = urljoin(base_url, href)
+        response = requests.get(html_sitemap, headers=headers, timeout=20)
+        response.raise_for_status()
+        soup = BeautifulSoup(response.text, "html.parser")
+        for link in soup.find_all("a", href=True):
+            full_url = urljoin(base_url + "/", link["href"])
+            if is_internal_url(full_url, base_url):
                 discovered_urls.add(full_url)
-    except Exception as e:
-        print(f"[SPIDER-ERROR] Failed to parse HTML sitemap: {e}")
-        
-    print(f"[SPIDER] Extracted {len(discovered_urls)} potential URLs from HTML map.")
-    return list(discovered_urls)
+    except Exception as exc:
+        print(f"[SPIDER-ERROR] Failed to parse HTML sitemap: {exc}")
+
+    print(
+        f"[SPIDER] Extracted {len(discovered_urls)} potential URLs from HTML map."
+    )
+    return sorted(discovered_urls)
+
 
 def scrape_hyper_deep_info(url, base_url):
-    """بررسی عمیق یک صفحه وب: تشخیص اینکه آیا کالا است یا خیر و استخراج دیتا"""
     deep_data = {
         "is_product": False,
         "product_id": None,
@@ -114,202 +150,251 @@ def scrape_hyper_deep_info(url, base_url):
         "image_url": "",
         "full_description": "",
         "technical_attributes": {},
-        "datasheet_content": ""
+        "datasheet_content": "",
     }
-    
-    headers = {"User-Agent": "RockfordAI-DeepCrawler/3.0"}
-    try:
-        response = requests.get(url, headers=headers, timeout=15)
-        if response.status_code != 200:
-            return deep_data
-            
-        soup = BeautifulSoup(response.text, 'html.parser')
-        
-        # تشخیص طلایی: در اپن‌کارت تمام صفحات محصول یک input مخفی به نام product_id دارند
-        product_id_input = soup.find('input', {'name': 'product_id'})
-        if not product_id_input:
-            # این صفحه محصول نیست (شاید دسته بندی یا مقاله باشد)، رها کن
-            return deep_data
-            
-        deep_data["is_product"] = True
-        deep_data["product_id"] = product_id_input.get('value')
-        
-        # ۱. نام محصول (معمولاً تگ h1)
-        h1 = soup.find('h1')
-        if h1:
-            deep_data["name"] = h1.get_text(strip=True)
+    headers = {"User-Agent": "RockfordAI-DeepCrawler/3.1"}
 
-        # ۲. استخراج برند
-        brand_link = soup.find('a', href=lambda href: href and 'manufacturer_id' in href)
+    try:
+        response = requests.get(url, headers=headers, timeout=20)
+        response.raise_for_status()
+        soup = BeautifulSoup(response.text, "html.parser")
+
+        product_id_input = soup.find("input", {"name": "product_id"})
+        if not product_id_input:
+            return deep_data
+
+        deep_data["is_product"] = True
+        deep_data["product_id"] = product_id_input.get("value")
+
+        heading = soup.find("h1")
+        if heading:
+            deep_data["name"] = heading.get_text(strip=True)
+
+        brand_link = soup.find(
+            "a", href=lambda href: href and "manufacturer_id" in href
+        )
         if brand_link:
             deep_data["brand"] = brand_link.get_text(strip=True)
         else:
-            for li in soup.find_all('li'):
-                if "Brand:" in li.get_text():
-                    deep_data["brand"] = li.get_text().replace("Brand:", "").strip()
+            for item in soup.find_all("li"):
+                item_text = item.get_text(" ", strip=True)
+                if "Brand:" in item_text:
+                    deep_data["brand"] = item_text.replace("Brand:", "").strip()
                     break
-        
-        # ۳. استخراج تصویر
-        main_img_tag = soup.find('ul', class_='thumbnails') or soup.find('div', class_='image')
-        if main_img_tag:
-            img_link = main_img_tag.find('a')
-            if img_link and img_link.get('href'):
-                deep_data["image_url"] = img_link.get('href')
-                
-        # ۴. توضیحات کامل
-        desc_div = soup.find('div', id='tab-description')
-        if desc_div:
-            deep_data["full_description"] = desc_div.get_text(separator=' ', strip=True)
-            
-        # ۵. مشخصات فنی
-        spec_div = soup.find('div', id='tab-specification')
-        if spec_div:
-            for row in spec_div.find_all('tr'):
-                tds = row.find_all('td')
-                if len(tds) == 2:
-                    key = tds[0].get_text(strip=True)
-                    val = tds[1].get_text(strip=True)
-                    if key and not key.startswith(':'):
-                        deep_data["technical_attributes"][key] = val
-                        
-        # ۶. دیتاشیت‌های PDF
+
+        main_image = soup.find("ul", class_="thumbnails") or soup.find(
+            "div", class_="image"
+        )
+        if main_image:
+            image_link = main_image.find("a", href=True)
+            if image_link:
+                deep_data["image_url"] = urljoin(base_url + "/", image_link["href"])
+
+        description = soup.find("div", id="tab-description")
+        if description:
+            deep_data["full_description"] = description.get_text(
+                separator=" ", strip=True
+            )
+
+        specifications = soup.find("div", id="tab-specification")
+        if specifications:
+            for row in specifications.find_all("tr"):
+                cells = row.find_all("td")
+                if len(cells) != 2:
+                    continue
+                key = cells[0].get_text(" ", strip=True)
+                value = cells[1].get_text(" ", strip=True)
+                if key and value and not key.startswith(":"):
+                    deep_data["technical_attributes"][key] = value
+
         detected_pdf_texts = []
-        for link in soup.find_all('a', href=True):
-            href = link['href']
-            if href.endswith('.pdf') or 'datasheet' in href.lower():
-                pdf_url = urljoin(base_url, href)
-                pdf_raw_text = extract_pdf_text_from_url(pdf_url)
-                if pdf_raw_text:
-                    detected_pdf_texts.append(f"Source PDF: {pdf_url}\n{pdf_raw_text}")
-                    
+        seen_pdf_urls = set()
+        for link in soup.find_all("a", href=True):
+            href = link["href"]
+            normalized_href = href.lower().split("?", 1)[0]
+            if not (
+                normalized_href.endswith(".pdf") or "datasheet" in normalized_href
+            ):
+                continue
+
+            pdf_url = urljoin(base_url + "/", href)
+            if pdf_url in seen_pdf_urls or not is_internal_url(pdf_url, base_url):
+                continue
+            seen_pdf_urls.add(pdf_url)
+
+            pdf_text = extract_pdf_text_from_url(pdf_url)
+            if pdf_text:
+                detected_pdf_texts.append(f"Source PDF: {pdf_url}\n{pdf_text}")
+
         if detected_pdf_texts:
-            deep_data["datasheet_content"] = "\n\n================\n\n".join(detected_pdf_texts)
-            
-    except Exception as e:
-        print(f"   [SCRAPE-ERROR] Failed to scrape {url}: {e}")
-        
+            deep_data["datasheet_content"] = "\n\n================\n\n".join(
+                detected_pdf_texts
+            )
+    except Exception as exc:
+        print(f"   [SCRAPE-ERROR] Failed to scrape {url}: {exc}")
+
     return deep_data
+
 
 def generate_dynamic_sales_angle(product_name, brand, attributes):
     combined_context = f"{product_name} {brand} {list(attributes.keys())}".lower()
-    industrial_keywords = ['switch', 'moxa', 'port', 'industrial', 'ethernet', 'serial', 'modbus', 'converter', 'rail']
-    
-    specs_summary = ", ".join([f"{k}: {v}" for k, v in list(attributes.items())[:2]]) if attributes else ""
-    feature_suffix = f" with technical specs [{specs_summary}]" if specs_summary else ""
-    
-    if any(k in combined_context for k in industrial_keywords):
-        return f"Industrial grade reliability engineered for harsh environments, ensuring zero packet loss and maximum deployment uptime{feature_suffix}."
-    return f"High-performance option optimized for seamless productivity and exceptional ecosystem synergy{feature_suffix}."
+    industrial_keywords = (
+        "switch",
+        "moxa",
+        "port",
+        "industrial",
+        "ethernet",
+        "serial",
+        "modbus",
+        "converter",
+        "rail",
+    )
+    specs_summary = (
+        ", ".join(f"{key}: {value}" for key, value in list(attributes.items())[:2])
+        if attributes
+        else ""
+    )
+    feature_suffix = (
+        f" with technical specs [{specs_summary}]" if specs_summary else ""
+    )
+
+    if any(keyword in combined_context for keyword in industrial_keywords):
+        return (
+            "Industrial grade reliability engineered for harsh environments, "
+            "ensuring zero packet loss and maximum deployment uptime"
+            f"{feature_suffix}."
+        )
+    return (
+        "High-performance option optimized for seamless productivity and "
+        f"exceptional ecosystem synergy{feature_suffix}."
+    )
+
 
 def save_atomically(data, path):
-    temp_path = f"{path}.tmp"
-    try:
-        with open(temp_path, 'w', encoding='utf-8') as f:
-            json.dump(data, f, ensure_ascii=False, indent=4)
-        os.replace(temp_path, path)
-    except IOError:
-        pass
+    path = Path(path)
+    temp_path = path.with_suffix(path.suffix + ".tmp")
+    with temp_path.open("w", encoding="utf-8") as output:
+        json.dump(data, output, ensure_ascii=False, indent=2)
+    temp_path.replace(path)
+
 
 def load_json(path, default):
     try:
-        with open(path, 'r', encoding='utf-8') as f:
-            return json.load(f)
+        with Path(path).open("r", encoding="utf-8") as source:
+            return json.load(source)
     except (FileNotFoundError, json.JSONDecodeError):
         return default
 
-def run_pipeline():
-    base_url = os.getenv("OPENCART_BASE_URL", "https://rockford-qatar.com").rstrip("/")
-    
-    # ---------------------------------------------------------
-    # فاز ۱: اکتشاف لینک‌ها (Spider Discovery)
-    # ---------------------------------------------------------
-    urls_list = load_json(DISCOVERED_URLS_PATH, [])
+
+def build_vector_payload(products, base_url):
+    payload = []
+    for product in products:
+        specifications = " | ".join(
+            f"{key}: {value}"
+            for key, value in product.get("technical_attributes", {}).items()
+        )
+        product_url = (
+            f"{base_url}/index.php?route=product/product"
+            f"&product_id={product.get('product_id')}"
+        )
+        payload.append(
+            {
+                "source": product_url,
+                "type": "product_page",
+                "content": "\n".join(
+                    [
+                        f"Product Name: {product.get('name', '')}",
+                        f"Brand: {product.get('brand', '')}",
+                        f"Model ID: {product.get('product_id', '')}",
+                        f"Sales Position: {product.get('sales_angle', '')}",
+                        f"Description: {product.get('full_description', '')}",
+                        f"Technical Specifications: {specifications}",
+                    ]
+                ),
+            }
+        )
+        if product.get("datasheet_content"):
+            payload.append(
+                {
+                    "source": product_url + " (Embedded Datasheet)",
+                    "type": "datasheet_pdf",
+                    "content": product["datasheet_content"],
+                }
+            )
+    return payload
+
+
+def run_pipeline(force_refresh=False):
+    setup_django()
+    from assistant_app.utils.vector_handler import RockfordVectorStore
+
+    base_url = (
+        getattr(settings, "OPENCART_BASE_URL", "")
+        or os.getenv("OPENCART_BASE_URL", "")
+    ).rstrip("/")
+    if not base_url:
+        raise RuntimeError("OPENCART_BASE_URL must be configured before crawling.")
+
+    urls_list = [] if force_refresh else load_json(DISCOVERED_URLS_PATH, [])
     if not urls_list:
         urls_list = auto_discover_urls(base_url)
         save_atomically(urls_list, DISCOVERED_URLS_PATH)
-        
     if not urls_list:
-        print("[ABORT] Spider couldn't find any URLs to crawl. Check site accessibility.")
-        return
+        raise RuntimeError("The crawler could not discover any OpenCart URLs.")
 
-    # ---------------------------------------------------------
-    # فاز ۲: استخراج عمیق محصولات (Deep Scrape)
-    # ---------------------------------------------------------
-    cache = load_json(ENRICHED_CACHE_PATH, {})
+    cache = {} if force_refresh else load_json(ENRICHED_CACHE_PATH, {})
     total_urls = len(urls_list)
     print(f"[PIPELINE] Starting deep inspection of {total_urls} URLs...")
-    
-    for count, url in enumerate(urls_list, 1):
-        # بررسی می‌کنیم آیا قبلاً این آدرس بررسی و کش شده است؟
-        # از URL به عنوان کلید یکتا برای شناسایی استفاده می‌کنیم
+
+    for count, url in enumerate(urls_list, start=1):
         url_key = urlparse(url).path + "?" + urlparse(url).query
         if url_key in cache:
             continue
-            
+
         print(f"[{count}/{total_urls}] Inspecting: {url}")
         scraped_data = scrape_hyper_deep_info(url, base_url)
-        
-        # اگر ربات فهمید که این صفحه محصول نیست، آن را با برچسب is_product=False کش می‌کند تا دفعه بعد دوباره سراغش نرود
         if not scraped_data["is_product"]:
             cache[url_key] = {"is_product": False}
         else:
-            # تولید زاویه فروش هوشمند
-            sales_angle = generate_dynamic_sales_angle(
-                scraped_data["name"], scraped_data["brand"], scraped_data["technical_attributes"]
+            scraped_data["sales_angle"] = generate_dynamic_sales_angle(
+                scraped_data["name"],
+                scraped_data["brand"],
+                scraped_data["technical_attributes"],
             )
-            scraped_data["sales_angle"] = sales_angle
             cache[url_key] = scraped_data
-            print(f"   [SUCCESS] Extracted Product: {scraped_data['name']} (ID: {scraped_data['product_id']})")
-            
-        # ذخیره هر ۱۰ لینک یک‌بار
+            print(
+                "   [SUCCESS] Extracted Product: "
+                f"{scraped_data['name']} (ID: {scraped_data['product_id']})"
+            )
+
         if count % 10 == 0:
             save_atomically(cache, ENRICHED_CACHE_PATH)
-            
-        time.sleep(0.5) # جلوگیری از فشار به سرور راکفورد
-        
-    save_atomically(cache, ENRICHED_CACHE_PATH)
-    print("[SUCCESS] All links processed and products cached.")
+        time.sleep(float(getattr(settings, "AI_ASSISTANT_CRAWLER_DELAY", 0.5)))
 
-    # ---------------------------------------------------------
-    # فاز ۳: تزریق به پایگاه داده برداری (Vector Knowledge Base)
-    # ---------------------------------------------------------
-    print("[VECTOR-PHASE] Initializing Rockford Vector Store connection...")
-    vector_store = RockfordVectorStore()
-    vector_payload = []
-    
-    # فیلتر کردن فقط محصولاتی که موفقیت آمیز ذخیره شده‌اند
-    products = [data for url_key, data in cache.items() if data.get("is_product") == True]
-    
-    for product in products:
-        specs_str = " | ".join([f"{k}: {v}" for k, v in product.get("technical_attributes", {}).items()])
-        
-        combined_knowledge = f"""
-Product Name: {product.get('name')}
-Brand: {product.get('brand')}
-Model ID: {product.get('product_id')}
-Sales Position: {product.get('sales_angle')}
-Description: {product.get('full_description')}
-Technical Specifications: {specs_str}
-        """.strip()
-        
-        product_url = f"{base_url}/index.php?route=product/product&product_id={product.get('product_id')}"
-        
-        vector_payload.append({
-            "source": product_url,
-            "type": "product_page",
-            "content": combined_knowledge
-        })
-        
-        if product.get("datasheet_content"):
-            vector_payload.append({
-                "source": product_url + " (Embedded Datasheet)",
-                "type": "datasheet_pdf",
-                "content": product.get("datasheet_content")
-            })
-            
-    print(f"[VECTOR-PHASE] Injecting {len(vector_payload)} rich sources into Vector Database...")
-    vector_store.inject_knowledge_base(vector_payload)
-    print("[ALL-DONE] Rockford Vector Brain successfully synchronized and fully educated!")
+    save_atomically(cache, ENRICHED_CACHE_PATH)
+    products = [
+        data for data in cache.values() if data.get("is_product") is True
+    ]
+    vector_payload = build_vector_payload(products, base_url)
+
+    print(
+        f"[VECTOR-PHASE] Injecting {len(vector_payload)} sources into Vector Brain..."
+    )
+    indexed_chunks = RockfordVectorStore().inject_knowledge_base(
+        vector_payload,
+        namespace="deep_crawler",
+        replace_namespace=True,
+    )
+    print(
+        "[ALL-DONE] Rockford Vector Brain synchronized: "
+        f"{len(products)} products, {indexed_chunks} chunks."
+    )
+    return {
+        "products": len(products),
+        "sources": len(vector_payload),
+        "chunks": indexed_chunks,
+    }
+
 
 if __name__ == "__main__":
-    run_pipeline()
+    run_pipeline(force_refresh="--force" in sys.argv)

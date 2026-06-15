@@ -17,6 +17,7 @@ from .models import ChatMessage, Conversation, OpenCartConnectionStatus
 from .utils.ai_agent import AgentOutput, AIAgent
 
 
+@override_settings(AI_ASSISTANT_VECTOR_ENABLED=False)
 class ChatApiTests(TestCase):
     def test_api_index_lists_endpoints(self):
         response = self.client.get("/")
@@ -42,6 +43,48 @@ class ChatApiTests(TestCase):
 
         self.assertEqual(response.status_code, 400)
         self.assertEqual(response.json()["status"], "error")
+
+    @override_settings(AI_ASSISTANT_CHAT_TOKEN="brain-secret")
+    def test_chat_checks_brain_token_when_configured(self):
+        response = self.client.post(
+            "/api/chat/",
+            data=json.dumps({"message": "hello"}),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(response.json()["reply"], "Invalid Brain API token.")
+
+    @patch("assistant_app.services.ai_agent.ask_async", new_callable=AsyncMock)
+    def test_chat_accepts_and_echoes_widget_conversation_id(self, ask_async):
+        ask_async.side_effect = [
+            AgentOutput(text="first reply"),
+            AgentOutput(text="second reply"),
+        ]
+        conversation_id = "web-m123-example"
+
+        first_response = self.client.post(
+            "/api/chat/",
+            data=json.dumps(
+                {"message": "first question", "conversation_id": conversation_id}
+            ),
+            content_type="application/json",
+        )
+        second_response = self.client.post(
+            "/api/chat/",
+            data=json.dumps(
+                {"message": "second question", "conversation_id": conversation_id}
+            ),
+            content_type="application/json",
+        )
+
+        self.assertEqual(first_response.json()["conversation_id"], conversation_id)
+        self.assertEqual(second_response.json()["conversation_id"], conversation_id)
+        second_call = ask_async.call_args_list[1]
+        self.assertEqual(
+            [message["content"] for message in second_call.args[1]],
+            ["first question", "first reply"],
+        )
 
     @patch("assistant_app.services.ai_agent.ask_async", new_callable=AsyncMock)
     def test_chat_calls_gemini_and_extracts_cart_action(self, ask_async):
@@ -131,6 +174,27 @@ class ChatApiTests(TestCase):
 
         self.assertEqual(action["product_id"], "40")
         self.assertEqual(action["requested_qty"], 1)
+
+    @patch("assistant_app.services.get_vector_knowledge")
+    @patch("assistant_app.services.load_catalog")
+    def test_system_instruction_includes_vector_brain_context(
+        self,
+        load_catalog,
+        get_vector_knowledge,
+    ):
+        load_catalog.return_value = [
+            {
+                "product_id": "1",
+                "name": "Industrial Switch",
+                "stock": 3,
+            }
+        ]
+        get_vector_knowledge.return_value = "Datasheet: operating range -40C to 75C."
+
+        instruction = services.build_system_instruction("industrial switch")
+
+        self.assertIn("VECTOR BRAIN CONTEXT", instruction)
+        self.assertIn("operating range -40C to 75C", instruction)
 
     @patch("assistant_app.services.ai_agent.ask_async", new_callable=AsyncMock)
     def test_chat_returns_checkout_action(self, ask_async):

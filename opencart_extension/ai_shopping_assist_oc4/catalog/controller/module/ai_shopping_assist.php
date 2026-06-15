@@ -2,7 +2,7 @@
 namespace Opencart\Catalog\Controller\Extension\AiShoppingAssist\Module;
 
 class AiShoppingAssist extends \Opencart\System\Engine\Controller {
-	private const VERSION = '3.1.0';
+	private const VERSION = '3.3.0';
 	private const MARKER = '<!-- AI_SHOPPING_ASSIST_WIDGET -->';
 
 	public function inject(&$route, &$data, &$output = null): void {
@@ -31,7 +31,6 @@ class AiShoppingAssist extends \Opencart\System\Engine\Controller {
 		}
 
 		$config = [
-			'apiBase' => '',
 			'chatRoute' => 'index.php?route=extension/ai_shopping_assist/module/ai_shopping_assist.chat',
 			'catalogRoute' => 'index.php?route=extension/ai_shopping_assist/module/ai_shopping_assist.getCatalog',
 			'cartRoute' => 'index.php?route=checkout/cart',
@@ -371,13 +370,14 @@ class AiShoppingAssist extends \Opencart\System\Engine\Controller {
 		$brand = (string)($this->config->get('module_ai_shopping_assist_store_brand') ?: $this->config->get('config_name'));
 		$assistant_name = (string)($this->config->get('module_ai_shopping_assist_assistant_name') ?: 'Rockford Assistant');
 		$catalog = $this->getPromptCatalog($message);
+		$knowledge = $this->getLocalKnowledge($message);
 		$navigation = $this->getNavigationPromptCatalog();
 		$history = $this->getConversationHistory($conversation_id, $message);
 
 		return implode("\n\n", [
 			'You are a real online sales assistant inside the OpenCart store "' . $brand . '". Your name is "' . $assistant_name . '".',
 			'Default to English. If the latest user message is clearly Persian or another language, you may reply in that language, but your base persona and concise style are English-first.',
-			'Use only the product catalog below for product-specific claims. Check stock before recommending purchase. Keep replies short, natural, and sales-focused.',
+			'Use the live product catalog as the authority for price, stock, product IDs, and purchase links. Use the local knowledge base for descriptions, technical specifications, and datasheet facts. Keep replies short, natural, and sales-focused.',
 			'When the user wants an action, include it in actions. Supported action types: add_to_cart, show_cart, redirect_to_cart, redirect_to_product, redirect_to_page, update_cart_item, remove_from_cart, clear_cart, apply_coupon, redirect_to_checkout, send_invoice.',
 			'For bulk, wholesale, B2B, corporate, or high-quantity requests, do not add items to cart and do not send the user to checkout. Ask for lead details using this exact field list: Product Name, QTY, Name, Company, Contact Number, Email, Delivery Location.',
 			'For navigating to any non-product site page, use {"type":"redirect_to_page","page":"home/contact/account/login/register/orders/wishlist/specials/search/category/information page name","route":"optional OpenCart route","url":"optional internal URL"}. Do not say you cannot navigate.',
@@ -386,6 +386,7 @@ class AiShoppingAssist extends \Opencart\System\Engine\Controller {
 			'Conversation history JSON: ' . json_encode($history, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
 			'Known site pages JSON: ' . json_encode($navigation, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
 			'Product catalog JSON: ' . json_encode($catalog, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+			'Relevant local knowledge JSON: ' . json_encode($knowledge, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
 			'Latest user message: ' . $message
 		]);
 	}
@@ -502,6 +503,127 @@ class AiShoppingAssist extends \Opencart\System\Engine\Controller {
 		}
 
 		return $products;
+	}
+
+	private function getLocalKnowledge(string $message): array {
+		$query_text = $this->foldText($message);
+		$tokens = $this->knowledgeTokens($query_text);
+
+		if ($query_text === '' || !$tokens) {
+			return [];
+		}
+
+		try {
+			$query = $this->db->query("
+				SELECT
+					`product_id`,
+					`name`,
+					`brand`,
+					`source_url`,
+					`content_type`,
+					LEFT(`content`, 60000) AS `content`
+				FROM `" . DB_PREFIX . "ai_shopping_assist_knowledge`
+				ORDER BY `knowledge_id` ASC
+				LIMIT 1000
+			");
+		} catch (\Throwable $exception) {
+			return [];
+		}
+
+		$ranked = [];
+
+		foreach ($query->rows as $row) {
+			$name = $this->foldText((string)($row['name'] ?? ''));
+			$brand = $this->foldText((string)($row['brand'] ?? ''));
+			$product_id = $this->foldText((string)($row['product_id'] ?? ''));
+			$source_url = $this->foldText((string)($row['source_url'] ?? ''));
+			$content = $this->foldText((string)($row['content'] ?? ''));
+			$score = 0;
+
+			if ($product_id !== '' && in_array($product_id, $tokens, true)) {
+				$score += 120;
+			}
+
+			if (strlen($query_text) >= 4 && ($name === $query_text || strpos($name, $query_text) !== false)) {
+				$score += 90;
+			}
+
+			foreach ($tokens as $token) {
+				if (strpos($name, $token) !== false) {
+					$score += 30;
+				}
+
+				if ($brand !== '' && strpos($brand, $token) !== false) {
+					$score += 18;
+				}
+
+				if ($source_url !== '' && strpos($source_url, $token) !== false) {
+					$score += 12;
+				}
+
+				if (strpos($content, $token) !== false) {
+					$score += 3;
+				}
+			}
+
+			if ($score < 8) {
+				continue;
+			}
+
+			$row['_score'] = $score;
+			$ranked[] = $row;
+		}
+
+		usort($ranked, function (array $left, array $right): int {
+			return (int)$right['_score'] <=> (int)$left['_score'];
+		});
+
+		$results = [];
+		$total_length = 0;
+
+		foreach (array_slice($ranked, 0, 5) as $row) {
+			$content = $this->shortText((string)$row['content'], 6000);
+			$total_length += strlen($content);
+
+			if ($total_length > 20000) {
+				break;
+			}
+
+			$results[] = [
+				'product_id' => (string)$row['product_id'],
+				'name' => (string)$row['name'],
+				'brand' => (string)$row['brand'],
+				'content_type' => (string)$row['content_type'],
+				'source_url' => (string)$row['source_url'],
+				'content' => $content
+			];
+		}
+
+		return $results;
+	}
+
+	private function knowledgeTokens(string $value): array {
+		preg_match_all('/[\p{L}\p{N}][\p{L}\p{N}_.-]*/u', $value, $matches);
+		$stopwords = [
+			'the', 'and', 'for', 'with', 'from', 'this', 'that', 'what', 'which', 'about',
+			'product', 'products', 'tell', 'show', 'need', 'want', 'have', 'your', 'please',
+			'این', 'آن', 'برای', 'با', 'از', 'در', 'چیست', 'چیه', 'محصول', 'محصولات',
+			'لطفا', 'لطفاً', 'میخوام', 'می‌خواهم', 'دارید', 'درباره'
+		];
+		$tokens = [];
+
+		foreach ($matches[0] ?? [] as $token) {
+			$length = function_exists('mb_strlen') ? mb_strlen($token, 'UTF-8') : strlen($token);
+			$has_digit = (bool)preg_match('/\p{N}/u', $token);
+
+			if (($length < 3 && !$has_digit) || in_array($token, $stopwords, true) || in_array($token, $tokens, true)) {
+				continue;
+			}
+
+			$tokens[] = $token;
+		}
+
+		return array_slice($tokens, 0, 20);
 	}
 
 	private function getConversationHistory(string $conversation_id, string $latest_message): array {
@@ -1433,8 +1555,10 @@ class AiShoppingAssist extends \Opencart\System\Engine\Controller {
 			'price' => $this->formatProductPrice($price, (int)($product['tax_class_id'] ?? 0)),
 			'stock' => (int)($product['quantity'] ?? 0),
 			'category' => $this->cleanText((string)($product['manufacturer'] ?? ($product['model'] ?? 'General'))),
+			'brand' => $this->cleanText((string)($product['manufacturer'] ?? '')),
 			'attributes' => $this->catalogAttributes($product),
 			'sales_angle' => $this->cleanText((string)($product['description'] ?? '')),
+			'full_description' => $this->cleanText((string)($product['description'] ?? '')),
 			'image' => $this->productImage((string)($product['image'] ?? '')),
 			'alternatives' => []
 		];
@@ -1723,7 +1847,9 @@ class AiShoppingAssist extends \Opencart\System\Engine\Controller {
 			403 => 'Forbidden',
 			404 => 'Not Found',
 			500 => 'Internal Server Error',
-			502 => 'Bad Gateway'
+			502 => 'Bad Gateway',
+			503 => 'Service Unavailable',
+			504 => 'Gateway Timeout'
 		];
 
 		return $map[$status] ?? 'OK';
