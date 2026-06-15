@@ -1,6 +1,6 @@
 AI Chatbot Assistant - Full Project Context:
 .
-├── assistant_app [246.18KB]
+├── assistant_app [279.24KB]
 │   ├── __init__.py (2.00B)
 │   ├── admin.py (5.99KB)
 │   ├── apps.py (163.00B)
@@ -14,7 +14,7 @@ AI Chatbot Assistant - Full Project Context:
 │   │   └── __init__.py (2.00B)
 │   ├── models.py (3.45KB)
 │   ├── serializers.py (1.80KB)
-│   ├── services.py (44.99KB)
+│   ├── services.py (45.43KB)
 │   ├── static [33.70KB]
 │   │   └── assistant_app [33.70KB]
 │   │       ├── css [5.32KB]
@@ -28,12 +28,13 @@ AI Chatbot Assistant - Full Project Context:
 │   │               └── change_list.html (1.51KB)
 │   ├── tests.py (26.37KB)
 │   ├── urls.py (827.00B)
-│   ├── utils [36.17KB]
-│   │   ├── ai_agent.py (16.42KB)
+│   ├── utils [68.79KB]
+│   │   ├── ai_agent.py (16.87KB)
 │   │   ├── core_api.py (171.00B)
-│   │   ├── deep_crawler.py (5.59KB)
+│   │   ├── deep_crawler.py (14.43KB)
 │   │   ├── fetch_catalog.py (2.68KB)
-│   │   └── test_connection.py (438.00B)
+│   │   ├── test_connection.py (438.00B)
+│   │   └── vector_handler.py (3.21KB)
 │   └── views.py (6.19KB)
 ├── db.sqlite3 (160.00KB)
 ├── dist [824.27KB]
@@ -79,11 +80,11 @@ AI Chatbot Assistant - Full Project Context:
 ├── project_structure.txt (2.13KB)
 ├── project_structure_with_codes.txt (0.00B)
 ├── README.md (2.56KB)
-├── requirements.txt (1.09KB)
-└── shopping_assist [14.29KB]
+├── requirements.txt (1.16KB)
+└── shopping_assist [15.15KB]
     ├── __init__.py (2.00B)
     ├── asgi.py (185.00B)
-    ├── settings.py (5.78KB)
+    ├── settings.py (6.64KB)
     ├── urls.py (181.00B)
     └── wsgi.py (185.00B)
 
@@ -1562,6 +1563,11 @@ def get_relevant_catalog(user_message, top_k=5):
     
     for product in full_catalog:
         p_name = product.get('name', '')
+        # فیلتر سریع: اگر حداقل یکی از کلمات کلیدی پیام کاربر در اسم محصول یا برعکس نبود، از پردازش Fuzzy رد شو
+        user_words = set(normalized_message.split())
+        product_words = set(normalized_name.split())
+        if not user_words.intersection(product_words) and len(normalized_message) > 3:
+            continue # پرش از پردازش سنگین فازی
         score = fuzz.token_set_ratio(user_message, p_name)
         
         normalized_name = normalize_part_number(p_name)
@@ -1792,7 +1798,6 @@ def extract_cart_action(agent_output, user_message=""):
 
 def extract_assistant_actions(agent_output, user_message=""):
     return async_to_sync(extract_assistant_actions_async)(agent_output, user_message)
-
 --- END OF services.py ---
 
 
@@ -4046,19 +4051,8 @@ def _is_retryable_ai_error(error):
     return any(
         marker in error_msg
         for marker in (
-            "429",
-            "500",
-            "502",
-            "503",
-            "504",
-            "deadline",
-            "exhausted",
-            "high demand",
-            "quota",
-            "temporarily",
-            "timeout",
-            "try again later",
-            "unavailable",
+            "429", "500", "502", "503", "504", "deadline", "exhausted",
+            "high demand", "quota", "temporarily", "timeout", "try again later", "unavailable",
         )
     )
 
@@ -4068,19 +4062,8 @@ def _is_retryable_key_error(error):
     return any(
         marker in error_msg
         for marker in (
-            "429",
-            "500",
-            "502",
-            "503",
-            "504",
-            "deadline",
-            "exhausted",
-            "high demand",
-            "quota",
-            "temporarily",
-            "timeout",
-            "try again later",
-            "unavailable",
+            "429", "500", "502", "503", "504", "deadline", "exhausted",
+            "high demand", "quota", "temporarily", "timeout", "try again later", "unavailable",
         )
     )
 
@@ -4094,11 +4077,7 @@ def _is_high_demand_error(error):
     return any(
         marker in error_msg
         for marker in (
-            "503",
-            "high demand",
-            "temporarily",
-            "try again later",
-            "unavailable",
+            "503", "high demand", "temporarily", "try again later", "unavailable",
         )
     )
 
@@ -4108,11 +4087,7 @@ def _is_permission_error(error):
     return any(
         marker in error_msg
         for marker in (
-            "403",
-            "api_key_invalid",
-            "denied access",
-            "forbidden",
-            "permission_denied",
+            "403", "api_key_invalid", "denied access", "forbidden", "permission_denied",
         )
     )
 
@@ -4149,15 +4124,15 @@ def _response_text(response):
             return ""
         raise
 
-
+# [ارتقا]: تغییر پیام‌های خطا به انگلیسی برای سازگاری با بازارهای بین‌المللی و B2B
 def _ai_unavailable_message():
-    return "در حال حاضر اتصال مدل کمی شلوغ شده است. لطفاً چند لحظه دیگر دوباره پیام بدهید."
+    return "The system is currently experiencing high demand. Please try sending your message again in a few moments."
 
 
 def _permission_message():
     return (
-        "خطای تنظیمات: کلید Gemini فعلی یا پروژه متصل به آن توسط Google رد شد. "
-        "در Google AI Studio یک کلید فعال بسازید و مطمئن شوید کلید برای Gemini API مجاز است."
+        "Configuration Error: The Gemini API key was rejected. "
+        "Please check your Google AI Studio project settings and ensure the key is active."
     )
 
 
@@ -4170,16 +4145,31 @@ class AIAgent:
         for candidate in [self.model_name, *fallback_models]:
             if candidate and candidate not in self.model_candidates:
                 self.model_candidates.append(candidate)
+        
         self.retry_attempts = _int_env("GEMINI_RETRY_ATTEMPTS", 2)
         self.retry_base_delay = _float_env("GEMINI_RETRY_BASE_DELAY", 1.0)
         self.retry_max_delay = _float_env("GEMINI_RETRY_MAX_DELAY", 6.0)
+
+        # [ارتقا]: خواندن متغیرهای هویتی از تنظیمات محیطی برای داینامیک شدن کامل رفتار
+        self.store_brand = os.getenv("STORE_BRAND", "Our Company")
+        self.ai_name = os.getenv("AI_ASSISTANT_NAME", "AI Assistant")
+        self.business_model = os.getenv("BUSINESS_MODEL", "B2C_CART")
+        self.target_market = os.getenv("TARGET_MARKET", "International")
+
+        # تعیین نقش داینامیک بر اساس نوع بیزینس (فروشگاهی یا مهندسی/B2B)
+        if self.business_model == "B2B_INQUIRY":
+            role_description = f"Pre-Sales Technical Engineer and Consultant for {self.store_brand}"
+        else:
+            role_description = f"advanced AI shopping assistant for {self.store_brand}"
+
         self.base_instruction = (
-            "You are an advanced, multilingual AI shopping assistant. "
+            f"You are {self.ai_name}, an {role_description}. "
+            f"Your target market is {self.target_market}. "
             "Language rule: detect the language of the user's latest message and write the entire reply "
             "in that same language, unless the user explicitly asks for another language. "
             "If the user switches languages during the conversation, switch with them. "
             "Do not default to Persian, English, or the store language unless that is the user's current language. "
-            "Adapt your tone to be helpful and professional in that language.\n\n"
+            "Adapt your tone to be highly professional, helpful, and technical in that language.\n\n"
         )
 
     def _format_history(self, chat_history):
@@ -4224,7 +4214,7 @@ class AIAgent:
         request_key = api_key.strip() if api_key else None
         if not request_key and not self.key_manager.keys:
             return _agent_error(
-                "خطای سیستم: کلید API گوگل تنظیم نشده است.",
+                "System Error: Google API key is not configured.",
                 error_code="missing_api_key",
                 status_code=503,
             )
@@ -4337,7 +4327,7 @@ class AIAgent:
                     status_code=503,
                 )
             return _agent_error(
-                "متأسفانه در پردازش اطلاعات فنی مشکلی پیش آمد. لطفاً چند لحظه دیگر امتحان کنید.",
+                "Unfortunately, an error occurred while processing the technical information. Please try again in a few moments.",
                 error_code="ai_api_error",
                 status_code=502,
             )
@@ -4350,7 +4340,6 @@ class AIAgent:
 
 
 ai_agent = AIAgent()
-
 --- END OF ai_agent.py ---
 
 
@@ -4365,68 +4354,200 @@ app = get_asgi_application()
 
 
 --- FILE: assistant_app\utils\deep_crawler.py ---
+import os
+import sys
+import django
+
+# ۱. تعیین مسیر ریشه پروژه
+PROJECT_ROOT = r"C:\AI_Assistant_Project"
+sys.path.append(PROJECT_ROOT)
+
+# ۲. اطمینان از اینکه assistant_app به عنوان یک بسته شناخته می‌شود
+# اگر settings.py شما داخل assistant_app است، باید 'assistant_app.settings' باشد.
+# اگر settings.py در یک زیرپوشه دیگر است، مسیر آن را اینجا دقیق بنویسید.
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'assistant_app.settings')
+
+# ۳. بررسی وجود فایل برای اطمینان از مسیر (دیباگ دستی)
+if not os.path.exists(os.path.join(PROJECT_ROOT, "assistant_app", "settings.py")):
+    print(f"[ERROR] Could not find settings.py at {os.path.join(PROJECT_ROOT, 'assistant_app', 'settings.py')}")
+    print("[HINT] Please check if your settings.py is actually inside 'assistant_app' folder.")
+    sys.exit(1)
+
+django.setup()
 import json
 import os
 import time
 import requests
+import io
+import xml.etree.ElementTree as ET
 from bs4 import BeautifulSoup
+from pypdf import PdfReader
+from urllib.parse import urljoin, urlparse
 
-CATALOG_PATH = "products_catalog.json"
-ENRICHED_CACHE_PATH = "enriched_cache.json"
+# وارد کردن موتور دیتابیس برداری
+try:
+    from assistant_app.utils.vector_handler import RockfordVectorStore
+except ImportError:
+    from .vector_handler import RockfordVectorStore
 
-def scrape_hyper_deep_info(product_url):
+# تنظیم مسیر فایل‌های کش در پوشه data
+DATA_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "data")
+os.makedirs(DATA_DIR, exist_ok=True)
+
+DISCOVERED_URLS_PATH = os.path.join(DATA_DIR, "discovered_urls.json")
+ENRICHED_CACHE_PATH = os.path.join(DATA_DIR, "enriched_cache.json")
+
+def extract_pdf_text_from_url(pdf_url):
+    """دانلود در لحظه و استخراج متن جداول فنی داخل فایل‌های PDF"""
+    headers = {"User-Agent": "RockfordAI-DatasheetParser/3.0"}
+    try:
+        print(f"   [PDF-EXTRACT] Downloading datasheet: {pdf_url}")
+        response = requests.get(pdf_url, headers=headers, timeout=20)
+        if response.status_code != 200:
+            return ""
+            
+        pdf_file = io.BytesIO(response.content)
+        reader = PdfReader(pdf_file)
+        
+        pdf_text = ""
+        for page_num, page in enumerate(reader.pages):
+            page_content = page.extract_text()
+            if page_content:
+                pdf_text += f"\n--- Datasheet Page {page_num+1} ---\n" + page_content
+        return pdf_text.strip()
+    except Exception as e:
+        print(f"   [PDF-ERROR] Failed to parse PDF: {str(e)}")
+        return ""
+
+def auto_discover_urls(base_url):
+    """ربات جستجوگر برای پیدا کردن خودکار تمام لینک‌های سایت راکفورد"""
+    print("[SPIDER] Initiating auto-discovery of site structure...")
+    discovered_urls = set()
+    headers = {"User-Agent": "RockfordAI-Spider/3.0"}
+    
+    # روش اول: استفاده از فید استاندارد و قدرتمند Sitemap XML اپن‌کارت (بهترین و سریع‌ترین راه)
+    xml_sitemaps = [
+        f"{base_url}/sitemap.xml",
+        f"{base_url}/index.php?route=feed/google_sitemap",
+        f"{base_url}/index.php?route=extension/feed/google_sitemap"
+    ]
+    
+    for sitemap in xml_sitemaps:
+        try:
+            response = requests.get(sitemap, headers=headers, timeout=15)
+            if response.status_code == 200 and 'xml' in response.headers.get('Content-Type', '').lower():
+                print(f"[SPIDER] Found active XML sitemap: {sitemap}")
+                root = ET.fromstring(response.content)
+                for loc in root.iter('{http://www.sitemaps.org/schemas/sitemap/0.9}loc'):
+                    if loc.text and base_url in loc.text:
+                        discovered_urls.add(loc.text.strip())
+                if discovered_urls:
+                    print(f"[SPIDER] Extracted {len(discovered_urls)} URLs from XML Sitemap.")
+                    return list(discovered_urls)
+        except Exception:
+            continue
+
+    # روش دوم (جایگزین): استخراج از صفحه HTML سایت‌مپ که در تنظیمات فرستادید
+    print("[SPIDER] XML not found. Falling back to HTML Sitemap parsing...")
+    html_sitemap = f"{base_url}/index.php?route=information/sitemap"
+    try:
+        response = requests.get(html_sitemap, headers=headers, timeout=15)
+        soup = BeautifulSoup(response.text, 'html.parser')
+        for link in soup.find_all('a', href=True):
+            href = link['href']
+            # فقط لینک‌های داخلی سایت خودمان را جمع می‌کنیم
+            if href.startswith(base_url) or href.startswith('/'):
+                full_url = urljoin(base_url, href)
+                discovered_urls.add(full_url)
+    except Exception as e:
+        print(f"[SPIDER-ERROR] Failed to parse HTML sitemap: {e}")
+        
+    print(f"[SPIDER] Extracted {len(discovered_urls)} potential URLs from HTML map.")
+    return list(discovered_urls)
+
+def scrape_hyper_deep_info(url, base_url):
+    """بررسی عمیق یک صفحه وب: تشخیص اینکه آیا کالا است یا خیر و استخراج دیتا"""
     deep_data = {
+        "is_product": False,
+        "product_id": None,
+        "name": "",
+        "brand": "Generic",
         "image_url": "",
         "full_description": "",
         "technical_attributes": {},
-        "brand": "Generic"
+        "datasheet_content": ""
     }
     
+    headers = {"User-Agent": "RockfordAI-DeepCrawler/3.0"}
     try:
-        response = requests.get(product_url, timeout=12)
+        response = requests.get(url, headers=headers, timeout=15)
         if response.status_code != 200:
             return deep_data
             
         soup = BeautifulSoup(response.text, 'html.parser')
         
+        # تشخیص طلایی: در اپن‌کارت تمام صفحات محصول یک input مخفی به نام product_id دارند
+        product_id_input = soup.find('input', {'name': 'product_id'})
+        if not product_id_input:
+            # این صفحه محصول نیست (شاید دسته بندی یا مقاله باشد)، رها کن
+            return deep_data
+            
+        deep_data["is_product"] = True
+        deep_data["product_id"] = product_id_input.get('value')
+        
+        # ۱. نام محصول (معمولاً تگ h1)
+        h1 = soup.find('h1')
+        if h1:
+            deep_data["name"] = h1.get_text(strip=True)
+
+        # ۲. استخراج برند
         brand_link = soup.find('a', href=lambda href: href and 'manufacturer_id' in href)
         if brand_link:
             deep_data["brand"] = brand_link.get_text(strip=True)
         else:
             for li in soup.find_all('li'):
-                text = li.get_text()
-                if "Brand:" in text:
-                    deep_data["brand"] = text.replace("Brand:", "").strip()
+                if "Brand:" in li.get_text():
+                    deep_data["brand"] = li.get_text().replace("Brand:", "").strip()
                     break
         
+        # ۳. استخراج تصویر
         main_img_tag = soup.find('ul', class_='thumbnails') or soup.find('div', class_='image')
         if main_img_tag:
             img_link = main_img_tag.find('a')
             if img_link and img_link.get('href'):
                 deep_data["image_url"] = img_link.get('href')
-        
+                
+        # ۴. توضیحات کامل
         desc_div = soup.find('div', id='tab-description')
         if desc_div:
             deep_data["full_description"] = desc_div.get_text(separator=' ', strip=True)
             
+        # ۵. مشخصات فنی
         spec_div = soup.find('div', id='tab-specification')
-        attributes = {}
         if spec_div:
-            table_rows = spec_div.find_all('tr')
-            for row in table_rows:
+            for row in spec_div.find_all('tr'):
                 tds = row.find_all('td')
                 if len(tds) == 2:
                     key = tds[0].get_text(strip=True)
-                    value = tds[1].get_text(strip=True)
+                    val = tds[1].get_text(strip=True)
                     if key and not key.startswith(':'):
-                        attributes[key] = value
+                        deep_data["technical_attributes"][key] = val
                         
-        deep_data["technical_attributes"] = attributes
-        
-    except requests.RequestException:
-        pass
-    except Exception:
-        pass
+        # ۶. دیتاشیت‌های PDF
+        detected_pdf_texts = []
+        for link in soup.find_all('a', href=True):
+            href = link['href']
+            if href.endswith('.pdf') or 'datasheet' in href.lower():
+                pdf_url = urljoin(base_url, href)
+                pdf_raw_text = extract_pdf_text_from_url(pdf_url)
+                if pdf_raw_text:
+                    detected_pdf_texts.append(f"Source PDF: {pdf_url}\n{pdf_raw_text}")
+                    
+        if detected_pdf_texts:
+            deep_data["datasheet_content"] = "\n\n================\n\n".join(detected_pdf_texts)
+            
+    except Exception as e:
+        print(f"   [SCRAPE-ERROR] Failed to scrape {url}: {e}")
         
     return deep_data
 
@@ -4434,16 +4555,12 @@ def generate_dynamic_sales_angle(product_name, brand, attributes):
     combined_context = f"{product_name} {brand} {list(attributes.keys())}".lower()
     industrial_keywords = ['switch', 'moxa', 'port', 'industrial', 'ethernet', 'serial', 'modbus', 'converter', 'rail']
     
-    specs_summary = ""
-    if attributes:
-        specs_summary = ", ".join([f"{k}: {v}" for k, v in list(attributes.items())[:2]])
-
-    if any(keyword in combined_context for keyword in industrial_keywords):
-        feature_suffix = f" with technical specs [{specs_summary}]" if specs_summary else ""
+    specs_summary = ", ".join([f"{k}: {v}" for k, v in list(attributes.items())[:2]]) if attributes else ""
+    feature_suffix = f" with technical specs [{specs_summary}]" if specs_summary else ""
+    
+    if any(k in combined_context for k in industrial_keywords):
         return f"Industrial grade reliability engineered for harsh environments, ensuring zero packet loss and maximum deployment uptime{feature_suffix}."
-    else:
-        feature_suffix = f" featuring {specs_summary}" if specs_summary else ""
-        return f"High-performance option optimized for seamless productivity, modern UI workflows, and exceptional ecosystem synergy{feature_suffix}."
+    return f"High-performance option optimized for seamless productivity and exceptional ecosystem synergy{feature_suffix}."
 
 def save_atomically(data, path):
     temp_path = f"{path}.tmp"
@@ -4461,63 +4578,102 @@ def load_json(path, default):
     except (FileNotFoundError, json.JSONDecodeError):
         return default
 
-def run_enrichment():
-    catalog = load_json(CATALOG_PATH, [])
-    if not catalog:
+def run_pipeline():
+    base_url = os.getenv("OPENCART_BASE_URL", "https://rockford-qatar.com").rstrip("/")
+    
+    # ---------------------------------------------------------
+    # فاز ۱: اکتشاف لینک‌ها (Spider Discovery)
+    # ---------------------------------------------------------
+    urls_list = load_json(DISCOVERED_URLS_PATH, [])
+    if not urls_list:
+        urls_list = auto_discover_urls(base_url)
+        save_atomically(urls_list, DISCOVERED_URLS_PATH)
+        
+    if not urls_list:
+        print("[ABORT] Spider couldn't find any URLs to crawl. Check site accessibility.")
         return
 
+    # ---------------------------------------------------------
+    # فاز ۲: استخراج عمیق محصولات (Deep Scrape)
+    # ---------------------------------------------------------
     cache = load_json(ENRICHED_CACHE_PATH, {})
-    base_url = os.getenv("OPENCART_BASE_URL", "http://localhost/test-shop").rstrip("/")
-    total_products = len(catalog)
+    total_urls = len(urls_list)
+    print(f"[PIPELINE] Starting deep inspection of {total_urls} URLs...")
     
-    for count, product in enumerate(catalog, 1):
-        p_id = str(product.get("product_id"))
-        
-        if p_id in cache:
-            product.update(cache[p_id])
+    for count, url in enumerate(urls_list, 1):
+        # بررسی می‌کنیم آیا قبلاً این آدرس بررسی و کش شده است؟
+        # از URL به عنوان کلید یکتا برای شناسایی استفاده می‌کنیم
+        url_key = urlparse(url).path + "?" + urlparse(url).query
+        if url_key in cache:
             continue
             
-        if product.get("full_description") and product.get("brand") not in ["Generic", "", None]:
-            cache[p_id] = {
-                "image": product.get("image", ""),
-                "full_description": product.get("full_description"),
-                "attributes": product.get("attributes", {}),
-                "brand": product.get("brand"),
-                "sales_angle": product.get("sales_angle", "")
-            }
-            continue
-
-        product_url = f"{base_url}/index.php?route=product/product&product_id={p_id}"
-        deep_info = scrape_hyper_deep_info(product_url)
+        print(f"[{count}/{total_urls}] Inspecting: {url}")
+        scraped_data = scrape_hyper_deep_info(url, base_url)
         
-        sales_angle = generate_dynamic_sales_angle(
-            product.get("name"), 
-            deep_info["brand"], 
-            deep_info["technical_attributes"]
-        )
-        
-        enriched_data = {
-            "image": deep_info["image_url"],
-            "full_description": deep_info["full_description"],
-            "attributes": deep_info["technical_attributes"],
-            "brand": deep_info["brand"],
-            "sales_angle": sales_angle
-        }
-        
-        product.update(enriched_data)
-        cache[p_id] = enriched_data
-        
-        if count % 5 == 0 or count == total_products:
-            save_atomically(catalog, CATALOG_PATH)
+        # اگر ربات فهمید که این صفحه محصول نیست، آن را با برچسب is_product=False کش می‌کند تا دفعه بعد دوباره سراغش نرود
+        if not scraped_data["is_product"]:
+            cache[url_key] = {"is_product": False}
+        else:
+            # تولید زاویه فروش هوشمند
+            sales_angle = generate_dynamic_sales_angle(
+                scraped_data["name"], scraped_data["brand"], scraped_data["technical_attributes"]
+            )
+            scraped_data["sales_angle"] = sales_angle
+            cache[url_key] = scraped_data
+            print(f"   [SUCCESS] Extracted Product: {scraped_data['name']} (ID: {scraped_data['product_id']})")
+            
+        # ذخیره هر ۱۰ لینک یک‌بار
+        if count % 10 == 0:
             save_atomically(cache, ENRICHED_CACHE_PATH)
             
-        time.sleep(0.2)
+        time.sleep(0.5) # جلوگیری از فشار به سرور راکفورد
         
-    save_atomically(catalog, CATALOG_PATH)
     save_atomically(cache, ENRICHED_CACHE_PATH)
+    print("[SUCCESS] All links processed and products cached.")
+
+    # ---------------------------------------------------------
+    # فاز ۳: تزریق به پایگاه داده برداری (Vector Knowledge Base)
+    # ---------------------------------------------------------
+    print("[VECTOR-PHASE] Initializing Rockford Vector Store connection...")
+    vector_store = RockfordVectorStore()
+    vector_payload = []
+    
+    # فیلتر کردن فقط محصولاتی که موفقیت آمیز ذخیره شده‌اند
+    products = [data for url_key, data in cache.items() if data.get("is_product") == True]
+    
+    for product in products:
+        specs_str = " | ".join([f"{k}: {v}" for k, v in product.get("technical_attributes", {}).items()])
+        
+        combined_knowledge = f"""
+Product Name: {product.get('name')}
+Brand: {product.get('brand')}
+Model ID: {product.get('product_id')}
+Sales Position: {product.get('sales_angle')}
+Description: {product.get('full_description')}
+Technical Specifications: {specs_str}
+        """.strip()
+        
+        product_url = f"{base_url}/index.php?route=product/product&product_id={product.get('product_id')}"
+        
+        vector_payload.append({
+            "source": product_url,
+            "type": "product_page",
+            "content": combined_knowledge
+        })
+        
+        if product.get("datasheet_content"):
+            vector_payload.append({
+                "source": product_url + " (Embedded Datasheet)",
+                "type": "datasheet_pdf",
+                "content": product.get("datasheet_content")
+            })
+            
+    print(f"[VECTOR-PHASE] Injecting {len(vector_payload)} rich sources into Vector Database...")
+    vector_store.inject_knowledge_base(vector_payload)
+    print("[ALL-DONE] Rockford Vector Brain successfully synchronized and fully educated!")
 
 if __name__ == "__main__":
-    run_enrichment()
+    run_pipeline()
 --- END OF deep_crawler.py ---
 
 
@@ -4632,6 +4788,82 @@ if __name__ == "__main__":
     main()
 
 --- END OF test_connection.py ---
+
+
+--- FILE: assistant_app\utils\vector_handler.py ---
+import os
+import chromadb
+from chromadb.utils import embedding_functions
+from django.conf import settings
+
+class RockfordVectorStore:
+    def __init__(self):
+        # تعریف مسیر ذخیره‌سازی محلی دیتابیس برداری در روت پروژه شما
+        self.db_path = os.path.join(settings.BASE_DIR, "rockford_vector_db")
+        
+        # استفاده از تنظیمات کلید پروژه‌تان برای تولید امبدینگ استاندارد
+        self.openai_ef = embedding_functions.OpenAIEmbeddingFunction(
+            api_key=getattr(settings, "OPENAI_API_KEY", ""),
+            model_name="text-embedding-3-small"
+        )
+        
+        # راه‌اندازی کلاینت کروما دی‌بی
+        self.chroma_client = chromadb.PersistentClient(path=self.db_path)
+        self.collection = self.chroma_client.get_or_create_collection(
+            name="rockford_knowledge",
+            embedding_function=self.openai_ef
+        )
+
+    def inject_knowledge_base(self, extracted_data):
+        """دریافت داده‌های کرالر، خرد کردن متون بزرگ و تزریق به دیتابیس برداری"""
+        ids = []
+        documents = []
+        metadatas = []
+        
+        counter = 0
+        for item in extracted_data:
+            content = item["content"]
+            source = item["source"]
+            content_type = item["type"]
+            
+            # خرد کردن متون طولانی (مثل داکیومنت‌ها) به بخش‌های ۱۰۰۰ کاراکتری برای درک دقیق‌تر هوش مصنوعی
+            chunks = [content[i:i+1000] for i in range(0, len(content), 1000)]
+            
+            for idx, chunk in enumerate(chunks):
+                counter += 1
+                ids.append(f"id_{content_type}_{counter}_{idx}")
+                documents.append(chunk)
+                metadatas.append({"source": source, "type": content_type})
+                
+        if documents:
+            # ذخیره‌سازی نهایی در مغز پایدار دیتابیس
+            self.collection.upsert(
+                ids=ids,
+                documents=documents,
+                metadatas=metadatas
+            )
+            print(f"[VECTOR-STORE] Successfully indexed {len(documents)} text chunks into Vector DB.")
+
+    def query_relevant_knowledge(self, user_query, n_results=4):
+        """جستجوی سریع معنایی بر اساس سوال کاربر"""
+        try:
+            results = self.collection.query(
+                query_texts=[user_query],
+                n_results=n_results
+            )
+            
+            # چسباندن بخش‌های یافت شده برای ارسال به پرامپت مغز چت‌بات
+            context_list = []
+            if results and 'documents' in results and results['documents']:
+                for doc_group in results['documents']:
+                    for doc in doc_group:
+                        context_list.append(doc)
+                        
+            return "\n\n---\n\n".join(context_list)
+        except Exception as e:
+            print(f"[VECTOR-QUERY-ERROR] {str(e)}")
+            return ""
+--- END OF vector_handler.py ---
 
 
 --- FILE: legacy\opencart_footer_widget.html ---
@@ -7810,7 +8042,7 @@ from dotenv import load_dotenv
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-# [حل چالش ۶]: استفاده از پکیج استاندارد به جای اختراع چرخ (پارس دقیق و امن)
+# بارگذاری متغیرهای محیطی از فایل .env
 load_dotenv(BASE_DIR / ".env")
 
 SECRET_KEY = os.getenv("DJANGO_SECRET_KEY", "dev-only-secret-key-change-me")
@@ -7843,21 +8075,20 @@ INSTALLED_APPS = [
     "django.contrib.messages",
     "django.contrib.staticfiles",
     "rest_framework",
-    "corsheaders",  # پکیج استاندارد جایگزین شد
+    "corsheaders",
     "assistant_app",
 ]
 
 MIDDLEWARE = [
-    "corsheaders.middleware.CorsMiddleware",  # باید بالاترین حد ممکن باشد
+    "corsheaders.middleware.CorsMiddleware", 
     "django.middleware.security.SecurityMiddleware",
     "whitenoise.middleware.WhiteNoiseMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
-    "django.middleware.common.CommonMiddleware", # تکرار این مورد حذف شد
+    "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
-    # میدل‌ور قدیمی SimpleCorsMiddleware که به صورت دستی نوشته شده بود حذف شد
 ]
 
 ROOT_URLCONF = "shopping_assist.urls"
@@ -7883,13 +8114,11 @@ def database_from_env():
     database_url = os.getenv("DATABASE_URL")
     
     if not database_url:
-        # [حل چالش ۸]: جلوگیری از ایجاد دیتابیس خام در پروداکشن
         if not DEBUG:
             raise ImproperlyConfigured(
                 "CRITICAL ERROR: DATABASE_URL is missing in Production! "
                 "The system cannot fallback to SQLite when DEBUG=False to prevent data loss."
             )
-        # فال‌بک به SQLite فقط برای محیط توسعه (DEBUG=True) مجاز است
         return {
             "ENGINE": "django.db.backends.sqlite3",
             "NAME": os.getenv("SQLITE_PATH", BASE_DIR / "db.sqlite3"),
@@ -7908,15 +8137,14 @@ def database_from_env():
         "PORT": str(parsed.port or ""),
     }
 
-
 DATABASES = {"default": database_from_env()}
 
-LANGUAGE_CODE = "fa-ir"
-TIME_ZONE = "Asia/Tehran"
+# داینامیک‌سازی زبان و منطقه زمانی برای پشتیبانی از پروژه‌های بین‌المللی (مانند قطر)
+LANGUAGE_CODE = os.getenv("DJANGO_LANGUAGE_CODE", "en-us")
+TIME_ZONE = os.getenv("DJANGO_TIME_ZONE", "Asia/Qatar")
 USE_I18N = True
 USE_TZ = True
 
-# [حل چالش ۷]: اسلش در ابتدای مسیر فایل‌های استاتیک برای جلوگیری از خطای ۴۰۴ در ساب‌دایرکتوری‌ها
 STATIC_URL = "/static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
@@ -7931,8 +8159,7 @@ REST_FRAMEWORK = {
     ],
 }
 
-# ----------------- تنظیمات اختصاصی پروژه و هوش مصنوعی -----------------
-
+# ----------------- تنظیمات اختصاصی هوش مصنوعی و اپن‌کارت -----------------
 GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
 CHAT_MEMORY_LIMIT = int(os.getenv("CHAT_MEMORY_LIMIT", "20"))
 AI_ASSISTANT_SYNC_TOKEN = os.getenv("AI_ASSISTANT_SYNC_TOKEN", "")
@@ -7948,18 +8175,37 @@ OPENCART_CATALOG_URL = os.getenv("OPENCART_CATALOG_URL", "")
 OPENCART_SYNC_TOKEN = os.getenv("OPENCART_SYNC_TOKEN", AI_ASSISTANT_SYNC_TOKEN)
 OPENCART_TIMEOUT = float(os.getenv("OPENCART_TIMEOUT", "15"))
 
+# ----------------- تنظیمات هویتی و بیزینسی چت‌بات (پروژه‌محور) -----------------
+STORE_BRAND = os.getenv("STORE_BRAND", "Rockford Qatar")
+AI_ASSISTANT_NAME = os.getenv("AI_ASSISTANT_NAME", "Technical Support Engineer")
+BUSINESS_MODEL = os.getenv("BUSINESS_MODEL", "B2B_INQUIRY") # می‌تواند B2B_INQUIRY یا B2C_CART باشد
+TARGET_MARKET = os.getenv("TARGET_MARKET", "Qatar and Middle East")
+
+# تعریف مقادیر پیش‌فرض قدرتمند برای سایت‌های مهندسی
+_DEFAULT_BRANDS = "MOXA, WESTERMO, BEIJER, PROXIM, COHU, VIDEOTEC, SIEMENS RUGGEDCOM, SIEMENS SCALANCE, BRIDGEWAVE"
+COMPANY_BRANDS = env_csv("COMPANY_BRANDS", _DEFAULT_BRANDS)
+
+_DEFAULT_INDUSTRIES = "Oil & Gas, Power/Utility, Transportation Rail/Road, Infrastructure, Water/Wastewater, Automation, IP Surveillance, Manufacturing, Marine"
+COMPANY_INDUSTRIES = env_csv("COMPANY_INDUSTRIES", _DEFAULT_INDUSTRIES)
+
+_DEFAULT_SERVICES = "Advisory & Consulting, Pre-Sales Support, Network Design, Training"
+COMPANY_SERVICES = env_csv("COMPANY_SERVICES", _DEFAULT_SERVICES)
+
+# ----------------- تنظیمات مارکتینگ و سیستم ترکینگ (GA4 & GTM) -----------------
+GA4_MEASUREMENT_ID = os.getenv("GA4_MEASUREMENT_ID", "")
+GTM_CONTAINER_ID = os.getenv("GTM_CONTAINER_ID", "")
+
 # ----------------- تنظیمات CORS (ایمن و استاندارد) -----------------
 CORS_ALLOW_ALL_ORIGINS = env_bool("AI_ASSISTANT_CORS_ALLOW_ALL", False)
 CORS_ALLOWED_ORIGINS = env_csv(
     "AI_ASSISTANT_ALLOWED_ORIGINS",
-    "http://localhost,http://127.0.0.1,http://localhost:3000,http://127.0.0.1:3000",
+    "http://localhost,http://127.0.0.1,http://localhost:3000,http://127.0.0.1:3000,https://rockford-qatar.com",
 )
 
 CORS_ALLOW_HEADERS = list(default_headers) + [
     "x-ai-assistant-token",
 ]
 CORS_MAX_AGE = 86400
-
 --- END OF settings.py ---
 
 
