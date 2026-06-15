@@ -125,6 +125,32 @@
       </div>
     </div>
 
+    <div class="card mb-4">
+      <div class="card-header d-flex align-items-center justify-content-between">
+        <span><i class="fa-solid fa-database"></i> {{ text_knowledge }}</span>
+        <span class="badge bg-primary">{{ text_knowledge_count|format(knowledge_count) }}</span>
+      </div>
+      <div class="card-body">
+        <form id="form-knowledge" enctype="multipart/form-data">
+          <div class="row align-items-end">
+            <div class="col-lg-9">
+              <label for="input-knowledge-file" class="form-label">{{ entry_knowledge_file }}</label>
+              <input type="file" name="knowledge_file" accept=".json,application/json" id="input-knowledge-file" class="form-control"/>
+              <div class="form-text">{{ help_knowledge_file }}</div>
+            </div>
+            <div class="col-lg-3 mt-3 mt-lg-0 d-flex gap-2">
+              <button type="button" id="button-import-knowledge" data-url="{{ import_knowledge }}" class="btn btn-primary flex-fill">
+                <i class="fa-solid fa-file-import"></i> {{ button_import_knowledge }}
+              </button>
+              <button type="button" id="button-clear-knowledge" data-url="{{ clear_knowledge }}" class="btn btn-outline-danger">
+                <i class="fa-solid fa-trash"></i>
+              </button>
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
+
     <div class="card">
       <div class="card-header d-flex align-items-center justify-content-between">
         <span><i class="fa-solid fa-comments"></i> {{ text_logs }}</span>
@@ -167,6 +193,61 @@
   </div>
 </div>
 <script>
+function aiShoppingAssistShowMessage(payload) {
+  var message = payload.error || payload.success || '';
+
+  if (!message) {
+    window.location.reload();
+    return;
+  }
+
+  var type = payload.error ? 'danger' : 'success';
+  var alert = document.createElement('div');
+  alert.className = 'alert alert-' + type + ' alert-dismissible';
+  alert.innerHTML = '<i class="fa-solid fa-circle-exclamation"></i> ' + message
+    + '<button type="button" class="btn-close" data-bs-dismiss="alert"></button>';
+  document.querySelector('#content > .container-fluid').prepend(alert);
+
+  if (!payload.error) {
+    window.setTimeout(function () { window.location.reload(); }, 700);
+  }
+}
+
+var aiShoppingAssistImportButton = document.getElementById('button-import-knowledge');
+
+if (aiShoppingAssistImportButton) {
+  aiShoppingAssistImportButton.addEventListener('click', function () {
+    var form = document.getElementById('form-knowledge');
+    var button = this;
+    button.disabled = true;
+
+    fetch(button.dataset.url, {
+      method: 'POST',
+      credentials: 'same-origin',
+      body: new FormData(form)
+    })
+      .then(function (response) { return response.json(); })
+      .then(aiShoppingAssistShowMessage)
+      .catch(function () { aiShoppingAssistShowMessage({ error: '{{ error_knowledge_import|e('js') }}' }); })
+      .finally(function () { button.disabled = false; });
+  });
+}
+
+var aiShoppingAssistClearKnowledgeButton = document.getElementById('button-clear-knowledge');
+
+if (aiShoppingAssistClearKnowledgeButton) {
+  aiShoppingAssistClearKnowledgeButton.addEventListener('click', function () {
+    if (!confirm('{{ text_clear_knowledge|e('js') }}?')) {
+      return;
+    }
+
+    fetch(this.dataset.url, { method: 'POST', credentials: 'same-origin' })
+      .then(function (response) { return response.json(); })
+      .then(aiShoppingAssistShowMessage)
+      .catch(function () { aiShoppingAssistShowMessage({ error: '{{ error_knowledge_import|e('js') }}' }); });
+  });
+}
+
 var aiShoppingAssistClearButton = document.getElementById('button-clear-logs');
 
 if (aiShoppingAssistClearButton) {

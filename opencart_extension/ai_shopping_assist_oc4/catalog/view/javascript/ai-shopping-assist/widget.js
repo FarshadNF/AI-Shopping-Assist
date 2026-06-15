@@ -5,8 +5,7 @@
       window.__AI_SHOPPING_ASSIST_LOADED__ = true;
 
       this.defaults = {
-        apiBase: '',
-        chatRoute: '',
+        chatRoute: 'index.php?route=extension/ai_shopping_assist/module/ai_shopping_assist.chat',
         cartRoute: 'index.php?route=checkout/cart',
         productRoute: 'index.php?route=product/product',
         searchRoute: 'index.php?route=product/search',
@@ -44,7 +43,6 @@
       };
 
       this.config = Object.assign({}, this.defaults, customConfig || {});
-      this.config.apiBase = String(this.config.apiBase || '').replace(/\/+$/, '');
 
       this.storagePrefix = 'ai-shopping-assist:' + location.origin;
       this.keys = {
@@ -211,7 +209,7 @@
         return this.buildShopUrl(this.config.chatRoute).toString();
       }
 
-      return this.config.apiBase + '/api/chat/';
+      return this.buildShopUrl('index.php?route=extension/ai_shopping_assist/module/ai_shopping_assist.chat').toString();
     }
 
     initializeConversations() {

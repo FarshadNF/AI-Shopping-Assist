@@ -10,6 +10,11 @@ $_['text_logs'] = 'Recent chat logs';
 $_['text_no_logs'] = 'No chat logs yet.';
 $_['text_clear_logs'] = 'Clear logs';
 $_['text_export_excel'] = 'Export Excel';
+$_['text_knowledge'] = 'Local knowledge base';
+$_['text_knowledge_count'] = '%d records';
+$_['text_knowledge_imported'] = 'Success: %d local knowledge records were imported.';
+$_['text_knowledge_cleared'] = 'The local knowledge base was cleared.';
+$_['text_clear_knowledge'] = 'Clear local knowledge';
 
 $_['entry_status'] = 'Status';
 $_['entry_gemini_api_key'] = 'Gemini API keys';
@@ -24,12 +29,16 @@ $_['entry_lead_webhook_secret'] = 'Lead webhook secret';
 $_['entry_footer_injection'] = 'Auto-inject widget';
 $_['entry_widget_title'] = 'Widget title';
 $_['entry_widget_button'] = 'Button text';
+$_['entry_knowledge_file'] = 'Knowledge JSON file';
 
 $_['help_gemini_api_key'] = 'Add one or more Google AI Studio keys separated by commas. OpenCart tries the next key if one fails or is rate-limited. Keys are used server-side and never exposed to the browser.';
 $_['help_catalog_limit'] = 'Maximum products sent to Gemini in each prompt. Keep this moderate for speed and token cost.';
 $_['help_catalog_token'] = 'Optional. If set, catalog JSON requests must include X-AI-Assistant-Token.';
 $_['help_lead_webhook_url'] = 'Optional. Paste the Google Apps Script Web App URL. Bulk lead forms will be sent to this URL as JSON.';
 $_['help_lead_webhook_secret'] = 'Optional shared secret. If set here, use the same value in Apps Script to reject unknown requests.';
+$_['help_knowledge_file'] = 'Import enriched_cache.json or a compatible object. Product descriptions, technical attributes, and datasheet_content are stored in OpenCart MySQL and searched locally by PHP.';
+
+$_['button_import_knowledge'] = 'Import JSON';
 
 $_['column_date'] = 'Date';
 $_['column_log_id'] = 'Log ID';
@@ -43,3 +52,8 @@ $_['column_user_agent'] = 'User agent';
 
 $_['error_permission'] = 'Warning: You do not have permission to modify AI Shopping Assist!';
 $_['error_gemini_api_key'] = 'At least one Gemini API key is required when the module is enabled.';
+$_['error_knowledge_file'] = 'Choose a JSON knowledge file to import.';
+$_['error_knowledge_size'] = 'The knowledge file must be 25 MB or smaller.';
+$_['error_knowledge_json'] = 'The selected file is not valid JSON.';
+$_['error_knowledge_empty'] = 'No usable product knowledge was found in the JSON file.';
+$_['error_knowledge_import'] = 'The local knowledge operation failed. Check the OpenCart error log.';
