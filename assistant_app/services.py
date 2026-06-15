@@ -879,6 +879,11 @@ def get_relevant_catalog(user_message, top_k=5):
     
     for product in full_catalog:
         p_name = product.get('name', '')
+        # فیلتر سریع: اگر حداقل یکی از کلمات کلیدی پیام کاربر در اسم محصول یا برعکس نبود، از پردازش Fuzzy رد شو
+        user_words = set(normalized_message.split())
+        product_words = set(normalized_name.split())
+        if not user_words.intersection(product_words) and len(normalized_message) > 3:
+            continue # پرش از پردازش سنگین فازی
         score = fuzz.token_set_ratio(user_message, p_name)
         
         normalized_name = normalize_part_number(p_name)

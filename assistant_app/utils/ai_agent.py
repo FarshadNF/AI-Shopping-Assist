@@ -172,19 +172,8 @@ def _is_retryable_ai_error(error):
     return any(
         marker in error_msg
         for marker in (
-            "429",
-            "500",
-            "502",
-            "503",
-            "504",
-            "deadline",
-            "exhausted",
-            "high demand",
-            "quota",
-            "temporarily",
-            "timeout",
-            "try again later",
-            "unavailable",
+            "429", "500", "502", "503", "504", "deadline", "exhausted",
+            "high demand", "quota", "temporarily", "timeout", "try again later", "unavailable",
         )
     )
 
@@ -194,19 +183,8 @@ def _is_retryable_key_error(error):
     return any(
         marker in error_msg
         for marker in (
-            "429",
-            "500",
-            "502",
-            "503",
-            "504",
-            "deadline",
-            "exhausted",
-            "high demand",
-            "quota",
-            "temporarily",
-            "timeout",
-            "try again later",
-            "unavailable",
+            "429", "500", "502", "503", "504", "deadline", "exhausted",
+            "high demand", "quota", "temporarily", "timeout", "try again later", "unavailable",
         )
     )
 
@@ -220,11 +198,7 @@ def _is_high_demand_error(error):
     return any(
         marker in error_msg
         for marker in (
-            "503",
-            "high demand",
-            "temporarily",
-            "try again later",
-            "unavailable",
+            "503", "high demand", "temporarily", "try again later", "unavailable",
         )
     )
 
@@ -234,11 +208,7 @@ def _is_permission_error(error):
     return any(
         marker in error_msg
         for marker in (
-            "403",
-            "api_key_invalid",
-            "denied access",
-            "forbidden",
-            "permission_denied",
+            "403", "api_key_invalid", "denied access", "forbidden", "permission_denied",
         )
     )
 
@@ -275,15 +245,15 @@ def _response_text(response):
             return ""
         raise
 
-
+# [ارتقا]: تغییر پیام‌های خطا به انگلیسی برای سازگاری با بازارهای بین‌المللی و B2B
 def _ai_unavailable_message():
-    return "در حال حاضر اتصال مدل کمی شلوغ شده است. لطفاً چند لحظه دیگر دوباره پیام بدهید."
+    return "The system is currently experiencing high demand. Please try sending your message again in a few moments."
 
 
 def _permission_message():
     return (
-        "خطای تنظیمات: کلید Gemini فعلی یا پروژه متصل به آن توسط Google رد شد. "
-        "در Google AI Studio یک کلید فعال بسازید و مطمئن شوید کلید برای Gemini API مجاز است."
+        "Configuration Error: The Gemini API key was rejected. "
+        "Please check your Google AI Studio project settings and ensure the key is active."
     )
 
 
@@ -296,16 +266,31 @@ class AIAgent:
         for candidate in [self.model_name, *fallback_models]:
             if candidate and candidate not in self.model_candidates:
                 self.model_candidates.append(candidate)
+        
         self.retry_attempts = _int_env("GEMINI_RETRY_ATTEMPTS", 2)
         self.retry_base_delay = _float_env("GEMINI_RETRY_BASE_DELAY", 1.0)
         self.retry_max_delay = _float_env("GEMINI_RETRY_MAX_DELAY", 6.0)
+
+        # [ارتقا]: خواندن متغیرهای هویتی از تنظیمات محیطی برای داینامیک شدن کامل رفتار
+        self.store_brand = os.getenv("STORE_BRAND", "Our Company")
+        self.ai_name = os.getenv("AI_ASSISTANT_NAME", "AI Assistant")
+        self.business_model = os.getenv("BUSINESS_MODEL", "B2C_CART")
+        self.target_market = os.getenv("TARGET_MARKET", "International")
+
+        # تعیین نقش داینامیک بر اساس نوع بیزینس (فروشگاهی یا مهندسی/B2B)
+        if self.business_model == "B2B_INQUIRY":
+            role_description = f"Pre-Sales Technical Engineer and Consultant for {self.store_brand}"
+        else:
+            role_description = f"advanced AI shopping assistant for {self.store_brand}"
+
         self.base_instruction = (
-            "You are an advanced, multilingual AI shopping assistant. "
+            f"You are {self.ai_name}, an {role_description}. "
+            f"Your target market is {self.target_market}. "
             "Language rule: detect the language of the user's latest message and write the entire reply "
             "in that same language, unless the user explicitly asks for another language. "
             "If the user switches languages during the conversation, switch with them. "
             "Do not default to Persian, English, or the store language unless that is the user's current language. "
-            "Adapt your tone to be helpful and professional in that language.\n\n"
+            "Adapt your tone to be highly professional, helpful, and technical in that language.\n\n"
         )
 
     def _format_history(self, chat_history):
@@ -350,7 +335,7 @@ class AIAgent:
         request_key = api_key.strip() if api_key else None
         if not request_key and not self.key_manager.keys:
             return _agent_error(
-                "خطای سیستم: کلید API گوگل تنظیم نشده است.",
+                "System Error: Google API key is not configured.",
                 error_code="missing_api_key",
                 status_code=503,
             )
@@ -463,7 +448,7 @@ class AIAgent:
                     status_code=503,
                 )
             return _agent_error(
-                "متأسفانه در پردازش اطلاعات فنی مشکلی پیش آمد. لطفاً چند لحظه دیگر امتحان کنید.",
+                "Unfortunately, an error occurred while processing the technical information. Please try again in a few moments.",
                 error_code="ai_api_error",
                 status_code=502,
             )

@@ -7,7 +7,7 @@ from dotenv import load_dotenv
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-# [حل چالش ۶]: استفاده از پکیج استاندارد به جای اختراع چرخ (پارس دقیق و امن)
+# بارگذاری متغیرهای محیطی از فایل .env
 load_dotenv(BASE_DIR / ".env")
 
 SECRET_KEY = os.getenv("DJANGO_SECRET_KEY", "dev-only-secret-key-change-me")
@@ -40,21 +40,20 @@ INSTALLED_APPS = [
     "django.contrib.messages",
     "django.contrib.staticfiles",
     "rest_framework",
-    "corsheaders",  # پکیج استاندارد جایگزین شد
+    "corsheaders",
     "assistant_app",
 ]
 
 MIDDLEWARE = [
-    "corsheaders.middleware.CorsMiddleware",  # باید بالاترین حد ممکن باشد
+    "corsheaders.middleware.CorsMiddleware", 
     "django.middleware.security.SecurityMiddleware",
     "whitenoise.middleware.WhiteNoiseMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
-    "django.middleware.common.CommonMiddleware", # تکرار این مورد حذف شد
+    "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
-    # میدل‌ور قدیمی SimpleCorsMiddleware که به صورت دستی نوشته شده بود حذف شد
 ]
 
 ROOT_URLCONF = "shopping_assist.urls"
@@ -80,13 +79,11 @@ def database_from_env():
     database_url = os.getenv("DATABASE_URL")
     
     if not database_url:
-        # [حل چالش ۸]: جلوگیری از ایجاد دیتابیس خام در پروداکشن
         if not DEBUG:
             raise ImproperlyConfigured(
                 "CRITICAL ERROR: DATABASE_URL is missing in Production! "
                 "The system cannot fallback to SQLite when DEBUG=False to prevent data loss."
             )
-        # فال‌بک به SQLite فقط برای محیط توسعه (DEBUG=True) مجاز است
         return {
             "ENGINE": "django.db.backends.sqlite3",
             "NAME": os.getenv("SQLITE_PATH", BASE_DIR / "db.sqlite3"),
@@ -105,15 +102,14 @@ def database_from_env():
         "PORT": str(parsed.port or ""),
     }
 
-
 DATABASES = {"default": database_from_env()}
 
-LANGUAGE_CODE = "fa-ir"
-TIME_ZONE = "Asia/Tehran"
+# داینامیک‌سازی زبان و منطقه زمانی برای پشتیبانی از پروژه‌های بین‌المللی (مانند قطر)
+LANGUAGE_CODE = os.getenv("DJANGO_LANGUAGE_CODE", "en-us")
+TIME_ZONE = os.getenv("DJANGO_TIME_ZONE", "Asia/Qatar")
 USE_I18N = True
 USE_TZ = True
 
-# [حل چالش ۷]: اسلش در ابتدای مسیر فایل‌های استاتیک برای جلوگیری از خطای ۴۰۴ در ساب‌دایرکتوری‌ها
 STATIC_URL = "/static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
@@ -128,8 +124,7 @@ REST_FRAMEWORK = {
     ],
 }
 
-# ----------------- تنظیمات اختصاصی پروژه و هوش مصنوعی -----------------
-
+# ----------------- تنظیمات اختصاصی هوش مصنوعی و اپن‌کارت -----------------
 GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
 CHAT_MEMORY_LIMIT = int(os.getenv("CHAT_MEMORY_LIMIT", "20"))
 AI_ASSISTANT_SYNC_TOKEN = os.getenv("AI_ASSISTANT_SYNC_TOKEN", "")
@@ -145,11 +140,31 @@ OPENCART_CATALOG_URL = os.getenv("OPENCART_CATALOG_URL", "")
 OPENCART_SYNC_TOKEN = os.getenv("OPENCART_SYNC_TOKEN", AI_ASSISTANT_SYNC_TOKEN)
 OPENCART_TIMEOUT = float(os.getenv("OPENCART_TIMEOUT", "15"))
 
+# ----------------- تنظیمات هویتی و بیزینسی چت‌بات (پروژه‌محور) -----------------
+STORE_BRAND = os.getenv("STORE_BRAND", "Rockford Qatar")
+AI_ASSISTANT_NAME = os.getenv("AI_ASSISTANT_NAME", "Technical Support Engineer")
+BUSINESS_MODEL = os.getenv("BUSINESS_MODEL", "B2B_INQUIRY") # می‌تواند B2B_INQUIRY یا B2C_CART باشد
+TARGET_MARKET = os.getenv("TARGET_MARKET", "Qatar and Middle East")
+
+# تعریف مقادیر پیش‌فرض قدرتمند برای سایت‌های مهندسی
+_DEFAULT_BRANDS = "MOXA, WESTERMO, BEIJER, PROXIM, COHU, VIDEOTEC, SIEMENS RUGGEDCOM, SIEMENS SCALANCE, BRIDGEWAVE"
+COMPANY_BRANDS = env_csv("COMPANY_BRANDS", _DEFAULT_BRANDS)
+
+_DEFAULT_INDUSTRIES = "Oil & Gas, Power/Utility, Transportation Rail/Road, Infrastructure, Water/Wastewater, Automation, IP Surveillance, Manufacturing, Marine"
+COMPANY_INDUSTRIES = env_csv("COMPANY_INDUSTRIES", _DEFAULT_INDUSTRIES)
+
+_DEFAULT_SERVICES = "Advisory & Consulting, Pre-Sales Support, Network Design, Training"
+COMPANY_SERVICES = env_csv("COMPANY_SERVICES", _DEFAULT_SERVICES)
+
+# ----------------- تنظیمات مارکتینگ و سیستم ترکینگ (GA4 & GTM) -----------------
+GA4_MEASUREMENT_ID = os.getenv("GA4_MEASUREMENT_ID", "")
+GTM_CONTAINER_ID = os.getenv("GTM_CONTAINER_ID", "")
+
 # ----------------- تنظیمات CORS (ایمن و استاندارد) -----------------
 CORS_ALLOW_ALL_ORIGINS = env_bool("AI_ASSISTANT_CORS_ALLOW_ALL", False)
 CORS_ALLOWED_ORIGINS = env_csv(
     "AI_ASSISTANT_ALLOWED_ORIGINS",
-    "http://localhost,http://127.0.0.1,http://localhost:3000,http://127.0.0.1:3000",
+    "http://localhost,http://127.0.0.1,http://localhost:3000,http://127.0.0.1:3000,https://rockford-qatar.com",
 )
 
 CORS_ALLOW_HEADERS = list(default_headers) + [
