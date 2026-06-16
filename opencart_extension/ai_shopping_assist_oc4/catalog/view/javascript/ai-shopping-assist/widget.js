@@ -14,14 +14,14 @@
         checkoutRoute: 'index.php?route=checkout/checkout',
         couponRoute: 'index.php?route=extension/opencart/total/coupon.save',
         invoiceRoute: 'index.php?route=extension/ai_shopping_assist/module/ai_shopping_assist.sendInvoice',
-        title: 'ROKO',
-        buttonText: 'Ask ROKO',
+        title: 'MANU',
+        buttonText: 'Ask MANU',
         avatarUrl: '',
         iconUrl: '',
         redirectDelayMs: 700,
         maxHistoryMessages: 80,
         maxConversations: 30,
-        welcomeMessage: "Hi, I'm ROKO. Tell me what you need and I'll help you find the right product.",
+        welcomeMessage: "Hi, I'm MANU. Tell me what you need and I'll help you find the right product.",
         starterSuggestions: [
           {
             title: 'Product Specifications',
@@ -104,7 +104,7 @@
           <div class="aisa-messages"></div>
           <form class="aisa-form">
             <div class="aisa-input-wrap">
-              <textarea class="aisa-input" rows="1" autocomplete="off" placeholder="Ask ROKO about products..." required></textarea>
+              <textarea class="aisa-input" rows="1" autocomplete="off" placeholder="Ask MANU about products..." required></textarea>
               <span class="aisa-input-hint">Shift + Enter for a new line</span>
             </div>
             <button class="aisa-send" type="submit" aria-label="Send message">
@@ -117,7 +117,7 @@
             <img class="aisa-toggle-avatar" alt="" hidden />
           </span>
           <span class="aisa-toggle-copy">
-            <strong>ROKO</strong>
+            <strong>MANU</strong>
             <small>Product assistant</small>
           </span>
           <span class="aisa-toggle-arrow" aria-hidden="true">
@@ -894,7 +894,7 @@
 
     async askAssistant(message) {
       this.sendBtn.disabled = true;
-      this.setStatus('ROKO is thinking');
+      this.setStatus('MANU is thinking');
 
       try {
         const body = {

@@ -1008,7 +1008,7 @@ def build_system_instruction(user_message):
     vector_knowledge = get_vector_knowledge(user_message)
     vector_context = vector_knowledge or "No additional Vector Brain context was found."
     
-    assistant_name = getattr(settings, 'AI_ASSISTANT_NAME', 'پشتیبان هوشمند')
+    assistant_name = getattr(settings, 'AI_ASSISTANT_NAME', 'MANU')
     store_brand = getattr(settings, 'STORE_BRAND', 'فروشگاه ما')
     
     return f"""

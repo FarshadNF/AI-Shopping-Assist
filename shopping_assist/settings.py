@@ -168,7 +168,7 @@ OPENCART_TIMEOUT = float(os.getenv("OPENCART_TIMEOUT", "15"))
 
 # ----------------- تنظیمات هویتی و بیزینسی چت‌بات (پروژه‌محور) -----------------
 STORE_BRAND = os.getenv("STORE_BRAND", "Rockford Qatar")
-AI_ASSISTANT_NAME = os.getenv("AI_ASSISTANT_NAME", "Technical Support Engineer")
+AI_ASSISTANT_NAME = os.getenv("AI_ASSISTANT_NAME", "MANU")
 BUSINESS_MODEL = os.getenv("BUSINESS_MODEL", "B2B_INQUIRY") # می‌تواند B2B_INQUIRY یا B2C_CART باشد
 TARGET_MARKET = os.getenv("TARGET_MARKET", "Qatar and Middle East")
 

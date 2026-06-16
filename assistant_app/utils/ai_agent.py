@@ -273,7 +273,7 @@ class AIAgent:
 
         # [ارتقا]: خواندن متغیرهای هویتی از تنظیمات محیطی برای داینامیک شدن کامل رفتار
         self.store_brand = os.getenv("STORE_BRAND", "Our Company")
-        self.ai_name = os.getenv("AI_ASSISTANT_NAME", "AI Assistant")
+        self.ai_name = os.getenv("AI_ASSISTANT_NAME", "MANU")
         self.business_model = os.getenv("BUSINESS_MODEL", "B2C_CART")
         self.target_market = os.getenv("TARGET_MARKET", "International")
 
