@@ -2,7 +2,7 @@
 namespace Opencart\Catalog\Controller\Extension\AiShoppingAssist\Module;
 
 class AiShoppingAssist extends \Opencart\System\Engine\Controller {
-	private const VERSION = '3.3.0';
+	private const VERSION = '3.4.0';
 	private const MARKER = '<!-- AI_SHOPPING_ASSIST_WIDGET -->';
 	private const DEFAULT_LEAD_WEBHOOK_URL = 'https://script.google.com/macros/s/AKfycbwV1zaw6C3iKdWVaK-gN8hyAzvW8_RygWTp9Q2ggjYUWcAftM2c7ipOIM5l6UowTsCS/exec';
 	private const DEFAULT_LEAD_WEBHOOK_SECRET = 'f8c9d2a7e1b4c6f9a3d8e7b2c5f1a9d4';
@@ -24,12 +24,12 @@ class AiShoppingAssist extends \Opencart\System\Engine\Controller {
 		$widget_title = (string)$this->config->get('module_ai_shopping_assist_widget_title');
 		$widget_button = (string)$this->config->get('module_ai_shopping_assist_widget_button');
 
-		if ($widget_title === '' || $widget_title === 'دستیار هوشمند خرید') {
-			$widget_title = 'Rockford Assistant';
+		if ($widget_title === '' || $widget_title === 'دستیار هوشمند خرید' || $widget_title === 'Rockford Assistant') {
+			$widget_title = 'ROKO';
 		}
 
-		if ($widget_button === '' || $widget_button === 'دستیار خرید') {
-			$widget_button = 'Chat';
+		if ($widget_button === '' || $widget_button === 'دستیار خرید' || $widget_button === 'Chat') {
+			$widget_button = 'Ask ROKO';
 		}
 
 		$config = [
@@ -45,8 +45,8 @@ class AiShoppingAssist extends \Opencart\System\Engine\Controller {
 			'invoiceRoute' => 'index.php?route=extension/ai_shopping_assist/module/ai_shopping_assist.sendInvoice',
 			'title' => $widget_title,
 			'buttonText' => $widget_button,
-			'avatarUrl' => $asset_base . 'rockford-mas.png?v=' . self::VERSION,
-			'iconUrl' => $asset_base . 'rockford-icon.png?v=' . self::VERSION,
+			'avatarUrl' => $asset_base . 'roko-character.png?v=' . self::VERSION,
+			'iconUrl' => $asset_base . 'roko-character.png?v=' . self::VERSION,
 			'redirectDelayMs' => 700
 		];
 
@@ -374,7 +374,11 @@ class AiShoppingAssist extends \Opencart\System\Engine\Controller {
 
 	private function buildGeminiPrompt(string $message, string $conversation_id): string {
 		$brand = (string)($this->config->get('module_ai_shopping_assist_store_brand') ?: $this->config->get('config_name'));
-		$assistant_name = (string)($this->config->get('module_ai_shopping_assist_assistant_name') ?: 'Rockford Assistant');
+		$assistant_name = (string)($this->config->get('module_ai_shopping_assist_assistant_name') ?: 'ROKO');
+
+		if ($assistant_name === 'Rockford Assistant') {
+			$assistant_name = 'ROKO';
+		}
 		$catalog = $this->getPromptCatalog($message);
 		$knowledge = $this->getLocalKnowledge($message);
 		$navigation = $this->getNavigationPromptCatalog();
