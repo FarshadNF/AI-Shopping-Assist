@@ -2,7 +2,7 @@
 namespace Opencart\Catalog\Controller\Extension\AiShoppingAssist\Module;
 
 class AiShoppingAssist extends \Opencart\System\Engine\Controller {
-	private const VERSION = '3.4.2';
+	private const VERSION = '3.4.4';
 	private const MARKER = '<!-- AI_SHOPPING_ASSIST_WIDGET -->';
 	private const DEFAULT_LEAD_WEBHOOK_URL = 'https://script.google.com/macros/s/AKfycbwV1zaw6C3iKdWVaK-gN8hyAzvW8_RygWTp9Q2ggjYUWcAftM2c7ipOIM5l6UowTsCS/exec';
 	private const DEFAULT_LEAD_WEBHOOK_SECRET = 'f8c9d2a7e1b4c6f9a3d8e7b2c5f1a9d4';

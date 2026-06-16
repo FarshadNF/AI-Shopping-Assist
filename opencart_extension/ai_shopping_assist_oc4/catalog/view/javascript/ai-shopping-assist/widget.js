@@ -77,7 +77,7 @@
                 <img class="aisa-avatar" alt="" hidden />
               </span>
               <div class="aisa-identity">
-                <span class="aisa-kicker">YOUR PRODUCT EXPERT</span>
+                <span class="aisa-kicker">LIVE SALES CONSOLE</span>
                 <div class="aisa-title"></div>
                 <span class="aisa-status"><i></i><span>Online and ready</span></span>
               </div>
@@ -104,8 +104,8 @@
           <div class="aisa-messages"></div>
           <form class="aisa-form">
             <div class="aisa-input-wrap">
-              <textarea class="aisa-input" rows="1" autocomplete="off" placeholder="Ask MANU about products..." required></textarea>
-              <span class="aisa-input-hint">Shift + Enter for a new line</span>
+              <textarea class="aisa-input" rows="1" autocomplete="off" placeholder="Ask MANU..." required></textarea>
+              <span class="aisa-input-hint" aria-hidden="true"></span>
             </div>
             <button class="aisa-send" type="submit" aria-label="Send message">
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m4 4 16 8-16 8 3-8-3-8Zm3 8h13"/></svg>
@@ -118,7 +118,7 @@
           </span>
           <span class="aisa-toggle-copy">
             <strong>MANU</strong>
-            <small>Product assistant</small>
+            <small>Live product desk</small>
           </span>
           <span class="aisa-toggle-arrow" aria-hidden="true">
             <svg viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></svg>
