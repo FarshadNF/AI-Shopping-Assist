@@ -1,0 +1,292 @@
+{{ header }}{{ column_left }}
+<div id="content">
+  <div class="page-header">
+    <div class="container-fluid">
+      <div class="pull-right">
+        <button type="button" id="button-save" data-toggle="tooltip" title="{{ button_save }}" class="btn btn-primary"><i class="fa fa-save"></i></button>
+        <a href="{{ back }}" data-toggle="tooltip" title="{{ button_back }}" class="btn btn-default"><i class="fa fa-reply"></i></a>
+      </div>
+      <h1>{{ heading_title }}</h1>
+      <ul class="breadcrumb">
+        {% for breadcrumb in breadcrumbs %}
+          <li><a href="{{ breadcrumb.href }}">{{ breadcrumb.text }}</a></li>
+        {% endfor %}
+      </ul>
+    </div>
+  </div>
+
+  <div class="container-fluid">
+    <div class="panel panel-default">
+      <div class="panel-heading">
+        <h3 class="panel-title"><i class="fa fa-magic"></i> {{ text_edit }}</h3>
+      </div>
+      <div class="panel-body">
+        <form action="{{ save }}" method="post" enctype="multipart/form-data" id="form-module" class="form-horizontal">
+          <div class="form-group">
+            <label class="col-sm-2 control-label" for="input-status">{{ entry_status }}</label>
+            <div class="col-sm-10">
+              <select name="module_ai_shopping_assist_status" id="input-status" class="form-control">
+                <option value="1"{% if module_ai_shopping_assist_status %} selected="selected"{% endif %}>{{ text_enabled }}</option>
+                <option value="0"{% if not module_ai_shopping_assist_status %} selected="selected"{% endif %}>{{ text_disabled }}</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="col-sm-2 control-label" for="input-gemini-api-key">{{ entry_gemini_api_key }}</label>
+            <div class="col-sm-10">
+              <textarea name="module_ai_shopping_assist_gemini_api_key" rows="3" placeholder="KEY_1, KEY_2, KEY_3" id="input-gemini-api-key" class="form-control" autocomplete="off">{{ module_ai_shopping_assist_gemini_api_key }}</textarea>
+              <div class="help-block">{{ help_gemini_api_key }}</div>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="col-sm-2 control-label" for="input-gemini-model">{{ entry_gemini_model }}</label>
+            <div class="col-sm-10">
+              <input type="text" name="module_ai_shopping_assist_gemini_model" value="{{ module_ai_shopping_assist_gemini_model }}" placeholder="gemini-2.5-flash" id="input-gemini-model" class="form-control"/>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="col-sm-2 control-label" for="input-gemini-temperature">{{ entry_gemini_temperature }}</label>
+            <div class="col-sm-10">
+              <input type="number" step="0.1" min="0" max="1" name="module_ai_shopping_assist_gemini_temperature" value="{{ module_ai_shopping_assist_gemini_temperature }}" id="input-gemini-temperature" class="form-control"/>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="col-sm-2 control-label" for="input-catalog-limit">{{ entry_catalog_limit }}</label>
+            <div class="col-sm-10">
+              <input type="number" min="5" max="200" name="module_ai_shopping_assist_catalog_limit" value="{{ module_ai_shopping_assist_catalog_limit }}" id="input-catalog-limit" class="form-control"/>
+              <div class="help-block">{{ help_catalog_limit }}</div>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="col-sm-2 control-label" for="input-store-brand">{{ entry_store_brand }}</label>
+            <div class="col-sm-10">
+              <input type="text" name="module_ai_shopping_assist_store_brand" value="{{ module_ai_shopping_assist_store_brand }}" id="input-store-brand" class="form-control"/>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="col-sm-2 control-label" for="input-assistant-name">{{ entry_assistant_name }}</label>
+            <div class="col-sm-10">
+              <input type="text" name="module_ai_shopping_assist_assistant_name" value="{{ module_ai_shopping_assist_assistant_name }}" id="input-assistant-name" class="form-control"/>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="col-sm-2 control-label" for="input-catalog-token">{{ entry_catalog_token }}</label>
+            <div class="col-sm-10">
+              <input type="text" name="module_ai_shopping_assist_catalog_token" value="{{ module_ai_shopping_assist_catalog_token }}" id="input-catalog-token" class="form-control"/>
+              <div class="help-block">{{ help_catalog_token }}</div>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="col-sm-2 control-label" for="input-lead-webhook-url">{{ entry_lead_webhook_url }}</label>
+            <div class="col-sm-10">
+              <input type="url" name="module_ai_shopping_assist_lead_webhook_url" value="{{ module_ai_shopping_assist_lead_webhook_url }}" placeholder="https://script.google.com/macros/s/..." id="input-lead-webhook-url" class="form-control"/>
+              <div class="help-block">{{ help_lead_webhook_url }}</div>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="col-sm-2 control-label" for="input-lead-webhook-secret">{{ entry_lead_webhook_secret }}</label>
+            <div class="col-sm-10">
+              <input type="text" name="module_ai_shopping_assist_lead_webhook_secret" value="{{ module_ai_shopping_assist_lead_webhook_secret }}" id="input-lead-webhook-secret" class="form-control" autocomplete="off"/>
+              <div class="help-block">{{ help_lead_webhook_secret }}</div>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="col-sm-2 control-label" for="input-footer-injection">{{ entry_footer_injection }}</label>
+            <div class="col-sm-10">
+              <select name="module_ai_shopping_assist_footer_injection" id="input-footer-injection" class="form-control">
+                <option value="1"{% if module_ai_shopping_assist_footer_injection %} selected="selected"{% endif %}>{{ text_enabled }}</option>
+                <option value="0"{% if not module_ai_shopping_assist_footer_injection %} selected="selected"{% endif %}>{{ text_disabled }}</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="col-sm-2 control-label" for="input-widget-title">{{ entry_widget_title }}</label>
+            <div class="col-sm-10">
+              <input type="text" name="module_ai_shopping_assist_widget_title" value="{{ module_ai_shopping_assist_widget_title }}" id="input-widget-title" class="form-control"/>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="col-sm-2 control-label" for="input-widget-button">{{ entry_widget_button }}</label>
+            <div class="col-sm-10">
+              <input type="text" name="module_ai_shopping_assist_widget_button" value="{{ module_ai_shopping_assist_widget_button }}" id="input-widget-button" class="form-control"/>
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <div class="panel panel-default">
+      <div class="panel-heading">
+        <h3 class="panel-title"><i class="fa fa-database"></i> {{ text_knowledge }} <span class="label label-primary">{{ text_knowledge_count|format(knowledge_count) }}</span></h3>
+      </div>
+      <div class="panel-body">
+        <form id="form-knowledge" enctype="multipart/form-data" class="form-horizontal">
+          <div class="form-group">
+            <label class="col-sm-2 control-label" for="input-knowledge-file">{{ entry_knowledge_file }}</label>
+            <div class="col-sm-7">
+              <input type="file" name="knowledge_file" accept=".json,application/json" id="input-knowledge-file" class="form-control"/>
+              <div class="help-block">{{ help_knowledge_file }}</div>
+            </div>
+            <div class="col-sm-3">
+              <button type="button" id="button-import-knowledge" data-url="{{ import_knowledge }}" class="btn btn-primary"><i class="fa fa-upload"></i> {{ button_import_knowledge }}</button>
+              <button type="button" id="button-clear-knowledge" data-url="{{ clear_knowledge }}" class="btn btn-danger"><i class="fa fa-trash-o"></i></button>
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <div class="panel panel-default">
+      <div class="panel-heading">
+        <div class="pull-right">
+          <a href="{{ export_logs }}" class="btn btn-success btn-xs"><i class="fa fa-file-excel-o"></i> {{ text_export_excel }}</a>
+          <button type="button" id="button-clear-logs" data-url="{{ clear_logs }}" class="btn btn-danger btn-xs">{{ text_clear_logs }}</button>
+        </div>
+        <h3 class="panel-title"><i class="fa fa-comments"></i> {{ text_logs }}</h3>
+      </div>
+      <div class="table-responsive">
+        <table class="table table-bordered table-hover">
+          <thead>
+            <tr>
+              <td>{{ column_date }}</td>
+              <td>{{ column_conversation }}</td>
+              <td>{{ column_customer }}</td>
+              <td>{{ column_role }}</td>
+              <td>{{ column_content }}</td>
+            </tr>
+          </thead>
+          <tbody>
+            {% if logs %}
+              {% for log in logs %}
+                <tr>
+                  <td class="text-nowrap">{{ log.date_added }}</td>
+                  <td><code>{{ log.conversation_id }}</code></td>
+                  <td>{{ log.customer_id ? log.customer_id : '-' }}</td>
+                  <td>{{ log.role }}</td>
+                  <td style="max-width: 560px; white-space: normal;">{{ log.content|slice(0, 240) }}{% if log.content|length > 240 %}...{% endif %}</td>
+                </tr>
+              {% endfor %}
+            {% else %}
+              <tr>
+                <td colspan="5" class="text-center">{{ text_no_logs }}</td>
+              </tr>
+            {% endif %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script type="text/javascript"><!--
+function aiShoppingAssistEscape(value) {
+  return $('<div/>').text(value || '').html();
+}
+
+function aiShoppingAssistShowMessage(payload) {
+  var message = payload.error || payload.success || '';
+
+  if (!message) {
+    return;
+  }
+
+  var type = payload.error ? 'danger' : 'success';
+  $('.alert-dismissible').remove();
+  $('#content > .container-fluid').prepend(
+    '<div class="alert alert-' + type + ' alert-dismissible"><i class="fa fa-exclamation-circle"></i> ' +
+    aiShoppingAssistEscape(message) +
+    '<button type="button" class="close" data-dismiss="alert">&times;</button></div>'
+  );
+
+  if (!payload.error) {
+    window.setTimeout(function () { window.location.reload(); }, 700);
+  }
+}
+
+$('#button-save').on('click', function () {
+  var button = $(this);
+
+  $.ajax({
+    url: '{{ save }}',
+    type: 'post',
+    dataType: 'json',
+    data: $('#form-module').serialize(),
+    beforeSend: function () {
+      button.prop('disabled', true);
+    },
+    complete: function () {
+      button.prop('disabled', false);
+    },
+    success: aiShoppingAssistShowMessage,
+    error: function (xhr) {
+      aiShoppingAssistShowMessage({ error: xhr.responseText || '{{ error_knowledge_import|e('js') }}' });
+    }
+  });
+});
+
+$('#button-import-knowledge').on('click', function () {
+  var button = $(this);
+
+  $.ajax({
+    url: button.data('url'),
+    type: 'post',
+    dataType: 'json',
+    data: new FormData($('#form-knowledge')[0]),
+    cache: false,
+    contentType: false,
+    processData: false,
+    beforeSend: function () {
+      button.prop('disabled', true);
+    },
+    complete: function () {
+      button.prop('disabled', false);
+    },
+    success: aiShoppingAssistShowMessage,
+    error: function () {
+      aiShoppingAssistShowMessage({ error: '{{ error_knowledge_import|e('js') }}' });
+    }
+  });
+});
+
+$('#button-clear-knowledge').on('click', function () {
+  if (!confirm('{{ text_clear_knowledge|e('js') }}?')) {
+    return;
+  }
+
+  $.ajax({
+    url: $(this).data('url'),
+    type: 'post',
+    dataType: 'json',
+    success: aiShoppingAssistShowMessage,
+    error: function () {
+      aiShoppingAssistShowMessage({ error: '{{ error_knowledge_import|e('js') }}' });
+    }
+  });
+});
+
+$('#button-clear-logs').on('click', function () {
+  if (!confirm('{{ text_clear_logs|e('js') }}?')) {
+    return;
+  }
+
+  $.ajax({
+    url: $(this).data('url'),
+    type: 'post',
+    dataType: 'json',
+    success: aiShoppingAssistShowMessage
+  });
+});
+//--></script>
+{{ footer }}

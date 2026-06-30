@@ -1,5 +1,4 @@
 <?php
-$_['ai_shopping_assist_heading_title'] = 'AI Shopping Assist';
 $_['heading_title'] = 'دستیار هوشمند خرید';
 
 $_['text_extension'] = 'افزونه‌ها';
