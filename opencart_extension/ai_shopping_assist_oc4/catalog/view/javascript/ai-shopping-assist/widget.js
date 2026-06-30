@@ -14,14 +14,14 @@
         checkoutRoute: 'index.php?route=checkout/checkout',
         couponRoute: 'index.php?route=extension/opencart/total/coupon.save',
         invoiceRoute: 'index.php?route=extension/ai_shopping_assist/module/ai_shopping_assist.sendInvoice',
-        title: 'Rockford Assistant',
-        buttonText: 'Chat',
+        title: 'ROKO',
+        buttonText: 'Ask ROKO',
         avatarUrl: '',
         iconUrl: '',
         redirectDelayMs: 700,
         maxHistoryMessages: 80,
         maxConversations: 30,
-        welcomeMessage: 'Hi, I can help you find products, compare options, and check specifications.',
+        welcomeMessage: "Hi, I'm ROKO. Tell me what you need and I'll help you find the right product.",
         starterSuggestions: [
           {
             title: 'Product Specifications',
@@ -73,32 +73,56 @@
         <section class="aisa-panel" hidden aria-live="polite">
           <header class="aisa-head">
             <div class="aisa-head-main">
-              <img class="aisa-avatar" alt="" hidden />
-              <div>
+              <span class="aisa-avatar-shell">
+                <img class="aisa-avatar" alt="" hidden />
+              </span>
+              <div class="aisa-identity">
+                <span class="aisa-kicker">YOUR PRODUCT EXPERT</span>
                 <div class="aisa-title"></div>
-                <span class="aisa-status">Ready to help</span>
+                <span class="aisa-status"><i></i><span>Online and ready</span></span>
               </div>
             </div>
             <div class="aisa-head-actions">
-              <button type="button" class="aisa-history-toggle" aria-label="Conversations" title="Conversations">☰</button>
-              <button type="button" class="aisa-new-chat" aria-label="New chat" title="New chat">+</button>
-              <button type="button" class="aisa-close" aria-label="Close">&times;</button>
+              <button type="button" class="aisa-history-toggle" aria-label="Conversations" title="Conversations">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h10"/></svg>
+              </button>
+              <button type="button" class="aisa-new-chat" aria-label="New chat" title="New chat">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+              </button>
+              <button type="button" class="aisa-close" aria-label="Close">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg>
+              </button>
             </div>
           </header>
           <div class="aisa-conversations" hidden>
             <div class="aisa-conversations-head">
               <span>Conversations</span>
+              <small>Your recent chats</small>
             </div>
             <div class="aisa-conversation-list"></div>
           </div>
           <div class="aisa-messages"></div>
           <form class="aisa-form">
-            <input class="aisa-input" type="text" autocomplete="off" placeholder="Ask about products..." required />
-            <button class="aisa-send" type="submit">Send</button>
+            <div class="aisa-input-wrap">
+              <textarea class="aisa-input" rows="1" autocomplete="off" placeholder="Ask ROKO about products..." required></textarea>
+              <span class="aisa-input-hint">Shift + Enter for a new line</span>
+            </div>
+            <button class="aisa-send" type="submit" aria-label="Send message">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m4 4 16 8-16 8 3-8-3-8Zm3 8h13"/></svg>
+            </button>
           </form>
         </section>
         <button type="button" class="aisa-toggle">
-          <img class="aisa-toggle-avatar" alt="" hidden />
+          <span class="aisa-toggle-mascot">
+            <img class="aisa-toggle-avatar" alt="" hidden />
+          </span>
+          <span class="aisa-toggle-copy">
+            <strong>ROKO</strong>
+            <small>Product assistant</small>
+          </span>
+          <span class="aisa-toggle-arrow" aria-hidden="true">
+            <svg viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></svg>
+          </span>
           <span class="aisa-toggle-text"></span>
         </button>
       `;
@@ -122,7 +146,9 @@
       this.avatar = this.root.querySelector('.aisa-avatar');
       this.toggleAvatar = this.root.querySelector('.aisa-toggle-avatar');
       this.toggleText = this.root.querySelector('.aisa-toggle-text');
+      this.toggleCopy = this.root.querySelector('.aisa-toggle-copy strong');
       this.title.textContent = this.config.title || this.defaults.title;
+      this.toggleCopy.textContent = this.config.title || this.defaults.title;
       this.toggleText.textContent = this.config.buttonText || this.defaults.buttonText;
       this.toggleBtn.setAttribute('aria-label', this.config.buttonText || this.defaults.buttonText);
       this.toggleBtn.setAttribute('title', this.config.buttonText || this.defaults.buttonText);
@@ -173,8 +199,17 @@
         if (!text) return;
 
         this.input.value = '';
+        this.resizeInput();
         this.addMessage('user', text);
         await this.askAssistant(text);
+      });
+
+      this.input.addEventListener('input', () => this.resizeInput());
+      this.input.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter' && !event.shiftKey) {
+          event.preventDefault();
+          this.form.requestSubmit();
+        }
       });
     }
 
@@ -477,7 +512,14 @@
     }
 
     setStatus(text) {
-      this.statusLabel.textContent = text;
+      const label = this.statusLabel.querySelector('span');
+      if (label) label.textContent = text;
+      this.root.classList.toggle('is-typing', /thinking|typing/i.test(text));
+    }
+
+    resizeInput() {
+      this.input.style.height = 'auto';
+      this.input.style.height = Math.min(this.input.scrollHeight, 112) + 'px';
     }
 
     addMessage(role, text, persist, extras) {
@@ -487,6 +529,19 @@
       const suggestions = this.normalizeSuggestions(messageExtras.suggestions);
       if (!cleanedText && !products.length && !suggestions.length) return;
 
+      const row = document.createElement('div');
+      row.className = 'aisa-message-row ' + (role === 'user' ? 'user' : 'bot');
+
+      if (role !== 'user' && this.config.avatarUrl) {
+        const avatar = document.createElement('span');
+        avatar.className = 'aisa-message-avatar';
+        const image = document.createElement('img');
+        image.src = this.config.avatarUrl;
+        image.alt = '';
+        avatar.appendChild(image);
+        row.appendChild(avatar);
+      }
+
       const item = document.createElement('div');
       item.className = 'aisa-message ' + (role === 'user' ? 'user' : 'bot');
       item.dir = this.isRtlMessage(cleanedText) ? 'rtl' : 'ltr';
@@ -494,7 +549,8 @@
         item.textContent = cleanedText;
       }
 
-      this.messagesContainer.appendChild(item);
+      row.appendChild(item);
+      this.messagesContainer.appendChild(row);
 
       if (role !== 'user') {
         this.renderProductCards(products);
@@ -838,7 +894,7 @@
 
     async askAssistant(message) {
       this.sendBtn.disabled = true;
-      this.setStatus('Typing...');
+      this.setStatus('ROKO is thinking');
 
       try {
         const body = {
@@ -893,7 +949,7 @@
         console.error('AI assistant error:', error);
         this.addMessage('bot', this.localizedConnectionError(message));
       } finally {
-        this.setStatus('Ready to help');
+        this.setStatus('Online and ready');
         this.sendBtn.disabled = false;
         this.input.focus();
       }
