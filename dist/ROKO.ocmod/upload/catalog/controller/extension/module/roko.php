@@ -12,6 +12,7 @@ class ControllerExtensionModuleRoko extends Controller {
 	private const SITEMAP_PAGE_TEXT_LIMIT = 3500;
 	private static $sitemap_pages_cache = [];
 	private static $sitemap_content_cache = [];
+	private static $last_remote_error = '';
 
 	public function inject(&$route, &$data, &$output = null): void {
 		if (!is_string($output) || $output === '') {
@@ -205,7 +206,8 @@ class ControllerExtensionModuleRoko extends Controller {
 		unset($result['content']);
 		$this->outputJson(array_merge([
 			'success' => true,
-			'sitemap_url' => $this->configuredSitemapUrl()
+			'sitemap_url' => $this->configuredSitemapUrl(),
+			'fetch_error' => self::$last_remote_error
 		], $result));
 	}
 
@@ -1120,13 +1122,19 @@ class ControllerExtensionModuleRoko extends Controller {
 
 	private function getRemoteText(string $url, int $timeout = 6): string {
 		$timeout = max(3, min(30, $timeout));
+		self::$last_remote_error = '';
+		$local_body = $this->getLocalInternalText($url);
+
+		if ($local_body !== '') {
+			return substr($this->decodeRemoteBody($url, $local_body), 0, 3000000);
+		}
 
 		if (function_exists('curl_init')) {
 			$handle = curl_init($url);
 			curl_setopt($handle, CURLOPT_RETURNTRANSFER, true);
 			curl_setopt($handle, CURLOPT_CONNECTTIMEOUT, min(4, $timeout));
 			curl_setopt($handle, CURLOPT_TIMEOUT, $timeout);
-			curl_setopt($handle, CURLOPT_USERAGENT, 'ROKO/3.4');
+			curl_setopt($handle, CURLOPT_USERAGENT, 'Mozilla/5.0 (compatible; ROKO/3.4; +https://rockford-qatar.com)');
 			curl_setopt($handle, CURLOPT_ENCODING, '');
 
 			if (!ini_get('open_basedir')) {
@@ -1135,12 +1143,14 @@ class ControllerExtensionModuleRoko extends Controller {
 
 			$response = curl_exec($handle);
 			$status = (int)curl_getinfo($handle, CURLINFO_RESPONSE_CODE);
+			$error = curl_error($handle);
 			curl_close($handle);
 
 			if ($status >= 200 && $status < 300 && is_string($response)) {
-				return substr($this->decodeRemoteBody($url, $response), 0, 400000);
+				return substr($this->decodeRemoteBody($url, $response), 0, 3000000);
 			}
 
+			self::$last_remote_error = $error !== '' ? $error : ('HTTP ' . ($status ?: 0));
 			return '';
 		}
 
@@ -1154,7 +1164,51 @@ class ControllerExtensionModuleRoko extends Controller {
 		]);
 		$response = @file_get_contents($url, false, $context);
 
-		return is_string($response) ? substr($this->decodeRemoteBody($url, $response), 0, 400000) : '';
+		if (is_string($response)) {
+			return substr($this->decodeRemoteBody($url, $response), 0, 3000000);
+		}
+
+		$error = error_get_last();
+		self::$last_remote_error = (string)($error['message'] ?? 'HTTP request failed');
+
+		return '';
+	}
+
+	private function getLocalInternalText(string $url): string {
+		if (!$this->isInternalAbsoluteUrl($url)) {
+			return '';
+		}
+
+		$path = (string)(parse_url($url, PHP_URL_PATH) ?: '');
+		$path = rawurldecode($path);
+
+		if ($path === '' || substr($path, -1) === '/' || strpos($path, '..') !== false) {
+			return '';
+		}
+
+		$roots = [];
+
+		foreach (['DIR_APPLICATION', 'DIR_SYSTEM', 'DIR_IMAGE'] as $constant) {
+			if (defined($constant)) {
+				$root = realpath(dirname(rtrim((string)constant($constant), '/\\')));
+
+				if ($root) {
+					$roots[] = $root;
+				}
+			}
+		}
+
+		foreach (array_unique($roots) as $root) {
+			$file = $root . DIRECTORY_SEPARATOR . ltrim(str_replace(['/', '\\'], DIRECTORY_SEPARATOR, $path), DIRECTORY_SEPARATOR);
+			$real_file = realpath($file);
+
+			if ($real_file && strpos($real_file, $root . DIRECTORY_SEPARATOR) === 0 && is_file($real_file) && is_readable($real_file)) {
+				$body = file_get_contents($real_file);
+				return is_string($body) ? $body : '';
+			}
+		}
+
+		return '';
 	}
 
 	private function decodeRemoteBody(string $url, string $body): string {

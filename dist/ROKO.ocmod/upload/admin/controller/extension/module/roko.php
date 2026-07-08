@@ -250,7 +250,7 @@ class ControllerExtensionModuleRoko extends Controller {
 	}
 
 	private function getIndexedSitemapPages(): array {
-		$url = trim((string)$this->config->get('module_roko_sitemap_url'));
+		$url = $this->configuredSitemapUrl();
 
 		if ($url === '') {
 			return [];
@@ -300,7 +300,7 @@ class ControllerExtensionModuleRoko extends Controller {
 	}
 
 	private function getSitemapCacheStatus(int $cached_pages): string {
-		$url = trim((string)$this->config->get('module_roko_sitemap_url'));
+		$url = $this->configuredSitemapUrl();
 
 		if ($url === '') {
 			return $this->language->get('text_sitemap_not_configured');
@@ -313,6 +313,36 @@ class ControllerExtensionModuleRoko extends Controller {
 		}
 
 		return sprintf($this->language->get('text_sitemap_cached_count'), $cached_pages, date('Y-m-d H:i:s', (int)filemtime($content_path)));
+	}
+
+	private function configuredSitemapUrl(): string {
+		$url = trim((string)$this->config->get('module_roko_sitemap_url'));
+
+		if ($url === '') {
+			$url = $this->defaultSitemapUrl();
+		}
+
+		$parts = parse_url($url);
+
+		if (!$parts || empty($parts['scheme']) || empty($parts['host']) || !in_array(strtolower($parts['scheme']), ['http', 'https'], true)) {
+			return '';
+		}
+
+		return $url;
+	}
+
+	private function defaultSitemapUrl(): string {
+		$base = (string)$this->config->get('config_url');
+
+		if ($base === '' && defined('HTTP_CATALOG')) {
+			$base = (string)HTTP_CATALOG;
+		}
+
+		if ($base === '' && defined('HTTP_SERVER')) {
+			$base = (string)HTTP_SERVER;
+		}
+
+		return $base === '' ? '' : rtrim($base, '/') . '/sitemap.xml';
 	}
 
 	private function getWarmSitemapUrl(): string {
