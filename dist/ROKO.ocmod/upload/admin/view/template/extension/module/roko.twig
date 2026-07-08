@@ -64,6 +64,16 @@
           </div>
 
           <div class="form-group">
+            <label class="col-sm-2 control-label" for="input-sitemap-url"><span data-toggle="tooltip" title="{{ help_sitemap_url }}">{{ entry_sitemap_url }}</span></label>
+            <div class="col-sm-10"><input type="url" name="module_roko_sitemap_url" value="{{ module_roko_sitemap_url }}" placeholder="https://example.com/sitemap.xml" id="input-sitemap-url" class="form-control"/></div>
+          </div>
+
+          <div class="form-group">
+            <label class="col-sm-2 control-label" for="input-system-prompt"><span data-toggle="tooltip" title="{{ help_system_prompt }}">{{ entry_system_prompt }}</span></label>
+            <div class="col-sm-10"><textarea name="module_roko_system_prompt" rows="5" id="input-system-prompt" class="form-control">{{ module_roko_system_prompt }}</textarea></div>
+          </div>
+
+          <div class="form-group">
             <label class="col-sm-2 control-label" for="input-catalog-token"><span data-toggle="tooltip" title="{{ help_catalog_token }}">{{ entry_catalog_token }}</span></label>
             <div class="col-sm-10"><input type="text" name="module_roko_catalog_token" value="{{ module_roko_catalog_token }}" id="input-catalog-token" class="form-control"/></div>
           </div>
@@ -102,26 +112,68 @@
     </div>
 
     <div class="panel panel-default">
-      <div class="panel-heading clearfix">
-        <h3 class="panel-title pull-left"><i class="fa fa-list"></i> {{ text_logs }}</h3>
-        <div class="pull-right">
-          <a href="{{ export_logs }}" class="btn btn-success btn-xs"><i class="fa fa-file-excel-o"></i> {{ text_export_excel }}</a>
-          <button type="button" id="button-clear-logs" data-url="{{ clear_logs }}" class="btn btn-danger btn-xs">{{ text_clear_logs }}</button>
-        </div>
+      <div class="panel-heading">
+        <h3 class="panel-title"><i class="fa fa-database"></i> ROKO data</h3>
       </div>
-      <div class="table-responsive">
-        <table class="table table-bordered table-hover">
-          <thead><tr><td>{{ column_date }}</td><td>{{ column_conversation }}</td><td>{{ column_customer }}</td><td>{{ column_role }}</td><td>{{ column_content }}</td></tr></thead>
-          <tbody>
-            {% if logs %}
-              {% for log in logs %}
-                <tr><td>{{ log.date_added }}</td><td><code>{{ log.conversation_id }}</code></td><td>{{ log.customer_id ? log.customer_id : '-' }}</td><td>{{ log.role }}</td><td>{{ log.content|slice(0, 240) }}{% if log.content|length > 240 %}...{% endif %}</td></tr>
-              {% endfor %}
-            {% else %}
-              <tr><td colspan="5" class="text-center">{{ text_no_logs }}</td></tr>
-            {% endif %}
-          </tbody>
-        </table>
+      <div class="panel-body">
+        <ul class="nav nav-tabs">
+          <li class="active"><a href="#tab-roko-logs" data-toggle="tab"><i class="fa fa-list"></i> {{ text_logs }}</a></li>
+          <li><a href="#tab-roko-indexed-pages" data-toggle="tab"><i class="fa fa-sitemap"></i> {{ text_indexed_pages }} <span class="badge">{{ sitemap_pages_total }}</span></a></li>
+        </ul>
+
+        <div class="tab-content">
+          <div class="tab-pane active" id="tab-roko-logs">
+            <div class="clearfix" style="margin: 0 0 10px;">
+              <div class="pull-right">
+                <a href="{{ export_logs }}" class="btn btn-success btn-xs"><i class="fa fa-file-excel-o"></i> {{ text_export_excel }}</a>
+                <button type="button" id="button-clear-logs" data-url="{{ clear_logs }}" class="btn btn-danger btn-xs">{{ text_clear_logs }}</button>
+              </div>
+            </div>
+            <div class="table-responsive">
+              <table class="table table-bordered table-hover">
+                <thead><tr><td>{{ column_date }}</td><td>{{ column_conversation }}</td><td>{{ column_customer }}</td><td>{{ column_role }}</td><td>{{ column_content }}</td></tr></thead>
+                <tbody>
+                  {% if logs %}
+                    {% for log in logs %}
+                      <tr><td>{{ log.date_added }}</td><td><code>{{ log.conversation_id }}</code></td><td>{{ log.customer_id ? log.customer_id : '-' }}</td><td>{{ log.role }}</td><td>{{ log.content|slice(0, 240) }}{% if log.content|length > 240 %}...{% endif %}</td></tr>
+                    {% endfor %}
+                  {% else %}
+                    <tr><td colspan="5" class="text-center">{{ text_no_logs }}</td></tr>
+                  {% endif %}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="tab-pane" id="tab-roko-indexed-pages">
+            <div class="clearfix" style="margin: 0 0 10px;">
+              <div class="pull-left" style="padding-top: 6px;"><strong>{{ text_cache_status }}:</strong> {{ sitemap_cache_status }}</div>
+              {% if warm_sitemap_url %}
+                <div class="pull-right"><a href="{{ warm_sitemap_url }}" target="_blank" rel="noopener" class="btn btn-primary btn-xs"><i class="fa fa-refresh"></i> {{ text_warm_sitemap }}</a></div>
+              {% endif %}
+            </div>
+            <div class="table-responsive">
+              <table class="table table-bordered table-hover">
+                <thead><tr><td>{{ column_cached_at }}</td><td>{{ column_type }}</td><td>{{ column_title }}</td><td>{{ column_url }}</td><td>{{ column_summary }}</td></tr></thead>
+                <tbody>
+                  {% if sitemap_pages %}
+                    {% for page in sitemap_pages %}
+                      <tr>
+                        <td>{{ page.fetched_at }}</td>
+                        <td><span class="label label-info">{{ page.content_type }}</span></td>
+                        <td>{{ page.title }}</td>
+                        <td><a href="{{ page.url }}" target="_blank" rel="noopener">{{ page.url }}</a></td>
+                        <td>{{ page.summary }}</td>
+                      </tr>
+                    {% endfor %}
+                  {% else %}
+                    <tr><td colspan="5" class="text-center">{{ text_no_indexed_pages }}</td></tr>
+                  {% endif %}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   </div>

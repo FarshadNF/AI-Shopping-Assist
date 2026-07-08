@@ -4,6 +4,14 @@ class ControllerExtensionModuleRoko extends Controller {
 	private const MARKER = '<!-- ROKO_WIDGET -->';
 	private const DEFAULT_LEAD_WEBHOOK_URL = 'https://script.google.com/macros/s/AKfycbwV1zaw6C3iKdWVaK-gN8hyAzvW8_RygWTp9Q2ggjYUWcAftM2c7ipOIM5l6UowTsCS/exec';
 	private const DEFAULT_LEAD_WEBHOOK_SECRET = 'f8c9d2a7e1b4c6f9a3d8e7b2c5f1a9d4';
+	private const SITEMAP_CACHE_TTL = 86400;
+	private const SITEMAP_PAGE_CACHE_TTL = 604800;
+	private const SITEMAP_CRAWL_MAX_PAGES = 10000;
+	private const SITEMAP_CRAWL_BATCH = 6;
+	private const SITEMAP_RELEVANT_CONTEXT_LIMIT = 8;
+	private const SITEMAP_PAGE_TEXT_LIMIT = 3500;
+	private static $sitemap_pages_cache = [];
+	private static $sitemap_content_cache = [];
 
 	public function inject(&$route, &$data, &$output = null): void {
 		if (!is_string($output) || $output === '') {
@@ -182,6 +190,23 @@ class ControllerExtensionModuleRoko extends Controller {
 			'products' => $products,
 			'data' => $products
 		]);
+	}
+
+	public function warmSitemap(): void {
+		if (!$this->isCatalogRequestAllowed()) {
+			$this->outputJson(['success' => false, 'error' => 'Invalid catalog token.'], 403);
+			return;
+		}
+
+		$limit = min(100, max(1, (int)($this->request->get['limit'] ?? 25)));
+		$force_refresh = !empty($this->request->get['refresh']);
+		$result = $this->warmSitemapContent('', $limit, $force_refresh);
+
+		unset($result['content']);
+		$this->outputJson(array_merge([
+			'success' => true,
+			'sitemap_url' => $this->configuredSitemapUrl()
+		], $result));
 	}
 
 	public function getCart(): void {
@@ -376,19 +401,26 @@ class ControllerExtensionModuleRoko extends Controller {
 		$assistant_name = (string)($this->config->get('module_roko_assistant_name') ?: 'ROKO');
 		$catalog = $this->getPromptCatalog($message);
 		$navigation = $this->getNavigationPromptCatalog();
+		$site_content = $this->getRelevantSiteContent($message);
 		$history = $this->getConversationHistory($conversation_id, $message);
+		$sitemap_url = $this->configuredSitemapUrl();
+		$custom_system_prompt = $this->customSystemPrompt();
 
 		return implode("\n\n", [
 			'You are a real online sales assistant inside the OpenCart store "' . $brand . '". Your name is "' . $assistant_name . '".',
+			$custom_system_prompt !== '' ? "Store-specific system prompt:\n" . $custom_system_prompt : '',
 			'Default to English. If the latest user message is clearly Persian or another language, you may reply in that language, but your base persona and concise style are English-first.',
 			'Use only the product catalog below for product-specific claims. Check stock before recommending purchase. Keep replies short, natural, and sales-focused.',
+			'Use Relevant crawled site pages for blog, article, category, and general site knowledge. For technical/networking questions, prefer relevant blog/article pages when they answer the question.',
 			'When the user wants an action, include it in actions. Supported action types: add_to_cart, show_cart, redirect_to_cart, redirect_to_product, redirect_to_page, update_cart_item, remove_from_cart, clear_cart, apply_coupon, redirect_to_checkout, send_invoice.',
 			'For bulk, wholesale, B2B, corporate, or high-quantity requests, do not add items to cart and do not send the user to checkout. Ask for lead details using this exact field list: Product Name, QTY, Name, Company, Contact Number, Email, Delivery Location.',
-			'For navigating to any non-product site page, use {"type":"redirect_to_page","page":"home/contact/account/login/register/orders/wishlist/specials/search/category/information page name","route":"optional OpenCart route","url":"optional internal URL"}. Do not say you cannot navigate.',
-			'Return ONLY valid JSON with this shape: {"reply":"visible message","suggestions":[{"title":"Product Recommendation","text":"Can you recommend a laptop?"}],"products":[{"product_id":"id","name":"exact catalog name","reason":"Why this is a fit"}],"actions":[{"type":"add_to_cart","product_name":"exact name","product_id":"id","qty":1}]} .',
-			'Use suggestions for helpful next questions. Use product cards when recommending, comparing, showing specs, or discussing specific products. Use an empty array for suggestions/products/actions when not needed.',
+			'For navigating to any non-product site page, use {"type":"redirect_to_page","page":"home/contact/account/login/register/orders/wishlist/specials/search/category/information page name","route":"optional OpenCart route","url":"optional internal URL"}. Prefer exact URLs from Known site pages JSON and the configured sitemap. Do not say you cannot navigate.',
+			'Return ONLY valid JSON with this shape: {"reply":"visible message","suggestions":[{"title":"Product Recommendation","text":"Can you recommend a laptop?"}],"products":[{"product_id":"id","name":"exact catalog name or article title","content_type":"product/blog/page/category","product_url":"internal URL","reason":"Why this is a fit"}],"actions":[{"type":"add_to_cart","product_name":"exact name","product_id":"id","qty":1}]} .',
+			'Use suggestions for helpful next questions. Use product cards for products and also for relevant blog/article/page recommendations. If Relevant crawled site pages JSON contains a useful match, include the best matching blog/page in products with its exact URL. Use content_type="blog" for blog cards and never invent product_id for non-product pages. Use an empty array for suggestions/products/actions when not needed.',
+			$sitemap_url !== '' ? 'Configured sitemap URL: ' . $sitemap_url : '',
 			'Conversation history JSON: ' . json_encode($history, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
 			'Known site pages JSON: ' . json_encode($navigation, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+			'Relevant crawled site pages JSON: ' . json_encode($site_content, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
 			'Product catalog JSON: ' . json_encode($catalog, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
 			'Latest user message: ' . $message
 		]);
@@ -455,7 +487,785 @@ class ControllerExtensionModuleRoko extends Controller {
 		} catch (\Throwable $exception) {
 		}
 
+		foreach ($this->getConfiguredSitemapPages() as $sitemap_page) {
+			$pages[] = $sitemap_page;
+		}
+
+		return $this->uniqueNavigationPages($pages);
+	}
+
+	private function configuredSitemapUrl(): string {
+		$url = trim((string)$this->config->get('module_roko_sitemap_url'));
+
+		if ($url === '') {
+			$url = $this->defaultSitemapUrl();
+		}
+
+		$parts = parse_url($url);
+
+		if (!$parts || empty($parts['scheme']) || empty($parts['host']) || !in_array(strtolower($parts['scheme']), ['http', 'https'], true)) {
+			return '';
+		}
+
+		return $url;
+	}
+
+	private function defaultSitemapUrl(): string {
+		$base = '';
+
+		foreach (['config_url', 'config_ssl'] as $key) {
+			$value = trim((string)$this->config->get($key));
+
+			if ($value !== '') {
+				$base = $value;
+				break;
+			}
+		}
+
+		if ($base === '' && defined('HTTPS_SERVER')) {
+			$base = (string)HTTPS_SERVER;
+		}
+
+		if ($base === '' && defined('HTTP_SERVER')) {
+			$base = (string)HTTP_SERVER;
+		}
+
+		if ($base === '') {
+			return '';
+		}
+
+		return rtrim($base, '/') . '/sitemap.xml';
+	}
+
+	private function customSystemPrompt(): string {
+		$value = str_replace(["\r\n", "\r"], "\n", trim((string)$this->config->get('module_roko_system_prompt')));
+
+		if ($value === '') {
+			return '';
+		}
+
+		if (function_exists('mb_substr')) {
+			return mb_substr($value, 0, 12000, 'UTF-8');
+		}
+
+		return substr($value, 0, 12000);
+	}
+
+	private function getConfiguredSitemapPages(bool $force_refresh = false): array {
+		$url = $this->configuredSitemapUrl();
+
+		if ($url === '' || !$this->isInternalAbsoluteUrl($url)) {
+			return [];
+		}
+
+		$cache_key = 'roko.sitemap.v4.' . md5($url);
+
+		if (!$force_refresh && isset(self::$sitemap_pages_cache[$cache_key])) {
+			return self::$sitemap_pages_cache[$cache_key];
+		}
+
+		if (!$force_refresh) {
+			try {
+				$cached = $this->cache->get($cache_key);
+
+				if (
+					is_array($cached)
+					&& isset($cached['expires'], $cached['pages'])
+					&& (int)$cached['expires'] > time()
+					&& is_array($cached['pages'])
+					&& $cached['pages']
+				) {
+					self::$sitemap_pages_cache[$cache_key] = $cached['pages'];
+					return $cached['pages'];
+				}
+			} catch (\Throwable $exception) {
+			}
+
+			$file_cached = $this->readSitemapFileCache($cache_key);
+
+			if (is_array($file_cached) && $file_cached) {
+				try {
+					$this->cache->set($cache_key, [
+						'expires' => time() + self::SITEMAP_CACHE_TTL,
+						'pages' => $file_cached
+					]);
+				} catch (\Throwable $exception) {
+				}
+
+				self::$sitemap_pages_cache[$cache_key] = $file_cached;
+				return $file_cached;
+			}
+		}
+
+		$pages = [];
+		$body = $this->getRemoteText($url, 20);
+
+		if ($body !== '') {
+			$pages = $this->extractSitemapPages($body, $url);
+
+			$nested_urls = $this->extractNestedSitemapUrls($body, $url);
+
+			if ($nested_urls) {
+				foreach ($nested_urls as $nested_url) {
+					if (count($pages) >= self::SITEMAP_CRAWL_MAX_PAGES) {
+						break;
+					}
+
+					$nested_body = $this->getRemoteText($nested_url, 12);
+
+					if ($nested_body !== '') {
+						$pages = array_merge($pages, $this->extractSitemapPages($nested_body, $nested_url));
+					}
+				}
+			}
+		}
+
+		$pages = $this->uniqueNavigationPages(array_slice($pages, 0, self::SITEMAP_CRAWL_MAX_PAGES), self::SITEMAP_CRAWL_MAX_PAGES);
+
+		if ($pages) {
+			try {
+				$this->cache->set($cache_key, [
+					'expires' => time() + self::SITEMAP_CACHE_TTL,
+					'pages' => $pages
+				]);
+			} catch (\Throwable $exception) {
+			}
+
+			$this->writeSitemapFileCache($cache_key, $pages);
+			self::$sitemap_pages_cache[$cache_key] = $pages;
+		}
+
 		return $pages;
+	}
+
+	private function readSitemapFileCache(string $cache_key): ?array {
+		$path = $this->sitemapFileCachePath($cache_key);
+
+		if ($path === '' || !is_file($path) || time() - (int)filemtime($path) > self::SITEMAP_CACHE_TTL) {
+			return null;
+		}
+
+		$payload = json_decode((string)file_get_contents($path), true);
+
+		return is_array($payload) ? $payload : null;
+	}
+
+	private function writeSitemapFileCache(string $cache_key, array $pages): void {
+		$path = $this->sitemapFileCachePath($cache_key);
+
+		if ($path === '') {
+			return;
+		}
+
+		$dir = dirname($path);
+
+		if (!is_dir($dir) || !is_writable($dir)) {
+			return;
+		}
+
+		@file_put_contents($path, json_encode($pages, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+	}
+
+	private function sitemapFileCachePath(string $cache_key): string {
+		if (!defined('DIR_CACHE')) {
+			return '';
+		}
+
+		return rtrim(DIR_CACHE, '/\\') . DIRECTORY_SEPARATOR . 'cache.' . preg_replace('/[^a-zA-Z0-9_.-]/', '_', $cache_key) . '.json';
+	}
+
+	private function getRelevantSiteContent(string $message): array {
+		$content = $this->getCrawledSitemapContent($message);
+
+		if (!$content) {
+			return [];
+		}
+
+		$ranked = [];
+
+		foreach ($content as $entry) {
+			if (!is_array($entry)) {
+				continue;
+			}
+
+			$score = $this->scoreSiteEntry($message, $entry);
+
+			if ($score <= 0) {
+				continue;
+			}
+
+			$entry['_score'] = $score;
+			$ranked[] = $entry;
+		}
+
+		usort($ranked, function ($a, $b) {
+			return (int)($b['_score'] ?? 0) <=> (int)($a['_score'] ?? 0);
+		});
+
+		$results = [];
+
+		foreach (array_slice($ranked, 0, self::SITEMAP_RELEVANT_CONTEXT_LIMIT) as $entry) {
+			$results[] = [
+				'title' => $this->shortText((string)($entry['title'] ?? ''), 140),
+				'url' => (string)($entry['url'] ?? ''),
+				'content_type' => (string)($entry['content_type'] ?? 'page'),
+				'summary' => $this->shortText((string)($entry['description'] ?? ''), 260),
+				'content' => $this->shortText((string)($entry['content'] ?? ''), 1400)
+			];
+		}
+
+		return $results;
+	}
+
+	private function getCrawledSitemapContent(string $message): array {
+		$sitemap_url = $this->configuredSitemapUrl();
+
+		if ($sitemap_url === '') {
+			return [];
+		}
+
+		$cache_key = 'roko.sitemap.content.v1.' . md5($sitemap_url);
+
+		if (isset(self::$sitemap_content_cache[$cache_key])) {
+			return self::$sitemap_content_cache[$cache_key];
+		}
+
+		$result = $this->warmSitemapContent($message, self::SITEMAP_CRAWL_BATCH);
+		return $result['content'] ?? [];
+	}
+
+	private function warmSitemapContent(string $message, int $limit, bool $force_refresh = false): array {
+		$sitemap_url = $this->configuredSitemapUrl();
+
+		if ($sitemap_url === '') {
+			return ['total_pages' => 0, 'cached_pages' => 0, 'crawled_pages' => 0, 'remaining_pages' => 0, 'content' => []];
+		}
+
+		$cache_key = 'roko.sitemap.content.v1.' . md5($sitemap_url);
+		$pages = $this->getConfiguredSitemapPages($force_refresh);
+
+		if (!$pages) {
+			return ['total_pages' => 0, 'cached_pages' => 0, 'crawled_pages' => 0, 'remaining_pages' => 0, 'content' => []];
+		}
+
+		$content = $this->readSitemapContentCache($cache_key);
+		$changed = false;
+		$crawled = 0;
+		$limit = min(100, max(1, $limit));
+
+		foreach ($this->prioritizeSitemapPagesForCrawl($pages, $content, $message) as $page) {
+			$url = trim((string)($page['url'] ?? ''));
+
+			if ($url === '' || !$this->sitemapPageNeedsRefresh($content[$url] ?? null)) {
+				continue;
+			}
+
+			if ($crawled >= $limit) {
+				break;
+			}
+
+			$entry = $this->crawlSitemapPage($page);
+			$crawled++;
+
+			if ($entry) {
+				$content[$url] = $entry;
+				$changed = true;
+			}
+		}
+
+		if ($changed) {
+			$this->writeSitemapContentCache($cache_key, $content);
+		}
+
+		self::$sitemap_content_cache[$cache_key] = $content;
+
+		$remaining = 0;
+
+		foreach ($pages as $page) {
+			$url = trim((string)($page['url'] ?? ''));
+
+			if ($url !== '' && $this->sitemapPageNeedsRefresh($content[$url] ?? null)) {
+				$remaining++;
+			}
+		}
+
+		return [
+			'total_pages' => count($pages),
+			'cached_pages' => count($content),
+			'crawled_pages' => $crawled,
+			'remaining_pages' => $remaining,
+			'content' => $content
+		];
+	}
+
+	private function prioritizeSitemapPagesForCrawl(array $pages, array $content, string $message): array {
+		$ranked = [];
+
+		foreach (array_slice($pages, 0, self::SITEMAP_CRAWL_MAX_PAGES) as $index => $page) {
+			if (!is_array($page)) {
+				continue;
+			}
+
+			$url = trim((string)($page['url'] ?? ''));
+
+			if ($url === '') {
+				continue;
+			}
+
+			$score = $this->scoreSiteEntry($message, [
+				'title' => (string)($page['page'] ?? ''),
+				'url' => $url,
+				'content_type' => (string)($page['content_type'] ?? $this->contentTypeFromUrl($url)),
+				'content' => ''
+			]);
+
+			if (!isset($content[$url])) {
+				$score += 40;
+			} elseif ($this->sitemapPageNeedsRefresh($content[$url])) {
+				$score += 20;
+			}
+
+			if (($page['content_type'] ?? '') === 'blog') {
+				$score += 10;
+			}
+
+			$ranked[] = ['score' => $score, 'index' => $index, 'page' => $page];
+		}
+
+		usort($ranked, function ($a, $b) {
+			$score = (int)$b['score'] <=> (int)$a['score'];
+			return $score ?: ((int)$a['index'] <=> (int)$b['index']);
+		});
+
+		return array_map(function ($item) {
+			return $item['page'];
+		}, $ranked);
+	}
+
+	private function sitemapPageNeedsRefresh($entry): bool {
+		if (!is_array($entry) || empty($entry['fetched_at'])) {
+			return true;
+		}
+
+		return time() - (int)$entry['fetched_at'] > self::SITEMAP_PAGE_CACHE_TTL;
+	}
+
+	private function crawlSitemapPage(array $page): array {
+		$url = trim((string)($page['url'] ?? ''));
+
+		if ($url === '' || !$this->isInternalAbsoluteUrl($url) || $this->looksLikeSitemapFile($url)) {
+			return [];
+		}
+
+		$body = $this->getRemoteText($url, 4);
+
+		if ($body === '') {
+			return [];
+		}
+
+		return $this->extractPageContent($body, $url, (string)($page['page'] ?? ''));
+	}
+
+	private function extractPageContent(string $html, string $url, string $fallback_title = ''): array {
+		$title = $this->extractHtmlTitle($html);
+		$description = $this->extractMetaDescription($html);
+		$text = preg_replace('~<(script|style|noscript|svg|canvas)\b[^>]*>.*?</\1>~is', ' ', $html);
+		$text = preg_replace('~</(p|div|li|h[1-6]|br|section|article)>~i', "\n", (string)$text);
+		$text = $this->shortText($text, self::SITEMAP_PAGE_TEXT_LIMIT);
+
+		if ($title === '') {
+			$title = $fallback_title !== '' ? $fallback_title : $this->labelFromUrl($url);
+		}
+
+		if ($description === '') {
+			$description = $this->shortText($text, 260);
+		}
+
+		return [
+			'title' => $this->shortText($title, 180),
+			'url' => $url,
+			'content_type' => $this->contentTypeFromUrl($url),
+			'description' => $description,
+			'content' => $text,
+			'fetched_at' => time()
+		];
+	}
+
+	private function extractHtmlTitle(string $html): string {
+		if (preg_match('~<title[^>]*>(.*?)</title>~is', $html, $match)) {
+			return $this->shortText((string)$match[1], 180);
+		}
+
+		if (preg_match('~<h1[^>]*>(.*?)</h1>~is', $html, $match)) {
+			return $this->shortText((string)$match[1], 180);
+		}
+
+		return '';
+	}
+
+	private function extractMetaDescription(string $html): string {
+		if (preg_match('~<meta\b[^>]*(?:name|property)=["\'](?:description|og:description)["\'][^>]*content=["\']([^"\']+)["\'][^>]*>~is', $html, $match)) {
+			return $this->shortText((string)$match[1], 300);
+		}
+
+		if (preg_match('~<meta\b[^>]*content=["\']([^"\']+)["\'][^>]*(?:name|property)=["\'](?:description|og:description)["\'][^>]*>~is', $html, $match)) {
+			return $this->shortText((string)$match[1], 300);
+		}
+
+		return '';
+	}
+
+	private function readSitemapContentCache(string $cache_key): array {
+		$path = $this->sitemapFileCachePath($cache_key);
+
+		if ($path === '' || !is_file($path) || time() - (int)filemtime($path) > self::SITEMAP_PAGE_CACHE_TTL) {
+			return [];
+		}
+
+		$payload = json_decode((string)file_get_contents($path), true);
+
+		return is_array($payload) ? $payload : [];
+	}
+
+	private function writeSitemapContentCache(string $cache_key, array $content): void {
+		$path = $this->sitemapFileCachePath($cache_key);
+
+		if ($path === '') {
+			return;
+		}
+
+		$dir = dirname($path);
+
+		if (!is_dir($dir) || !is_writable($dir)) {
+			return;
+		}
+
+		@file_put_contents($path, json_encode($content, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+	}
+
+	private function contentTypeFromUrl(string $url): string {
+		$path = strtolower(trim((string)(parse_url($url, PHP_URL_PATH) ?: ''), '/'));
+
+		if ($path === '') {
+			return 'page';
+		}
+
+		if (strpos($path, 'blog') !== false || strpos($path, 'article') !== false || strpos($path, 'news') !== false) {
+			return 'blog';
+		}
+
+		if (strpos($path, 'product') !== false || strpos($path, 'products') !== false) {
+			return 'product';
+		}
+
+		if (strpos($path, 'category') !== false || strpos($path, 'categories') !== false) {
+			return 'category';
+		}
+
+		return 'page';
+	}
+
+	private function scoreSiteEntry(string $message, array $entry): int {
+		$tokens = $this->contentTokens($message);
+
+		if (!$tokens) {
+			return 0;
+		}
+
+		$title = $this->foldText((string)($entry['title'] ?? $entry['page'] ?? ''));
+		$content = $this->foldText(implode(' ', [
+			$title,
+			(string)($entry['description'] ?? ''),
+			(string)($entry['content'] ?? ''),
+			(string)($entry['url'] ?? ''),
+			(string)($entry['content_type'] ?? '')
+		]));
+		$score = 0;
+
+		foreach ($tokens as $token) {
+			if (strpos($title, $token) !== false) {
+				$score += 8;
+			}
+
+			if (strpos($content, $token) !== false) {
+				$score += 3;
+			}
+		}
+
+		if (($entry['content_type'] ?? '') === 'blog') {
+			$score += 4;
+		}
+
+		return $score;
+	}
+
+	private function contentTokens(string $value): array {
+		$value = $this->foldText($value);
+
+		if ($value === '') {
+			return [];
+		}
+
+		preg_match_all('/[\p{L}\p{N}][\p{L}\p{N}_.-]*/u', $value, $matches);
+		$stop_words = array_flip(['the', 'and', 'for', 'with', 'this', 'that', 'what', 'how', 'can', 'you', 'please', 'about', 'into', 'from', 'your', 'are', 'is']);
+		$tokens = [];
+
+		foreach (($matches[0] ?? []) as $token) {
+			$token = trim((string)$token, '.-_');
+			$length = function_exists('mb_strlen') ? mb_strlen($token, 'UTF-8') : strlen($token);
+
+			if ($length < 3 || isset($stop_words[$token])) {
+				continue;
+			}
+
+			$tokens[$token] = true;
+		}
+
+		return array_keys($tokens);
+	}
+
+	private function extractNestedSitemapUrls(string $body, string $base_url): array {
+		$urls = [];
+
+		if (preg_match_all('~<loc>\s*(.*?)\s*</loc>~is', $body, $matches)) {
+			foreach ($matches[1] as $raw_url) {
+				$url = html_entity_decode(strip_tags((string)$raw_url), ENT_QUOTES, 'UTF-8');
+				$url = $this->absoluteUrl($url, $base_url);
+
+				if ($url !== '' && $this->isInternalAbsoluteUrl($url) && $this->looksLikeSitemapFile($url)) {
+					$urls[] = $url;
+				}
+			}
+		}
+
+		return array_values(array_unique($urls));
+	}
+
+	private function extractSitemapPages(string $body, string $base_url): array {
+		$pages = [];
+
+		if (preg_match_all('~<loc>\s*(.*?)\s*</loc>~is', $body, $matches)) {
+			foreach ($matches[1] as $raw_url) {
+				$url = html_entity_decode(strip_tags((string)$raw_url), ENT_QUOTES, 'UTF-8');
+				$url = $this->absoluteUrl($url, $base_url);
+
+				if ($url === '' || !$this->isInternalAbsoluteUrl($url) || $this->looksLikeSitemapFile($url)) {
+					continue;
+				}
+
+				$pages[] = [
+					'page' => $this->labelFromUrl($url),
+					'url' => $url,
+					'content_type' => $this->contentTypeFromUrl($url),
+					'source' => 'sitemap'
+				];
+			}
+		}
+
+		if (!$pages && preg_match_all('~<a\b[^>]*href=["\']([^"\']+)["\'][^>]*>(.*?)</a>~is', $body, $matches, PREG_SET_ORDER)) {
+			foreach ($matches as $match) {
+				$url = $this->absoluteUrl((string)$match[1], $base_url);
+
+				if ($url === '' || !$this->isInternalAbsoluteUrl($url)) {
+					continue;
+				}
+
+				$label = trim(html_entity_decode(strip_tags((string)$match[2]), ENT_QUOTES, 'UTF-8'));
+				$pages[] = [
+					'page' => $label !== '' ? $this->shortText($label, 120) : $this->labelFromUrl($url),
+					'url' => $url,
+					'content_type' => $this->contentTypeFromUrl($url),
+					'source' => 'sitemap'
+				];
+			}
+		}
+
+		return $pages;
+	}
+
+	private function uniqueNavigationPages(array $pages, int $limit = 180): array {
+		$unique = [];
+		$seen = [];
+		$limit = max(1, $limit);
+
+		foreach ($pages as $page) {
+			if (!is_array($page)) {
+				continue;
+			}
+
+			$name = trim((string)($page['page'] ?? ''));
+			$route = trim((string)($page['route'] ?? ''));
+			$url = trim((string)($page['url'] ?? ''));
+
+			if ($name === '' && $route === '' && $url === '') {
+				continue;
+			}
+
+			$key = strtolower($route . '|' . $url . '|' . $this->normalizePageKey($name));
+
+			if (isset($seen[$key])) {
+				continue;
+			}
+
+			$seen[$key] = true;
+			$unique[] = $page;
+
+			if (count($unique) >= $limit) {
+				break;
+			}
+		}
+
+		return $unique;
+	}
+
+	private function getRemoteText(string $url, int $timeout = 6): string {
+		$timeout = max(3, min(30, $timeout));
+
+		if (function_exists('curl_init')) {
+			$handle = curl_init($url);
+			curl_setopt($handle, CURLOPT_RETURNTRANSFER, true);
+			curl_setopt($handle, CURLOPT_CONNECTTIMEOUT, min(4, $timeout));
+			curl_setopt($handle, CURLOPT_TIMEOUT, $timeout);
+			curl_setopt($handle, CURLOPT_USERAGENT, 'ROKO/3.4');
+			curl_setopt($handle, CURLOPT_ENCODING, '');
+
+			if (!ini_get('open_basedir')) {
+				curl_setopt($handle, CURLOPT_FOLLOWLOCATION, true);
+			}
+
+			$response = curl_exec($handle);
+			$status = (int)curl_getinfo($handle, CURLINFO_RESPONSE_CODE);
+			curl_close($handle);
+
+			if ($status >= 200 && $status < 300 && is_string($response)) {
+				return substr($this->decodeRemoteBody($url, $response), 0, 400000);
+			}
+
+			return '';
+		}
+
+		$context = stream_context_create([
+			'http' => [
+				'method' => 'GET',
+				'timeout' => $timeout,
+				'header' => "User-Agent: ROKO/3.4\r\n",
+				'ignore_errors' => true
+			]
+		]);
+		$response = @file_get_contents($url, false, $context);
+
+		return is_string($response) ? substr($this->decodeRemoteBody($url, $response), 0, 400000) : '';
+	}
+
+	private function decodeRemoteBody(string $url, string $body): string {
+		$path = strtolower((string)(parse_url($url, PHP_URL_PATH) ?: ''));
+
+		if (substr($path, -3) === '.gz' && function_exists('gzdecode')) {
+			$decoded = @gzdecode($body);
+
+			if (is_string($decoded) && $decoded !== '') {
+				return $decoded;
+			}
+		}
+
+		return $body;
+	}
+
+	private function absoluteUrl(string $url, string $base_url): string {
+		$url = trim(html_entity_decode($url, ENT_QUOTES, 'UTF-8'));
+
+		if ($url === '' || preg_match('~^(mailto:|tel:|javascript:)~i', $url)) {
+			return '';
+		}
+
+		if (preg_match('~^https?://~i', $url)) {
+			return $url;
+		}
+
+		$base = parse_url($base_url);
+
+		if (!$base || empty($base['scheme']) || empty($base['host'])) {
+			return '';
+		}
+
+		$origin = $base['scheme'] . '://' . $base['host'] . (isset($base['port']) ? ':' . $base['port'] : '');
+
+		if (strpos($url, '/') === 0) {
+			return $origin . $url;
+		}
+
+		$path = isset($base['path']) ? preg_replace('~/[^/]*$~', '/', $base['path']) : '/';
+
+		return $origin . $path . $url;
+	}
+
+	private function isInternalAbsoluteUrl(string $url): bool {
+		$parts = parse_url($url);
+
+		if (!$parts || empty($parts['host'])) {
+			return false;
+		}
+
+		$allowed_hosts = [];
+
+		foreach (['HTTP_SERVER', 'HTTPS_SERVER'] as $constant) {
+			if (defined($constant)) {
+				$server_parts = parse_url((string)constant($constant));
+
+				if (!empty($server_parts['host'])) {
+					$allowed_hosts[] = strtolower($server_parts['host']);
+				}
+			}
+		}
+
+		foreach (['config_url', 'config_ssl'] as $key) {
+			$config_url = (string)$this->config->get($key);
+			$config_parts = parse_url($config_url);
+
+			if (!empty($config_parts['host'])) {
+				$allowed_hosts[] = strtolower($config_parts['host']);
+			}
+		}
+
+		$target_host = $this->canonicalHost((string)$parts['host']);
+
+		foreach (array_unique($allowed_hosts) as $allowed_host) {
+			if ($target_host === $this->canonicalHost($allowed_host)) {
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	private function canonicalHost(string $host): string {
+		$host = strtolower(trim($host));
+		return strpos($host, 'www.') === 0 ? substr($host, 4) : $host;
+	}
+
+	private function looksLikeSitemapFile(string $url): bool {
+		$path = strtolower((string)(parse_url($url, PHP_URL_PATH) ?: ''));
+
+		return (bool)preg_match('~(?:^|/)[^/]*sitemap[^/]*\.xml(?:\.gz)?$~', $path)
+			|| (bool)preg_match('~\.xml(?:\.gz)?$~', $path);
+	}
+
+	private function labelFromUrl(string $url): string {
+		$parts = parse_url($url);
+		$path = trim((string)($parts['path'] ?? ''), '/');
+		$query = (string)($parts['query'] ?? '');
+
+		if ($path === '' && $query !== '') {
+			parse_str($query, $query_parts);
+			$path = (string)($query_parts['route'] ?? $query);
+		}
+
+		$label = $path !== '' ? basename($path) : 'home';
+		$label = preg_replace('/\.[a-z0-9]+$/i', '', $label);
+		$label = str_replace(['-', '_', '+'], ' ', $label);
+		$label = trim(preg_replace('/\s+/u', ' ', $label));
+
+		return $this->shortText($label !== '' ? $label : $url, 120);
 	}
 
 	private function getPromptCatalog(string $message): array {
@@ -956,6 +1766,52 @@ class ControllerExtensionModuleRoko extends Controller {
 				continue;
 			}
 
+			$raw_url = trim((string)($raw_product['product_url'] ?? $raw_product['url'] ?? $raw_product['href'] ?? ''));
+			$content_type = strtolower(trim((string)($raw_product['content_type'] ?? $raw_product['type'] ?? 'product')));
+
+			if ($content_type === 'product' && empty($raw_product['product_id']) && empty($raw_product['id']) && $raw_url !== '') {
+				$content_type = $this->contentTypeFromUrl($raw_url);
+			}
+
+			if ($content_type === 'article') {
+				$content_type = 'blog';
+			}
+
+			if (in_array($content_type, ['blog', 'page', 'category'], true)) {
+				$url = $this->internalUrl($raw_url);
+				$name = trim((string)($raw_product['name'] ?? $raw_product['title'] ?? $raw_product['page'] ?? ''));
+
+				if ($url === '' || $name === '') {
+					continue;
+				}
+
+				$key = $content_type . ':' . $url;
+
+				if (isset($seen[$key])) {
+					continue;
+				}
+
+				$seen[$key] = true;
+				$cards[] = [
+					'product_id' => '',
+					'name' => $this->shortText($name, 180),
+					'product_url' => $url,
+					'content_type' => $content_type,
+					'price' => '',
+					'stock' => null,
+					'image' => trim((string)($raw_product['image'] ?? '')),
+					'category' => ucfirst($content_type),
+					'summary' => $this->shortText((string)($raw_product['reason'] ?? $raw_product['summary'] ?? $raw_product['description'] ?? $raw_product['content'] ?? ''), 360),
+					'attributes' => []
+				];
+
+				if (count($cards) >= 4) {
+					break;
+				}
+
+				continue;
+			}
+
 			$product = $this->findCatalogProduct(
 				(string)($raw_product['name'] ?? $raw_product['product_name'] ?? ''),
 				(string)($raw_product['product_id'] ?? $raw_product['id'] ?? '')
@@ -978,6 +1834,7 @@ class ControllerExtensionModuleRoko extends Controller {
 				'product_id' => $product['product_id'],
 				'name' => $product['name'],
 				'product_url' => $product['product_url'],
+				'content_type' => 'product',
 				'price' => $product['price'],
 				'stock' => $product['stock'],
 				'image' => $product['image'],
@@ -1265,6 +2122,16 @@ class ControllerExtensionModuleRoko extends Controller {
 			];
 		}
 
+		$sitemap_page = $this->findSitemapPage($page);
+
+		if ($sitemap_page) {
+			return [
+				'page' => $sitemap_page['page'],
+				'route' => '',
+				'url' => $sitemap_page['url']
+			];
+		}
+
 		if ($page !== '') {
 			return [
 				'page' => $page,
@@ -1402,6 +2269,16 @@ class ControllerExtensionModuleRoko extends Controller {
 		} catch (\Throwable $exception) {
 			return [];
 		}
+	}
+
+	private function findSitemapPage(string $page): array {
+		$page = trim($page);
+
+		if ($page === '') {
+			return [];
+		}
+
+		return $this->bestNamedRow($page, $this->getConfiguredSitemapPages(), 'page');
 	}
 
 	private function bestNamedRow(string $needle, array $rows, string $field): array {
@@ -1661,7 +2538,13 @@ class ControllerExtensionModuleRoko extends Controller {
 			return true;
 		}
 
-		return hash_equals($token, $this->getHeader('X-AI-Assistant-Token'));
+		$provided = $this->getHeader('X-AI-Assistant-Token');
+
+		if ($provided === '') {
+			$provided = (string)($this->request->get['token'] ?? '');
+		}
+
+		return hash_equals($token, $provided);
 	}
 
 	private function getHeader(string $name): string {

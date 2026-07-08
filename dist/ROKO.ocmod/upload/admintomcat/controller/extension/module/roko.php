@@ -54,6 +54,8 @@ class ControllerExtensionModuleRoko extends Controller {
 		}
 
 		$data['module_roko_assistant_name'] = $assistant_name;
+		$data['module_roko_sitemap_url'] = (string)$this->config->get('module_roko_sitemap_url');
+		$data['module_roko_system_prompt'] = (string)$this->config->get('module_roko_system_prompt');
 		$data['module_roko_catalog_token'] = (string)$this->config->get('module_roko_catalog_token');
 		$data['module_roko_lead_webhook_url'] = (string)($this->config->get('module_roko_lead_webhook_url') ?: self::DEFAULT_LEAD_WEBHOOK_URL);
 		$data['module_roko_lead_webhook_secret'] = (string)($this->config->get('module_roko_lead_webhook_secret') ?: self::DEFAULT_LEAD_WEBHOOK_SECRET);
@@ -61,6 +63,10 @@ class ControllerExtensionModuleRoko extends Controller {
 		$data['module_roko_widget_title'] = $widget_title;
 		$data['module_roko_widget_button'] = $widget_button;
 		$data['logs'] = $this->getRecentLogs();
+		$data['sitemap_pages'] = $this->getIndexedSitemapPages();
+		$data['sitemap_pages_total'] = count($data['sitemap_pages']);
+		$data['sitemap_cache_status'] = $this->getSitemapCacheStatus($data['sitemap_pages_total']);
+		$data['warm_sitemap_url'] = $this->getWarmSitemapUrl();
 
 		$data['header'] = $this->load->controller('common/header');
 		$data['column_left'] = $this->load->controller('common/column_left');
@@ -103,6 +109,8 @@ class ControllerExtensionModuleRoko extends Controller {
 				'module_roko_catalog_limit' => $catalog_limit,
 				'module_roko_store_brand' => trim((string)($this->request->post['module_roko_store_brand'] ?? $this->config->get('config_name'))) ?: $this->config->get('config_name'),
 				'module_roko_assistant_name' => trim((string)($this->request->post['module_roko_assistant_name'] ?? 'ROKO')) ?: 'ROKO',
+				'module_roko_sitemap_url' => $this->normalizeUrl((string)($this->request->post['module_roko_sitemap_url'] ?? '')),
+				'module_roko_system_prompt' => $this->limitSettingText((string)($this->request->post['module_roko_system_prompt'] ?? ''), 12000),
 				'module_roko_catalog_token' => trim((string)($this->request->post['module_roko_catalog_token'] ?? '')),
 				'module_roko_lead_webhook_url' => trim((string)($this->request->post['module_roko_lead_webhook_url'] ?? self::DEFAULT_LEAD_WEBHOOK_URL)),
 				'module_roko_lead_webhook_secret' => trim((string)($this->request->post['module_roko_lead_webhook_secret'] ?? self::DEFAULT_LEAD_WEBHOOK_SECRET)),
@@ -179,6 +187,8 @@ class ControllerExtensionModuleRoko extends Controller {
 			'module_roko_catalog_limit' => 80,
 			'module_roko_store_brand' => $this->config->get('config_name'),
 			'module_roko_assistant_name' => 'ROKO',
+			'module_roko_sitemap_url' => '',
+			'module_roko_system_prompt' => '',
 			'module_roko_catalog_token' => '',
 			'module_roko_lead_webhook_url' => self::DEFAULT_LEAD_WEBHOOK_URL,
 			'module_roko_lead_webhook_secret' => self::DEFAULT_LEAD_WEBHOOK_SECRET,
@@ -237,6 +247,105 @@ class ControllerExtensionModuleRoko extends Controller {
 		} catch (\Throwable $exception) {
 			return [];
 		}
+	}
+
+	private function getIndexedSitemapPages(): array {
+		$url = trim((string)$this->config->get('module_roko_sitemap_url'));
+
+		if ($url === '') {
+			return [];
+		}
+
+		$cache_key = 'roko.sitemap.content.v1.' . md5($url);
+		$path = $this->cacheFilePath($cache_key);
+
+		if ($path === '' || !is_file($path)) {
+			return [];
+		}
+
+		$payload = json_decode((string)file_get_contents($path), true);
+
+		if (!is_array($payload)) {
+			return [];
+		}
+
+		$pages = [];
+
+		foreach ($payload as $url => $entry) {
+			if (!is_array($entry)) {
+				continue;
+			}
+
+			$page_url = trim((string)($entry['url'] ?? $url));
+
+			if ($page_url === '') {
+				continue;
+			}
+
+			$fetched_at = (int)($entry['fetched_at'] ?? 0);
+			$pages[] = [
+				'title' => $this->shortText((string)($entry['title'] ?? $page_url), 120),
+				'url' => $page_url,
+				'content_type' => (string)($entry['content_type'] ?? 'page'),
+				'summary' => $this->shortText((string)($entry['description'] ?? $entry['content'] ?? ''), 220),
+				'fetched_at' => $fetched_at ? date('Y-m-d H:i:s', $fetched_at) : ''
+			];
+		}
+
+		usort($pages, function ($a, $b) {
+			return strcmp((string)($b['fetched_at'] ?? ''), (string)($a['fetched_at'] ?? ''));
+		});
+
+		return array_slice($pages, 0, 200);
+	}
+
+	private function getSitemapCacheStatus(int $cached_pages): string {
+		$url = trim((string)$this->config->get('module_roko_sitemap_url'));
+
+		if ($url === '') {
+			return $this->language->get('text_sitemap_not_configured');
+		}
+
+		$content_path = $this->cacheFilePath('roko.sitemap.content.v1.' . md5($url));
+
+		if ($content_path === '' || !is_file($content_path)) {
+			return $this->language->get('text_sitemap_not_warmed');
+		}
+
+		return sprintf($this->language->get('text_sitemap_cached_count'), $cached_pages, date('Y-m-d H:i:s', (int)filemtime($content_path)));
+	}
+
+	private function getWarmSitemapUrl(): string {
+		$base = (string)$this->config->get('config_url');
+
+		if ($base === '' && defined('HTTP_CATALOG')) {
+			$base = (string)HTTP_CATALOG;
+		}
+
+		if ($base === '' && defined('HTTP_SERVER')) {
+			$base = (string)HTTP_SERVER;
+		}
+
+		if ($base === '') {
+			return '';
+		}
+
+		$query = 'route=extension/module/roko/warmSitemap&limit=50&refresh=1';
+		$token = trim((string)$this->config->get('module_roko_catalog_token'));
+
+		if ($token !== '') {
+			$query .= '&token=' . urlencode($token);
+		}
+
+		return rtrim($base, '/') . '/index.php?' . $query;
+	}
+
+	private function cacheFilePath(string $cache_key): string {
+		if (!defined('DIR_CACHE')) {
+			return '';
+		}
+
+		return rtrim(DIR_CACHE, '/\\') . DIRECTORY_SEPARATOR . 'cache.' . preg_replace('/[^a-zA-Z0-9_.-]/', '_', $cache_key) . '.json';
 	}
 
 	private function getExportLogs(): array {
@@ -330,6 +439,46 @@ class ControllerExtensionModuleRoko extends Controller {
 		}
 
 		return implode(', ', $normalized);
+	}
+
+	private function normalizeUrl(string $value): string {
+		$value = trim($value);
+
+		if ($value === '') {
+			return '';
+		}
+
+		$parts = parse_url($value);
+
+		if (!$parts || empty($parts['scheme']) || empty($parts['host']) || !in_array(strtolower($parts['scheme']), ['http', 'https'], true)) {
+			return '';
+		}
+
+		return $this->limitSettingText($value, 1000);
+	}
+
+	private function limitSettingText(string $value, int $limit): string {
+		$value = str_replace(["\r\n", "\r"], "\n", trim($value));
+
+		if (function_exists('mb_substr')) {
+			return mb_substr($value, 0, $limit);
+		}
+
+		return substr($value, 0, $limit);
+	}
+
+	private function shortText(string $value, int $limit): string {
+		$value = trim(preg_replace('/\s+/u', ' ', strip_tags(html_entity_decode($value, ENT_QUOTES, 'UTF-8'))));
+
+		if ($value === '' || $limit <= 0) {
+			return $value;
+		}
+
+		if (function_exists('mb_strlen') && function_exists('mb_substr')) {
+			return mb_strlen($value, 'UTF-8') > $limit ? rtrim(mb_substr($value, 0, $limit, 'UTF-8')) . '...' : $value;
+		}
+
+		return strlen($value) > $limit ? rtrim(substr($value, 0, $limit)) . '...' : $value;
 	}
 
 	private function isAjaxRequest(): bool {

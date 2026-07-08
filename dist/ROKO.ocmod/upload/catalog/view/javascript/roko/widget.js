@@ -579,12 +579,15 @@
       if (!Array.isArray(products)) return [];
       return products.map((product) => {
         if (!product || typeof product !== 'object') return null;
+        const rawStock = product.stock === null || product.stock === undefined || product.stock === '' ? null : Number(product.stock || product.quantity || 0);
+        const contentType = String(product.content_type || product.type || (product.product_id || product.id ? 'product' : 'page')).trim().toLowerCase();
         return {
           product_id: String(product.product_id || product.id || ''),
           name: String(product.name || product.product_name || product.title || '').trim(),
           product_url: String(product.product_url || product.url || product.href || '').trim(),
+          content_type: contentType,
           price: String(product.price || '').trim(),
-          stock: Number(product.stock || product.quantity || 0),
+          stock: rawStock,
           image: String(product.image || '').trim(),
           category: String(product.category || '').trim(),
           summary: String(product.summary || product.reason || product.description || '').trim(),
@@ -673,7 +676,8 @@
       meta.className = 'aisa-product-meta';
       const metaParts = [];
       if (product.price) metaParts.push(product.price);
-      if (Number.isFinite(product.stock)) metaParts.push(product.stock > 0 ? `In stock: ${product.stock}` : 'Out of stock');
+      if (product.content_type && product.content_type !== 'product') metaParts.push(product.content_type.charAt(0).toUpperCase() + product.content_type.slice(1));
+      if (product.content_type === 'product' && Number.isFinite(product.stock)) metaParts.push(product.stock > 0 ? `In stock: ${product.stock}` : 'Out of stock');
       meta.textContent = metaParts.join(' • ');
       if (meta.textContent) body.appendChild(meta);
 
@@ -723,7 +727,7 @@
       learn.addEventListener('click', () => this.redirectToProduct(product));
       actions.appendChild(learn);
 
-      if (product.product_id && product.stock !== 0) {
+      if (product.content_type === 'product' && product.product_id && product.stock !== 0) {
         const add = document.createElement('button');
         add.type = 'button';
         add.className = 'aisa-product-action';
