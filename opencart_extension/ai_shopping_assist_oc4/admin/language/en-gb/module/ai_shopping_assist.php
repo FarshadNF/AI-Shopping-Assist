@@ -23,6 +23,8 @@ $_['entry_gemini_temperature'] = 'Temperature';
 $_['entry_catalog_limit'] = 'Prompt catalog limit';
 $_['entry_store_brand'] = 'Store brand';
 $_['entry_assistant_name'] = 'Assistant name';
+$_['entry_sitemap_url'] = 'Sitemap URL';
+$_['entry_system_prompt'] = 'System prompt';
 $_['entry_catalog_token'] = 'Catalog token';
 $_['entry_lead_webhook_url'] = 'Lead webhook URL';
 $_['entry_lead_webhook_secret'] = 'Lead webhook secret';
@@ -33,6 +35,8 @@ $_['entry_knowledge_file'] = 'Knowledge JSON file';
 
 $_['help_gemini_api_key'] = 'Add one or more Google AI Studio keys separated by commas. OpenCart tries the next key if one fails or is rate-limited. Keys are used server-side and never exposed to the browser.';
 $_['help_catalog_limit'] = 'Maximum products sent to Gemini in each prompt. Keep this moderate for speed and token cost.';
+$_['help_sitemap_url'] = 'Optional. Paste your store sitemap URL so the assistant can use real internal links for navigation and suggestions.';
+$_['help_system_prompt'] = 'Optional. Add store-specific rules, tone, link guidance, offer policy, or recommendation instructions. These rules are appended to every Gemini prompt.';
 $_['help_catalog_token'] = 'Optional. If set, catalog JSON requests must include X-AI-Assistant-Token.';
 $_['help_lead_webhook_url'] = 'Optional. Paste the Google Apps Script Web App URL. Bulk lead forms will be sent to this URL as JSON.';
 $_['help_lead_webhook_secret'] = 'Optional shared secret. If set here, use the same value in Apps Script to reject unknown requests.';

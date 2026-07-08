@@ -57,6 +57,8 @@ class AiShoppingAssist extends \Opencart\System\Engine\Controller {
 		}
 
 		$data['module_ai_shopping_assist_assistant_name'] = $assistant_name;
+		$data['module_ai_shopping_assist_sitemap_url'] = (string)$this->config->get('module_ai_shopping_assist_sitemap_url');
+		$data['module_ai_shopping_assist_system_prompt'] = (string)$this->config->get('module_ai_shopping_assist_system_prompt');
 		$data['module_ai_shopping_assist_catalog_token'] = (string)$this->config->get('module_ai_shopping_assist_catalog_token');
 		$data['module_ai_shopping_assist_lead_webhook_url'] = (string)($this->config->get('module_ai_shopping_assist_lead_webhook_url') ?: self::DEFAULT_LEAD_WEBHOOK_URL);
 		$data['module_ai_shopping_assist_lead_webhook_secret'] = (string)($this->config->get('module_ai_shopping_assist_lead_webhook_secret') ?: self::DEFAULT_LEAD_WEBHOOK_SECRET);
@@ -105,6 +107,8 @@ class AiShoppingAssist extends \Opencart\System\Engine\Controller {
 				'module_ai_shopping_assist_catalog_limit' => $catalog_limit,
 				'module_ai_shopping_assist_store_brand' => trim((string)($this->request->post['module_ai_shopping_assist_store_brand'] ?? $this->config->get('config_name'))) ?: $this->config->get('config_name'),
 				'module_ai_shopping_assist_assistant_name' => trim((string)($this->request->post['module_ai_shopping_assist_assistant_name'] ?? 'ROKO')) ?: 'ROKO',
+				'module_ai_shopping_assist_sitemap_url' => $this->normalizeUrl((string)($this->request->post['module_ai_shopping_assist_sitemap_url'] ?? '')),
+				'module_ai_shopping_assist_system_prompt' => $this->limitSettingText((string)($this->request->post['module_ai_shopping_assist_system_prompt'] ?? ''), 12000),
 				'module_ai_shopping_assist_catalog_token' => trim((string)($this->request->post['module_ai_shopping_assist_catalog_token'] ?? '')),
 				'module_ai_shopping_assist_lead_webhook_url' => trim((string)($this->request->post['module_ai_shopping_assist_lead_webhook_url'] ?? self::DEFAULT_LEAD_WEBHOOK_URL)),
 				'module_ai_shopping_assist_lead_webhook_secret' => trim((string)($this->request->post['module_ai_shopping_assist_lead_webhook_secret'] ?? self::DEFAULT_LEAD_WEBHOOK_SECRET)),
@@ -238,6 +242,8 @@ class AiShoppingAssist extends \Opencart\System\Engine\Controller {
 			'module_ai_shopping_assist_catalog_limit' => 80,
 			'module_ai_shopping_assist_store_brand' => $this->config->get('config_name'),
 			'module_ai_shopping_assist_assistant_name' => 'ROKO',
+			'module_ai_shopping_assist_sitemap_url' => '',
+			'module_ai_shopping_assist_system_prompt' => '',
 			'module_ai_shopping_assist_catalog_token' => '',
 			'module_ai_shopping_assist_lead_webhook_url' => self::DEFAULT_LEAD_WEBHOOK_URL,
 			'module_ai_shopping_assist_lead_webhook_secret' => self::DEFAULT_LEAD_WEBHOOK_SECRET,
@@ -590,5 +596,31 @@ class AiShoppingAssist extends \Opencart\System\Engine\Controller {
 		}
 
 		return implode(', ', $normalized);
+	}
+
+	private function normalizeUrl(string $value): string {
+		$value = trim($value);
+
+		if ($value === '') {
+			return '';
+		}
+
+		$parts = parse_url($value);
+
+		if (!$parts || empty($parts['scheme']) || empty($parts['host']) || !in_array(strtolower($parts['scheme']), ['http', 'https'], true)) {
+			return '';
+		}
+
+		return $this->limitSettingText($value, 1000);
+	}
+
+	private function limitSettingText(string $value, int $limit): string {
+		$value = str_replace(["\r\n", "\r"], "\n", trim($value));
+
+		if (function_exists('mb_substr')) {
+			return mb_substr($value, 0, $limit);
+		}
+
+		return substr($value, 0, $limit);
 	}
 }
