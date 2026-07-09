@@ -17,11 +17,28 @@ $_['text_sitemap_not_warmed'] = 'Sitemap cache has not been warmed yet.';
 $_['text_sitemap_cached_count'] = '%d cached pages. Last cache update: %s';
 $_['text_cache_status'] = 'Cache status';
 $_['text_warm_sitemap'] = 'Warm sitemap cache';
+$_['text_warm_sitemap_all'] = 'Warm all (auto)';
+$_['text_warm_sitemap_starting'] = 'Starting sitemap crawl...';
+$_['text_warm_sitemap_progress'] = 'Crawled pages:';
+$_['text_warm_sitemap_remaining'] = 'Remaining:';
+$_['text_warm_sitemap_batches'] = 'Batches:';
+$_['text_warm_sitemap_done'] = 'Sitemap crawl completed.';
+$_['text_warm_sitemap_failed'] = 'Sitemap crawl failed.';
+$_['text_warm_sitemap_timeout'] = 'Batch request timed out. Click "Warm all (auto)" again to resume.';
+$_['text_warm_sitemap_stalled'] = 'Crawl stalled, remaining pages:';
 $_['text_upload_sitemap'] = 'Upload sitemap XML';
 $_['text_uploaded_sitemap'] = 'Uploaded sitemap XML';
 $_['text_no_uploaded_sitemap'] = 'No XML sitemap has been uploaded.';
 $_['text_uploaded_sitemap_status'] = '%d URLs. Uploaded: %s';
 $_['text_upload_sitemap_success'] = 'Sitemap XML uploaded. %d URLs found. Existing indexed pages were kept; click Warm sitemap cache to index from the uploaded XML.';
+$_['text_redirect_logs'] = 'Redirect logs';
+$_['text_no_redirect_logs'] = 'No redirect logs yet.';
+$_['text_clear_redirect_logs'] = 'Clear redirect logs';
+$_['text_leads'] = 'Bot leads';
+$_['text_no_leads'] = 'No leads yet.';
+$_['text_clear_leads'] = 'Clear leads';
+$_['text_yes'] = 'Yes';
+$_['text_no'] = 'No';
 
 $_['entry_status'] = 'Status';
 $_['entry_gemini_api_key'] = 'Gemini API keys';
@@ -38,8 +55,15 @@ $_['entry_lead_webhook_secret'] = 'Lead webhook secret';
 $_['entry_footer_injection'] = 'Auto-inject widget';
 $_['entry_widget_title'] = 'Widget title';
 $_['entry_widget_button'] = 'Button text';
+$_['entry_redirect_utm'] = 'Redirect UTM parameters';
 
 $_['button_upload_sitemap'] = 'Upload XML';
+$_['button_filter'] = 'Filter';
+$_['button_clear_filter'] = 'Clear filters';
+
+$_['text_search'] = 'Search';
+$_['text_filter_all_types'] = 'All types';
+$_['text_filter_all_actions'] = 'All actions';
 
 $_['help_gemini_api_key'] = 'Add one or more Google AI Studio keys separated by commas. Keys are used server-side and never exposed to the browser.';
 $_['help_catalog_limit'] = 'Maximum products sent to Gemini in each prompt. Keep this moderate for speed and token cost.';
@@ -49,6 +73,7 @@ $_['help_system_prompt'] = 'Optional. Add store-specific rules, tone, link guida
 $_['help_catalog_token'] = 'Optional. If set, catalog JSON requests must include X-ROKO-Token or X-AI-Assistant-Token.';
 $_['help_lead_webhook_url'] = 'Optional. Paste the Google Apps Script Web App URL. Bulk lead forms will be sent to this URL as JSON.';
 $_['help_lead_webhook_secret'] = 'Optional shared secret. If set here, use the same value in Apps Script to reject unknown requests.';
+$_['help_redirect_utm'] = 'Optional. Add UTM query parameters for ROKO redirects, for example: utm_source=roko&utm_medium=assistant&utm_campaign=chat';
 
 $_['column_date'] = 'Date';
 $_['column_log_id'] = 'Log ID';
@@ -64,6 +89,21 @@ $_['column_type'] = 'Type';
 $_['column_url'] = 'URL';
 $_['column_summary'] = 'Summary';
 $_['column_cached_at'] = 'Cached at';
+$_['column_action_type'] = 'Action';
+$_['column_source_url'] = 'Source URL';
+$_['column_destination_url'] = 'Destination URL';
+$_['column_destination_url_utm'] = 'Destination URL (UTM)';
+$_['column_utm_payload'] = 'UTM payload';
+$_['column_product_name'] = 'Product';
+$_['column_qty'] = 'QTY';
+$_['column_name'] = 'Name';
+$_['column_company'] = 'Company';
+$_['column_contact_number'] = 'Contact number';
+$_['column_email'] = 'Email';
+$_['column_delivery_location'] = 'Delivery location';
+$_['column_page_url'] = 'Page URL';
+$_['column_page_title'] = 'Page title';
+$_['column_webhook_sent'] = 'Webhook sent';
 
 $_['error_permission'] = 'Warning: You do not have permission to modify ROKO!';
 $_['error_gemini_api_key'] = 'At least one Gemini API key is required when the module is enabled.';

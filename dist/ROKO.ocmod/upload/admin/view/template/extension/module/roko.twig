@@ -113,6 +113,11 @@
             <label class="col-sm-2 control-label" for="input-widget-button">{{ entry_widget_button }}</label>
             <div class="col-sm-10"><input type="text" name="module_roko_widget_button" value="{{ module_roko_widget_button }}" id="input-widget-button" class="form-control"/></div>
           </div>
+
+          <div class="form-group">
+            <label class="col-sm-2 control-label" for="input-redirect-utm"><span data-toggle="tooltip" title="{{ help_redirect_utm }}">{{ entry_redirect_utm }}</span></label>
+            <div class="col-sm-10"><input type="text" name="module_roko_redirect_utm" value="{{ module_roko_redirect_utm }}" id="input-redirect-utm" class="form-control" placeholder="utm_source=roko&utm_medium=assistant&utm_campaign=chat"/></div>
+          </div>
         </form>
       </div>
     </div>
@@ -123,12 +128,14 @@
       </div>
       <div class="panel-body">
         <ul class="nav nav-tabs">
-          <li class="active"><a href="#tab-roko-logs" data-toggle="tab"><i class="fa fa-list"></i> {{ text_logs }}</a></li>
-          <li><a href="#tab-roko-indexed-pages" data-toggle="tab"><i class="fa fa-sitemap"></i> {{ text_indexed_pages }} <span class="badge">{{ sitemap_pages_total }}</span></a></li>
+          <li class="{% if active_tab == 'logs' %}active{% endif %}"><a href="#tab-roko-logs" data-toggle="tab"><i class="fa fa-list"></i> {{ text_logs }}</a></li>
+          <li class="{% if active_tab == 'indexed-pages' %}active{% endif %}"><a href="#tab-roko-indexed-pages" data-toggle="tab"><i class="fa fa-sitemap"></i> {{ text_indexed_pages }} <span class="badge">{{ sitemap_pages_total }}</span></a></li>
+          <li class="{% if active_tab == 'redirects' %}active{% endif %}"><a href="#tab-roko-redirects" data-toggle="tab"><i class="fa fa-location-arrow"></i> {{ text_redirect_logs }} <span class="badge">{{ redirect_logs_total }}</span></a></li>
+          <li class="{% if active_tab == 'leads' %}active{% endif %}"><a href="#tab-roko-leads" data-toggle="tab"><i class="fa fa-user-plus"></i> {{ text_leads }} <span class="badge">{{ leads_total }}</span></a></li>
         </ul>
 
         <div class="tab-content">
-          <div class="tab-pane active" id="tab-roko-logs">
+          <div class="tab-pane {% if active_tab == 'logs' %}active{% endif %}" id="tab-roko-logs">
             <div class="clearfix" style="margin: 0 0 10px;">
               <div class="pull-right">
                 <a href="{{ export_logs }}" class="btn btn-success btn-xs"><i class="fa fa-file-excel-o"></i> {{ text_export_excel }}</a>
@@ -149,15 +156,20 @@
                 </tbody>
               </table>
             </div>
+            <div class="text-right">{{ logs_pagination }}</div>
           </div>
 
-          <div class="tab-pane" id="tab-roko-indexed-pages">
+          <div class="tab-pane {% if active_tab == 'indexed-pages' %}active{% endif %}" id="tab-roko-indexed-pages">
             <div class="clearfix" style="margin: 0 0 10px;">
               <div class="pull-left" style="padding-top: 6px;"><strong>{{ text_cache_status }}:</strong> {{ sitemap_cache_status }}</div>
               {% if warm_sitemap_url %}
-                <div class="pull-right"><a href="{{ warm_sitemap_url }}" target="_blank" rel="noopener" class="btn btn-primary btn-xs"><i class="fa fa-refresh"></i> {{ text_warm_sitemap }}</a></div>
+                <div class="pull-right">
+                  <button type="button" id="button-warm-sitemap-all" class="btn btn-success btn-xs"><i class="fa fa-play-circle"></i> {{ text_warm_sitemap_all }}</button>
+                  <a href="{{ warm_sitemap_url }}" target="_blank" rel="noopener" class="btn btn-primary btn-xs"><i class="fa fa-refresh"></i> {{ text_warm_sitemap }}</a>
+                </div>
               {% endif %}
             </div>
+            <div id="warm-sitemap-progress" class="alert alert-info" style="display:none; margin: 0 0 10px;"></div>
             <div class="well well-sm">
               <form action="{{ upload_sitemap }}" method="post" enctype="multipart/form-data" class="form-inline">
                 <div class="form-group">
@@ -170,6 +182,24 @@
                 <pre style="margin: 8px 0 0; max-height: 180px; overflow: auto; white-space: pre-wrap;">{{ uploaded_sitemap_diagnostics }}</pre>
               </form>
             </div>
+            <form action="{{ module_url }}" method="get" class="form-inline" style="margin: 0 0 10px;">
+              <input type="hidden" name="tab" value="indexed-pages"/>
+              <div class="form-group" style="margin-right: 8px;">
+                <input type="text" name="sitemap_search" value="{{ sitemap_search }}" class="form-control input-sm" placeholder="{{ text_search }}"/>
+              </div>
+              <div class="form-group" style="margin-right: 8px;">
+                <select name="sitemap_type" class="form-control input-sm">
+                  <option value="">{{ text_filter_all_types }}</option>
+                  {% for type in sitemap_types %}
+                    <option value="{{ type }}"{% if sitemap_type == type %} selected="selected"{% endif %}>{{ type }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+              <button type="submit" class="btn btn-default btn-sm"><i class="fa fa-filter"></i> {{ button_filter }}</button>
+              {% if sitemap_search or sitemap_type %}
+                <a href="{{ module_url }}&amp;tab=indexed-pages" class="btn btn-link btn-sm">{{ button_clear_filter }}</a>
+              {% endif %}
+            </form>
             <div class="table-responsive">
               <table class="table table-bordered table-hover">
                 <thead><tr><td>{{ column_cached_at }}</td><td>{{ column_type }}</td><td>{{ column_title }}</td><td>{{ column_url }}</td><td>{{ column_summary }}</td></tr></thead>
@@ -190,6 +220,103 @@
                 </tbody>
               </table>
             </div>
+            <div class="text-right">{{ sitemap_pages_pagination }}</div>
+          </div>
+
+          <div class="tab-pane {% if active_tab == 'redirects' %}active{% endif %}" id="tab-roko-redirects">
+            <div class="clearfix" style="margin: 0 0 10px;">
+              <div class="pull-right">
+                <a href="{{ export_redirect_logs }}" class="btn btn-success btn-xs"><i class="fa fa-file-excel-o"></i> {{ text_export_excel }}</a>
+                <button type="button" id="button-clear-redirect-logs" data-url="{{ clear_redirect_logs }}" class="btn btn-danger btn-xs">{{ text_clear_redirect_logs }}</button>
+              </div>
+            </div>
+            <form action="{{ module_url }}" method="get" class="form-inline" style="margin: 0 0 10px;">
+              <input type="hidden" name="tab" value="redirects"/>
+              <div class="form-group" style="margin-right: 8px;">
+                <input type="text" name="redirect_search" value="{{ redirect_search }}" class="form-control input-sm" placeholder="{{ text_search }}"/>
+              </div>
+              <div class="form-group" style="margin-right: 8px;">
+                <select name="redirect_action" class="form-control input-sm">
+                  <option value="">{{ text_filter_all_actions }}</option>
+                  {% for action in redirect_actions %}
+                    <option value="{{ action }}"{% if redirect_action == action %} selected="selected"{% endif %}>{{ action }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+              <button type="submit" class="btn btn-default btn-sm"><i class="fa fa-filter"></i> {{ button_filter }}</button>
+              {% if redirect_search or redirect_action %}
+                <a href="{{ module_url }}&amp;tab=redirects" class="btn btn-link btn-sm">{{ button_clear_filter }}</a>
+              {% endif %}
+            </form>
+            <div class="table-responsive">
+              <table class="table table-bordered table-hover">
+                <thead><tr><td>{{ column_date }}</td><td>{{ column_conversation }}</td><td>{{ column_action_type }}</td><td>{{ column_source_url }}</td><td>{{ column_destination_url }}</td><td>{{ column_destination_url_utm }}</td><td>{{ column_utm_payload }}</td></tr></thead>
+                <tbody>
+                  {% if redirect_logs %}
+                    {% for row in redirect_logs %}
+                      <tr>
+                        <td>{{ row.date_added }}</td>
+                        <td><code>{{ row.conversation_id }}</code></td>
+                        <td>{{ row.action_type }}</td>
+                        <td><a href="{{ row.source_url }}" target="_blank" rel="noopener">{{ row.source_url }}</a></td>
+                        <td><a href="{{ row.destination_url }}" target="_blank" rel="noopener">{{ row.destination_url }}</a></td>
+                        <td><a href="{{ row.destination_url_utm }}" target="_blank" rel="noopener">{{ row.destination_url_utm }}</a></td>
+                        <td><code>{{ row.utm_payload }}</code></td>
+                      </tr>
+                    {% endfor %}
+                  {% else %}
+                    <tr><td colspan="7" class="text-center">{{ text_no_redirect_logs }}</td></tr>
+                  {% endif %}
+                </tbody>
+              </table>
+            </div>
+            <div class="text-right">{{ redirect_logs_pagination }}</div>
+          </div>
+
+          <div class="tab-pane {% if active_tab == 'leads' %}active{% endif %}" id="tab-roko-leads">
+            <div class="clearfix" style="margin: 0 0 10px;">
+              <div class="pull-right">
+                <a href="{{ export_leads }}" class="btn btn-success btn-xs"><i class="fa fa-file-excel-o"></i> {{ text_export_excel }}</a>
+                <button type="button" id="button-clear-leads" data-url="{{ clear_leads }}" class="btn btn-danger btn-xs">{{ text_clear_leads }}</button>
+              </div>
+            </div>
+            <form action="{{ module_url }}" method="get" class="form-inline" style="margin: 0 0 10px;">
+              <input type="hidden" name="tab" value="leads"/>
+              <div class="form-group" style="margin-right: 8px;">
+                <input type="text" name="lead_search" value="{{ lead_search }}" class="form-control input-sm" placeholder="{{ text_search }}"/>
+              </div>
+              <button type="submit" class="btn btn-default btn-sm"><i class="fa fa-filter"></i> {{ button_filter }}</button>
+              {% if lead_search %}
+                <a href="{{ module_url }}&amp;tab=leads" class="btn btn-link btn-sm">{{ button_clear_filter }}</a>
+              {% endif %}
+            </form>
+            <div class="table-responsive">
+              <table class="table table-bordered table-hover">
+                <thead><tr><td>{{ column_date }}</td><td>{{ column_conversation }}</td><td>{{ column_product_name }}</td><td>{{ column_qty }}</td><td>{{ column_name }}</td><td>{{ column_company }}</td><td>{{ column_contact_number }}</td><td>{{ column_email }}</td><td>{{ column_delivery_location }}</td><td>{{ column_page_url }}</td><td>{{ column_webhook_sent }}</td></tr></thead>
+                <tbody>
+                  {% if leads %}
+                    {% for row in leads %}
+                      <tr>
+                        <td>{{ row.date_added }}</td>
+                        <td><code>{{ row.conversation_id }}</code></td>
+                        <td>{{ row.product_name }}</td>
+                        <td>{{ row.qty }}</td>
+                        <td>{{ row.name }}</td>
+                        <td>{{ row.company }}</td>
+                        <td>{{ row.contact_number }}</td>
+                        <td>{{ row.email }}</td>
+                        <td>{{ row.delivery_location }}</td>
+                        <td>{% if row.page_url %}<a href="{{ row.page_url }}" target="_blank" rel="noopener" title="{{ row.page_title }}">{{ row.page_url }}</a>{% else %}-{% endif %}</td>
+                        <td>{% if row.sent_to_webhook %}<span class="label label-success">{{ text_yes }}</span>{% else %}<span class="label label-default">{{ text_no }}</span>{% endif %}</td>
+                      </tr>
+                    {% endfor %}
+                  {% else %}
+                    <tr><td colspan="11" class="text-center">{{ text_no_leads }}</td></tr>
+                  {% endif %}
+                </tbody>
+              </table>
+            </div>
+            <div class="text-right">{{ leads_pagination }}</div>
           </div>
         </div>
       </div>
@@ -229,6 +356,99 @@ $('#button-clear-logs').on('click', function () {
     dataType: 'json',
     success: function () { location.reload(); }
   });
+});
+
+$('#button-clear-redirect-logs').on('click', function () {
+  if (!confirm('{{ text_clear_redirect_logs|e('js') }}?')) return;
+
+  $.ajax({
+    url: $(this).data('url'),
+    type: 'post',
+    dataType: 'json',
+    success: function () { location.reload(); }
+  });
+});
+
+$('#button-clear-leads').on('click', function () {
+  if (!confirm('{{ text_clear_leads|e('js') }}?')) return;
+
+  $.ajax({
+    url: $(this).data('url'),
+    type: 'post',
+    dataType: 'json',
+    success: function () { location.reload(); }
+  });
+});
+
+$('#button-warm-sitemap-all').on('click', function () {
+  var $button = $(this);
+  var $progress = $('#warm-sitemap-progress');
+  var baseUrl = '{{ warm_sitemap_url|default('')|e('js') }}';
+
+  if (!baseUrl) return;
+
+  var runIndex = 0;
+  var totalCrawled = 0;
+
+  function buildUrl(refreshFlag) {
+    var separator = baseUrl.indexOf('?') !== -1 ? '&' : '?';
+    return baseUrl + separator + '_ts=' + Date.now() + '&limit=80&refresh=' + (refreshFlag ? '1' : '0');
+  }
+
+  function setProgress(message, type) {
+    $progress
+      .removeClass('alert-info alert-success alert-danger')
+      .addClass(type || 'alert-info')
+      .text(message)
+      .show();
+  }
+
+  function runBatch() {
+    var isFirst = runIndex === 0;
+    $.ajax({
+      url: buildUrl(isFirst),
+      type: 'get',
+      dataType: 'json',
+      timeout: 90000,
+      success: function (json) {
+        if (!json || json.success === false) {
+          setProgress('{{ text_warm_sitemap_failed|e('js') }} ' + ((json && (json.error || json.fetch_error)) || ''), 'alert-danger');
+          $button.prop('disabled', false);
+          return;
+        }
+
+        runIndex += 1;
+        totalCrawled += Number(json.crawled_pages || 0);
+        var remaining = Number(json.remaining_pages || 0);
+        var total = Number(json.total_pages || 0);
+        var cached = Number(json.cached_pages || 0);
+
+        setProgress('{{ text_warm_sitemap_progress|e('js') }} ' + cached + '/' + total + ' | ' + '{{ text_warm_sitemap_remaining|e('js') }} ' + remaining + ' | ' + '{{ text_warm_sitemap_batches|e('js') }} ' + runIndex);
+
+        if (remaining > 0 && Number(json.crawled_pages || 0) > 0) {
+          setTimeout(runBatch, 500);
+          return;
+        }
+
+        if (remaining > 0 && Number(json.crawled_pages || 0) === 0) {
+          setProgress('{{ text_warm_sitemap_stalled|e('js') }} ' + remaining, 'alert-danger');
+          $button.prop('disabled', false);
+          return;
+        }
+
+        setProgress('{{ text_warm_sitemap_done|e('js') }} ' + totalCrawled + ' / ' + total, 'alert-success');
+        setTimeout(function () { location.reload(); }, 1200);
+      },
+      error: function () {
+        setProgress('{{ text_warm_sitemap_timeout|e('js') }}', 'alert-danger');
+        $button.prop('disabled', false);
+      }
+    });
+  }
+
+  $button.prop('disabled', true);
+  setProgress('{{ text_warm_sitemap_starting|e('js') }}');
+  runBatch();
 });
 //--></script>
 {{ footer }}

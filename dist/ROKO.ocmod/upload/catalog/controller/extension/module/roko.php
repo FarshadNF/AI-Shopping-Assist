@@ -110,6 +110,7 @@ class ControllerExtensionModuleRoko extends Controller {
 				$reply = $this->bulkLeadMissingMessage($missing_fields);
 			} else {
 				$sent = $this->sendBulkLeadToWebhook($lead, $conversation_id, $input);
+				$this->writeLeadRecord($lead, $conversation_id, $input, $sent);
 				$this->writeChatLog($conversation_id, 'lead', json_encode([
 					'sent_to_google_sheet' => $sent,
 					'lead' => $lead
@@ -3237,6 +3238,65 @@ class ControllerExtensionModuleRoko extends Controller {
 		}
 
 		return ['status' => $status, 'body' => $response, 'error' => ''];
+	}
+
+	private function writeLeadRecord(array $lead, string $conversation_id, array $input, bool $sent_to_webhook): void {
+		try {
+			$this->createLeadTable();
+			$page_context = is_array($input['page_context'] ?? null) ? $input['page_context'] : [];
+			$ip = (string)($this->request->server['REMOTE_ADDR'] ?? '');
+			$user_agent = substr((string)($this->request->server['HTTP_USER_AGENT'] ?? ''), 0, 255);
+			$customer_id = $this->customer->isLogged() ? (int)$this->customer->getId() : 0;
+
+			$this->db->query("
+				INSERT INTO `" . DB_PREFIX . "roko_lead`
+				SET
+					`conversation_id` = '" . $this->db->escape(substr($conversation_id, 0, 80)) . "',
+					`product_name` = '" . $this->db->escape(substr((string)($lead['product_name'] ?? ''), 0, 180)) . "',
+					`qty` = '" . $this->db->escape(substr((string)($lead['qty'] ?? ''), 0, 40)) . "',
+					`name` = '" . $this->db->escape(substr((string)($lead['name'] ?? ''), 0, 180)) . "',
+					`company` = '" . $this->db->escape(substr((string)($lead['company'] ?? ''), 0, 180)) . "',
+					`contact_number` = '" . $this->db->escape(substr((string)($lead['contact_number'] ?? ''), 0, 180)) . "',
+					`email` = '" . $this->db->escape(substr((string)($lead['email'] ?? ''), 0, 180)) . "',
+					`delivery_location` = '" . $this->db->escape(substr((string)($lead['delivery_location'] ?? ''), 0, 2000)) . "',
+					`page_url` = '" . $this->db->escape(substr((string)($page_context['url'] ?? ''), 0, 2000)) . "',
+					`page_title` = '" . $this->db->escape(substr((string)($page_context['title'] ?? ''), 0, 255)) . "',
+					`customer_id` = '" . (int)$customer_id . "',
+					`sent_to_webhook` = '" . ($sent_to_webhook ? 1 : 0) . "',
+					`ip` = '" . $this->db->escape(substr($ip, 0, 45)) . "',
+					`user_agent` = '" . $this->db->escape($user_agent) . "',
+					`date_added` = NOW()
+			");
+		} catch (\Throwable $exception) {
+			$this->log->write('ROKO lead record failed: ' . $exception->getMessage());
+		}
+	}
+
+	private function createLeadTable(): void {
+		$this->db->query("
+			CREATE TABLE IF NOT EXISTS `" . DB_PREFIX . "roko_lead` (
+				`lead_id` int(11) NOT NULL AUTO_INCREMENT,
+				`conversation_id` varchar(80) NOT NULL DEFAULT '',
+				`product_name` varchar(180) NOT NULL DEFAULT '',
+				`qty` varchar(40) NOT NULL DEFAULT '',
+				`name` varchar(180) NOT NULL DEFAULT '',
+				`company` varchar(180) NOT NULL DEFAULT '',
+				`contact_number` varchar(180) NOT NULL DEFAULT '',
+				`email` varchar(180) NOT NULL DEFAULT '',
+				`delivery_location` text NOT NULL,
+				`page_url` text NOT NULL,
+				`page_title` varchar(255) NOT NULL DEFAULT '',
+				`customer_id` int(11) NOT NULL DEFAULT 0,
+				`sent_to_webhook` tinyint(1) NOT NULL DEFAULT 0,
+				`ip` varchar(45) NOT NULL DEFAULT '',
+				`user_agent` varchar(255) NOT NULL DEFAULT '',
+				`date_added` datetime NOT NULL,
+				PRIMARY KEY (`lead_id`),
+				KEY `conversation_id` (`conversation_id`),
+				KEY `email` (`email`),
+				KEY `date_added` (`date_added`)
+			) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+		");
 	}
 
 	private function writeChatLog(string $conversation_id, string $role, string $content): void {

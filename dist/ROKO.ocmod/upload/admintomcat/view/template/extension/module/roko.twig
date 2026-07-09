@@ -131,6 +131,7 @@
           <li class="{% if active_tab == 'logs' %}active{% endif %}"><a href="#tab-roko-logs" data-toggle="tab"><i class="fa fa-list"></i> {{ text_logs }}</a></li>
           <li class="{% if active_tab == 'indexed-pages' %}active{% endif %}"><a href="#tab-roko-indexed-pages" data-toggle="tab"><i class="fa fa-sitemap"></i> {{ text_indexed_pages }} <span class="badge">{{ sitemap_pages_total }}</span></a></li>
           <li class="{% if active_tab == 'redirects' %}active{% endif %}"><a href="#tab-roko-redirects" data-toggle="tab"><i class="fa fa-location-arrow"></i> {{ text_redirect_logs }} <span class="badge">{{ redirect_logs_total }}</span></a></li>
+          <li class="{% if active_tab == 'leads' %}active{% endif %}"><a href="#tab-roko-leads" data-toggle="tab"><i class="fa fa-user-plus"></i> {{ text_leads }} <span class="badge">{{ leads_total }}</span></a></li>
         </ul>
 
         <div class="tab-content">
@@ -271,6 +272,52 @@
             </div>
             <div class="text-right">{{ redirect_logs_pagination }}</div>
           </div>
+
+          <div class="tab-pane {% if active_tab == 'leads' %}active{% endif %}" id="tab-roko-leads">
+            <div class="clearfix" style="margin: 0 0 10px;">
+              <div class="pull-right">
+                <a href="{{ export_leads }}" class="btn btn-success btn-xs"><i class="fa fa-file-excel-o"></i> {{ text_export_excel }}</a>
+                <button type="button" id="button-clear-leads" data-url="{{ clear_leads }}" class="btn btn-danger btn-xs">{{ text_clear_leads }}</button>
+              </div>
+            </div>
+            <form action="{{ module_url }}" method="get" class="form-inline" style="margin: 0 0 10px;">
+              <input type="hidden" name="tab" value="leads"/>
+              <div class="form-group" style="margin-right: 8px;">
+                <input type="text" name="lead_search" value="{{ lead_search }}" class="form-control input-sm" placeholder="{{ text_search }}"/>
+              </div>
+              <button type="submit" class="btn btn-default btn-sm"><i class="fa fa-filter"></i> {{ button_filter }}</button>
+              {% if lead_search %}
+                <a href="{{ module_url }}&amp;tab=leads" class="btn btn-link btn-sm">{{ button_clear_filter }}</a>
+              {% endif %}
+            </form>
+            <div class="table-responsive">
+              <table class="table table-bordered table-hover">
+                <thead><tr><td>{{ column_date }}</td><td>{{ column_conversation }}</td><td>{{ column_product_name }}</td><td>{{ column_qty }}</td><td>{{ column_name }}</td><td>{{ column_company }}</td><td>{{ column_contact_number }}</td><td>{{ column_email }}</td><td>{{ column_delivery_location }}</td><td>{{ column_page_url }}</td><td>{{ column_webhook_sent }}</td></tr></thead>
+                <tbody>
+                  {% if leads %}
+                    {% for row in leads %}
+                      <tr>
+                        <td>{{ row.date_added }}</td>
+                        <td><code>{{ row.conversation_id }}</code></td>
+                        <td>{{ row.product_name }}</td>
+                        <td>{{ row.qty }}</td>
+                        <td>{{ row.name }}</td>
+                        <td>{{ row.company }}</td>
+                        <td>{{ row.contact_number }}</td>
+                        <td>{{ row.email }}</td>
+                        <td>{{ row.delivery_location }}</td>
+                        <td>{% if row.page_url %}<a href="{{ row.page_url }}" target="_blank" rel="noopener" title="{{ row.page_title }}">{{ row.page_url }}</a>{% else %}-{% endif %}</td>
+                        <td>{% if row.sent_to_webhook %}<span class="label label-success">{{ text_yes }}</span>{% else %}<span class="label label-default">{{ text_no }}</span>{% endif %}</td>
+                      </tr>
+                    {% endfor %}
+                  {% else %}
+                    <tr><td colspan="11" class="text-center">{{ text_no_leads }}</td></tr>
+                  {% endif %}
+                </tbody>
+              </table>
+            </div>
+            <div class="text-right">{{ leads_pagination }}</div>
+          </div>
         </div>
       </div>
     </div>
@@ -313,6 +360,17 @@ $('#button-clear-logs').on('click', function () {
 
 $('#button-clear-redirect-logs').on('click', function () {
   if (!confirm('{{ text_clear_redirect_logs|e('js') }}?')) return;
+
+  $.ajax({
+    url: $(this).data('url'),
+    type: 'post',
+    dataType: 'json',
+    success: function () { location.reload(); }
+  });
+});
+
+$('#button-clear-leads').on('click', function () {
+  if (!confirm('{{ text_clear_leads|e('js') }}?')) return;
 
   $.ajax({
     url: $(this).data('url'),

@@ -9,6 +9,8 @@ class ControllerExtensionModuleRoko extends Controller {
 	public function index(): void {
 		$this->load->language('extension/module/roko');
 		$this->createLogTable();
+		$this->importLegacyLeadsIfNeeded();
+		$this->load->model('setting/setting');
 
 		$this->document->setTitle($this->language->get('heading_title'));
 
@@ -29,6 +31,10 @@ class ControllerExtensionModuleRoko extends Controller {
 		$data['save'] = $this->url->link('extension/module/roko/save', 'user_token=' . $this->session->data['user_token']);
 		$data['clear_logs'] = $this->url->link('extension/module/roko/clearLogs', 'user_token=' . $this->session->data['user_token']);
 		$data['export_logs'] = $this->url->link('extension/module/roko/exportLogs', 'user_token=' . $this->session->data['user_token']);
+		$data['clear_redirect_logs'] = $this->url->link('extension/module/roko/clearRedirectLogs', 'user_token=' . $this->session->data['user_token']);
+		$data['export_redirect_logs'] = $this->url->link('extension/module/roko/exportRedirectLogs', 'user_token=' . $this->session->data['user_token']);
+		$data['clear_leads'] = $this->url->link('extension/module/roko/clearLeads', 'user_token=' . $this->session->data['user_token']);
+		$data['export_leads'] = $this->url->link('extension/module/roko/exportLeads', 'user_token=' . $this->session->data['user_token']);
 		$data['upload_sitemap'] = $this->url->link('extension/module/roko/uploadSitemap', 'user_token=' . $this->session->data['user_token']);
 		$data['back'] = $this->url->link('marketplace/extension', 'user_token=' . $this->session->data['user_token'] . '&type=module');
 		$data['success'] = (string)($this->session->data['success'] ?? '');
@@ -66,13 +72,72 @@ class ControllerExtensionModuleRoko extends Controller {
 		$data['module_roko_footer_injection'] = $this->config->get('module_roko_footer_injection') !== null ? (int)$this->config->get('module_roko_footer_injection') : 1;
 		$data['module_roko_widget_title'] = $widget_title;
 		$data['module_roko_widget_button'] = $widget_button;
-		$data['logs'] = $this->getRecentLogs();
-		$data['sitemap_pages'] = $this->getIndexedSitemapPages();
-		$data['sitemap_pages_total'] = $this->getIndexedSitemapPagesTotal($data['sitemap_pages']);
+		$data['module_roko_redirect_utm'] = (string)$this->config->get('module_roko_redirect_utm');
+		$data['module_url'] = $this->url->link('extension/module/roko', 'user_token=' . $this->session->data['user_token']);
+		$active_tab = (string)($this->request->get['tab'] ?? 'logs');
+		$active_tab = in_array($active_tab, ['logs', 'indexed-pages', 'redirects', 'leads'], true) ? $active_tab : 'logs';
+		$log_page = max(1, (int)($this->request->get['log_page'] ?? 1));
+		$sitemap_page = max(1, (int)($this->request->get['sitemap_page'] ?? 1));
+		$log_limit = 30;
+		$sitemap_limit = 100;
+		$sitemap_search = $this->normalizeFilterSearch((string)($this->request->get['sitemap_search'] ?? ''));
+		$sitemap_type = $this->normalizeFilterType((string)($this->request->get['sitemap_type'] ?? ''));
+		$sitemap_filters = [
+			'search' => $sitemap_search,
+			'type' => $sitemap_type
+		];
+
+		$logs_data = $this->getRecentLogs($log_page, $log_limit);
+		$sitemap_data = $this->getIndexedSitemapPages($sitemap_page, $sitemap_limit, $sitemap_filters);
+
+		$data['active_tab'] = $active_tab;
+		$data['logs'] = $logs_data['rows'];
+		$data['sitemap_pages'] = $sitemap_data['rows'];
+		$data['sitemap_pages_total'] = $sitemap_data['total'];
+		$data['sitemap_search'] = $sitemap_search;
+		$data['sitemap_type'] = $sitemap_type;
+		$data['sitemap_types'] = $this->getSitemapContentTypes();
+		$redirect_page = max(1, (int)($this->request->get['redirect_page'] ?? 1));
+		$redirect_limit = 50;
+		$redirect_search = $this->normalizeFilterSearch((string)($this->request->get['redirect_search'] ?? ''));
+		$redirect_action = $this->normalizeFilterAction((string)($this->request->get['redirect_action'] ?? ''));
+		$redirect_filters = [
+			'search' => $redirect_search,
+			'action' => $redirect_action
+		];
+		$redirect_data = $this->getRedirectLogs($redirect_page, $redirect_limit, $redirect_filters);
+		$data['redirect_logs'] = $redirect_data['rows'];
+		$data['redirect_logs_total'] = $redirect_data['total'];
+		$data['redirect_search'] = $redirect_search;
+		$data['redirect_action'] = $redirect_action;
+		$data['redirect_actions'] = $this->getRedirectActionTypes();
+		$lead_page = max(1, (int)($this->request->get['lead_page'] ?? 1));
+		$lead_limit = 50;
+		$lead_search = $this->normalizeFilterSearch((string)($this->request->get['lead_search'] ?? ''));
+		$lead_filters = ['search' => $lead_search];
+		$lead_data = $this->getLeads($lead_page, $lead_limit, $lead_filters);
+		$data['leads'] = $lead_data['rows'];
+		$data['leads_total'] = $lead_data['total'];
+		$data['lead_search'] = $lead_search;
 		$data['sitemap_cache_status'] = $this->getSitemapCacheStatus($data['sitemap_pages_total']);
 		$data['uploaded_sitemap_status'] = $this->getUploadedSitemapStatus();
 		$data['uploaded_sitemap_diagnostics'] = $this->getUploadedSitemapDiagnostics();
 		$data['warm_sitemap_url'] = $this->getWarmSitemapUrl();
+		$pagination_common = [
+			'log_page' => $log_page,
+			'sitemap_page' => $sitemap_page,
+			'redirect_page' => $redirect_page,
+			'lead_page' => $lead_page,
+			'sitemap_search' => $sitemap_search,
+			'sitemap_type' => $sitemap_type,
+			'redirect_search' => $redirect_search,
+			'redirect_action' => $redirect_action,
+			'lead_search' => $lead_search
+		];
+		$data['logs_pagination'] = $this->buildPagination($logs_data['total'], $log_page, $log_limit, 'log_page', array_merge($pagination_common, ['tab' => 'logs']));
+		$data['sitemap_pages_pagination'] = $this->buildPagination($sitemap_data['total'], $sitemap_page, $sitemap_limit, 'sitemap_page', array_merge($pagination_common, ['tab' => 'indexed-pages']));
+		$data['redirect_logs_pagination'] = $this->buildPagination($redirect_data['total'], $redirect_page, $redirect_limit, 'redirect_page', array_merge($pagination_common, ['tab' => 'redirects']));
+		$data['leads_pagination'] = $this->buildPagination($lead_data['total'], $lead_page, $lead_limit, 'lead_page', array_merge($pagination_common, ['tab' => 'leads']));
 
 		$data['header'] = $this->load->controller('common/header');
 		$data['column_left'] = $this->load->controller('common/column_left');
@@ -122,7 +187,8 @@ class ControllerExtensionModuleRoko extends Controller {
 				'module_roko_lead_webhook_secret' => trim((string)($this->request->post['module_roko_lead_webhook_secret'] ?? self::DEFAULT_LEAD_WEBHOOK_SECRET)),
 				'module_roko_footer_injection' => (int)($this->request->post['module_roko_footer_injection'] ?? 0),
 				'module_roko_widget_title' => trim((string)($this->request->post['module_roko_widget_title'] ?? 'ROKO')),
-				'module_roko_widget_button' => trim((string)($this->request->post['module_roko_widget_button'] ?? 'Chat'))
+				'module_roko_widget_button' => trim((string)($this->request->post['module_roko_widget_button'] ?? 'Chat')),
+				'module_roko_redirect_utm' => $this->limitSettingText((string)($this->request->post['module_roko_redirect_utm'] ?? ''), 500)
 			];
 
 			$this->model_setting_setting->editSetting(self::SETTING_CODE, $settings);
@@ -264,6 +330,78 @@ class ControllerExtensionModuleRoko extends Controller {
 		$this->response->setOutput($this->buildLogsExcel($this->getExportLogs()));
 	}
 
+	public function clearRedirectLogs(): void {
+		$this->load->language('extension/module/roko');
+
+		$json = [];
+
+		if (!$this->user->hasPermission('modify', 'extension/module/roko')) {
+			$json['error'] = $this->language->get('error_permission');
+		}
+
+		if (!$json) {
+			$this->createRedirectLogTable();
+			$this->db->query('TRUNCATE TABLE `' . DB_PREFIX . 'roko_redirect_log`');
+			$json['success'] = $this->language->get('text_success');
+		}
+
+		$this->response->addHeader('Content-Type: application/json');
+		$this->response->setOutput(json_encode($json));
+	}
+
+	public function exportRedirectLogs(): void {
+		$this->load->language('extension/module/roko');
+
+		if (!$this->user->hasPermission('access', 'extension/module/roko')) {
+			$this->response->addHeader(($this->request->server['SERVER_PROTOCOL'] ?? 'HTTP/1.1') . ' 403 Forbidden');
+			$this->response->setOutput($this->language->get('error_permission'));
+			return;
+		}
+
+		$filename = 'roko-redirect-logs-' . date('Y-m-d-His') . '.xls';
+
+		$this->response->addHeader('Content-Type: application/vnd.ms-excel; charset=utf-8');
+		$this->response->addHeader('Content-Disposition: attachment; filename="' . $filename . '"');
+		$this->response->addHeader('Cache-Control: max-age=0');
+		$this->response->setOutput($this->buildRedirectLogsExcel($this->getExportRedirectLogs()));
+	}
+
+	public function clearLeads(): void {
+		$this->load->language('extension/module/roko');
+
+		$json = [];
+
+		if (!$this->user->hasPermission('modify', 'extension/module/roko')) {
+			$json['error'] = $this->language->get('error_permission');
+		}
+
+		if (!$json) {
+			$this->createLeadTable();
+			$this->db->query('TRUNCATE TABLE `' . DB_PREFIX . 'roko_lead`');
+			$json['success'] = $this->language->get('text_success');
+		}
+
+		$this->response->addHeader('Content-Type: application/json');
+		$this->response->setOutput(json_encode($json));
+	}
+
+	public function exportLeads(): void {
+		$this->load->language('extension/module/roko');
+
+		if (!$this->user->hasPermission('access', 'extension/module/roko')) {
+			$this->response->addHeader(($this->request->server['SERVER_PROTOCOL'] ?? 'HTTP/1.1') . ' 403 Forbidden');
+			$this->response->setOutput($this->language->get('error_permission'));
+			return;
+		}
+
+		$filename = 'roko-leads-' . date('Y-m-d-His') . '.xls';
+
+		$this->response->addHeader('Content-Type: application/vnd.ms-excel; charset=utf-8');
+		$this->response->addHeader('Content-Disposition: attachment; filename="' . $filename . '"');
+		$this->response->addHeader('Cache-Control: max-age=0');
+		$this->response->setOutput($this->buildLeadsExcel($this->getExportLeads()));
+	}
+
 	public function install(): void {
 		$this->createLogTable();
 
@@ -283,7 +421,8 @@ class ControllerExtensionModuleRoko extends Controller {
 			'module_roko_lead_webhook_secret' => self::DEFAULT_LEAD_WEBHOOK_SECRET,
 			'module_roko_footer_injection' => 1,
 			'module_roko_widget_title' => 'ROKO',
-			'module_roko_widget_button' => 'Chat'
+			'module_roko_widget_button' => 'Chat',
+			'module_roko_redirect_utm' => 'utm_source=roko&utm_medium=assistant&utm_campaign=chat'
 		]);
 
 		$this->load->model('setting/event');
@@ -323,6 +462,55 @@ class ControllerExtensionModuleRoko extends Controller {
 		");
 
 		$this->createSitemapPageTable();
+		$this->createRedirectLogTable();
+		$this->createLeadTable();
+	}
+
+	private function createLeadTable(): void {
+		$this->db->query("
+			CREATE TABLE IF NOT EXISTS `" . DB_PREFIX . "roko_lead` (
+				`lead_id` int(11) NOT NULL AUTO_INCREMENT,
+				`conversation_id` varchar(80) NOT NULL DEFAULT '',
+				`product_name` varchar(180) NOT NULL DEFAULT '',
+				`qty` varchar(40) NOT NULL DEFAULT '',
+				`name` varchar(180) NOT NULL DEFAULT '',
+				`company` varchar(180) NOT NULL DEFAULT '',
+				`contact_number` varchar(180) NOT NULL DEFAULT '',
+				`email` varchar(180) NOT NULL DEFAULT '',
+				`delivery_location` text NOT NULL,
+				`page_url` text NOT NULL,
+				`page_title` varchar(255) NOT NULL DEFAULT '',
+				`customer_id` int(11) NOT NULL DEFAULT 0,
+				`sent_to_webhook` tinyint(1) NOT NULL DEFAULT 0,
+				`ip` varchar(45) NOT NULL DEFAULT '',
+				`user_agent` varchar(255) NOT NULL DEFAULT '',
+				`date_added` datetime NOT NULL,
+				PRIMARY KEY (`lead_id`),
+				KEY `conversation_id` (`conversation_id`),
+				KEY `email` (`email`),
+				KEY `date_added` (`date_added`)
+			) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+		");
+	}
+
+	private function createRedirectLogTable(): void {
+		$this->db->query("
+			CREATE TABLE IF NOT EXISTS `" . DB_PREFIX . "roko_redirect_log` (
+				`redirect_log_id` int(11) NOT NULL AUTO_INCREMENT,
+				`conversation_id` varchar(80) NOT NULL DEFAULT '',
+				`action_type` varchar(40) NOT NULL DEFAULT '',
+				`source_url` text NOT NULL,
+				`destination_url` text NOT NULL,
+				`destination_url_utm` text NOT NULL,
+				`utm_payload` text NOT NULL,
+				`ip` varchar(45) NOT NULL DEFAULT '',
+				`user_agent` varchar(255) NOT NULL DEFAULT '',
+				`date_added` datetime NOT NULL,
+				PRIMARY KEY (`redirect_log_id`),
+				KEY `conversation_id` (`conversation_id`),
+				KEY `date_added` (`date_added`)
+			) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+		");
 	}
 
 	private function createSitemapPageTable(): void {
@@ -359,38 +547,52 @@ class ControllerExtensionModuleRoko extends Controller {
 		}
 	}
 
-	private function getRecentLogs(): array {
+	private function getRecentLogs(int $page = 1, int $limit = 30): array {
+		$page = max(1, $page);
+		$limit = min(200, max(10, $limit));
+		$start = ($page - 1) * $limit;
+
 		try {
+			$total_query = $this->db->query("SELECT COUNT(*) AS `total` FROM `" . DB_PREFIX . "roko_chat_log`");
+			$total = (int)($total_query->row['total'] ?? 0);
 			$query = $this->db->query("
 				SELECT *
 				FROM `" . DB_PREFIX . "roko_chat_log`
 				ORDER BY `log_id` DESC
-				LIMIT 30
+				LIMIT " . (int)$start . ", " . (int)$limit . "
 			");
 
-			return $query->rows;
+			return [
+				'rows' => $query->rows,
+				'total' => $total
+			];
 		} catch (\Throwable $exception) {
-			return [];
+			return ['rows' => [], 'total' => 0];
 		}
 	}
 
-	private function getIndexedSitemapPages(): array {
-		$db_pages = $this->getIndexedSitemapPagesFromDb();
+	private function getIndexedSitemapPages(int $page = 1, int $limit = 100, array $filters = []): array {
+		$page = max(1, $page);
+		$limit = min(500, max(20, $limit));
+		$db_pages = $this->getIndexedSitemapPagesFromDb($page, $limit, $filters);
 
-		if ($db_pages) {
-			return $db_pages;
+		if ($this->countSitemapDbRows() > 0) {
+			return [
+				'rows' => $db_pages['rows'],
+				'total' => (int)($db_pages['total'] ?? 0)
+			];
 		}
 
 		$path = $this->findSitemapContentCachePath();
 
 		if ($path === '' || !is_file($path)) {
-			return [];
+			return ['rows' => [], 'total' => 0];
 		}
 
 		$payload = json_decode((string)file_get_contents($path), true);
 
 		if (!is_array($payload)) {
-			return [];
+			return ['rows' => [], 'total' => 0];
 		}
 
 		$pages = [];
@@ -407,31 +609,50 @@ class ControllerExtensionModuleRoko extends Controller {
 			}
 
 			$fetched_at = (int)($entry['fetched_at'] ?? 0);
-			$pages[] = [
+			$row = [
 				'title' => $this->shortText((string)($entry['title'] ?? $page_url), 120),
 				'url' => $page_url,
 				'content_type' => (string)($entry['content_type'] ?? 'page'),
 				'summary' => $this->shortText((string)($entry['description'] ?? $entry['content'] ?? ''), 220),
 				'fetched_at' => $fetched_at ? date('Y-m-d H:i:s', $fetched_at) : ''
 			];
+
+			if (!$this->pageMatchesSitemapFilters($row, $filters)) {
+				continue;
+			}
+
+			$pages[] = $row;
 		}
 
 		usort($pages, function ($a, $b) {
 			return strcmp((string)($b['fetched_at'] ?? ''), (string)($a['fetched_at'] ?? ''));
 		});
 
-		return array_slice($pages, 0, 200);
+		$total = count($pages);
+		$offset = ($page - 1) * $limit;
+
+		return [
+			'rows' => array_slice($pages, $offset, $limit),
+			'total' => $total
+		];
 	}
 
-	private function getIndexedSitemapPagesFromDb(): array {
+	private function getIndexedSitemapPagesFromDb(int $page = 1, int $limit = 100, array $filters = []): array {
+		$page = max(1, $page);
+		$limit = min(500, max(20, $limit));
+		$offset = ($page - 1) * $limit;
+
 		try {
 			$this->createSitemapPageTable();
-
+			$where = $this->buildSitemapWhereSql($filters);
+			$total_query = $this->db->query("SELECT COUNT(*) AS `total` FROM `" . DB_PREFIX . "roko_sitemap_page`" . $where);
+			$total = (int)($total_query->row['total'] ?? 0);
 			$query = $this->db->query("
 				SELECT `title`, `url`, `content_type`, `image`, `description`, `content`, `fetched_at`
 				FROM `" . DB_PREFIX . "roko_sitemap_page`
+				" . $where . "
 				ORDER BY `fetched_at` DESC, `page_id` DESC
-				LIMIT 500
+				LIMIT " . (int)$offset . ", " . (int)$limit . "
 			");
 
 			$pages = [];
@@ -448,9 +669,332 @@ class ControllerExtensionModuleRoko extends Controller {
 				];
 			}
 
-			return $pages;
+			return [
+				'rows' => $pages,
+				'total' => $total
+			];
+		} catch (\Throwable $exception) {
+			return ['rows' => [], 'total' => 0];
+		}
+	}
+
+	private function buildPagination(int $total, int $page, int $limit, string $page_key, array $extra = []): string {
+		$pagination = new Pagination();
+		$pagination->total = max(0, $total);
+		$pagination->page = max(1, $page);
+		$pagination->limit = max(1, $limit);
+		$params = ['user_token=' . $this->session->data['user_token']];
+
+		foreach ($extra as $key => $value) {
+			if ($value === '' || $value === null) {
+				continue;
+			}
+
+			$params[] = $key . '=' . urlencode((string)$value);
+		}
+
+		$params[] = $page_key . '={page}';
+		$pagination->url = $this->url->link('extension/module/roko', implode('&', $params));
+
+		return $pagination->render();
+	}
+
+	private function getRedirectLogs(int $page = 1, int $limit = 50, array $filters = []): array {
+		$page = max(1, $page);
+		$limit = min(200, max(10, $limit));
+		$start = ($page - 1) * $limit;
+
+		try {
+			$this->createRedirectLogTable();
+			$where = $this->buildRedirectWhereSql($filters);
+			$total_query = $this->db->query("SELECT COUNT(*) AS `total` FROM `" . DB_PREFIX . "roko_redirect_log`" . $where);
+			$total = (int)($total_query->row['total'] ?? 0);
+			$query = $this->db->query("
+				SELECT `date_added`, `conversation_id`, `action_type`, `source_url`, `destination_url`, `destination_url_utm`, `utm_payload`
+				FROM `" . DB_PREFIX . "roko_redirect_log`
+				" . $where . "
+				ORDER BY `redirect_log_id` DESC
+				LIMIT " . (int)$start . ", " . (int)$limit . "
+			");
+
+			return [
+				'rows' => $query->rows,
+				'total' => $total
+			];
+		} catch (\Throwable $exception) {
+			return ['rows' => [], 'total' => 0];
+		}
+	}
+
+	private function countSitemapDbRows(): int {
+		try {
+			$this->createSitemapPageTable();
+			$query = $this->db->query("SELECT COUNT(*) AS `total` FROM `" . DB_PREFIX . "roko_sitemap_page`");
+
+			return (int)($query->row['total'] ?? 0);
+		} catch (\Throwable $exception) {
+			return 0;
+		}
+	}
+
+	private function buildSitemapWhereSql(array $filters): string {
+		$parts = [];
+		$search = trim((string)($filters['search'] ?? ''));
+		$type = trim((string)($filters['type'] ?? ''));
+
+		if ($type !== '') {
+			$parts[] = "`content_type` = '" . $this->db->escape(substr($type, 0, 20)) . "'";
+		}
+
+		if ($search !== '') {
+			$like = "'%" . $this->db->escape($search) . "%'";
+			$parts[] = "(`title` LIKE " . $like . " OR `url` LIKE " . $like . " OR `description` LIKE " . $like . " OR `content` LIKE " . $like . ")";
+		}
+
+		return $parts ? ' WHERE ' . implode(' AND ', $parts) : '';
+	}
+
+	private function buildRedirectWhereSql(array $filters): string {
+		$parts = [];
+		$search = trim((string)($filters['search'] ?? ''));
+		$action = trim((string)($filters['action'] ?? ''));
+
+		if ($action !== '') {
+			$parts[] = "`action_type` = '" . $this->db->escape(substr($action, 0, 40)) . "'";
+		}
+
+		if ($search !== '') {
+			$like = "'%" . $this->db->escape($search) . "%'";
+			$parts[] = "(`conversation_id` LIKE " . $like . " OR `action_type` LIKE " . $like . " OR `source_url` LIKE " . $like . " OR `destination_url` LIKE " . $like . " OR `destination_url_utm` LIKE " . $like . " OR `utm_payload` LIKE " . $like . ")";
+		}
+
+		return $parts ? ' WHERE ' . implode(' AND ', $parts) : '';
+	}
+
+	private function pageMatchesSitemapFilters(array $page, array $filters): bool {
+		$search = trim((string)($filters['search'] ?? ''));
+		$type = trim((string)($filters['type'] ?? ''));
+
+		if ($type !== '' && (string)($page['content_type'] ?? '') !== $type) {
+			return false;
+		}
+
+		if ($search === '') {
+			return true;
+		}
+
+		$haystack = strtolower(implode(' ', [
+			(string)($page['title'] ?? ''),
+			(string)($page['url'] ?? ''),
+			(string)($page['summary'] ?? '')
+		]));
+
+		return strpos($haystack, strtolower($search)) !== false;
+	}
+
+	private function getSitemapContentTypes(): array {
+		$types = [];
+
+		try {
+			$this->createSitemapPageTable();
+			$query = $this->db->query("
+				SELECT DISTINCT `content_type`
+				FROM `" . DB_PREFIX . "roko_sitemap_page`
+				WHERE `content_type` <> ''
+				ORDER BY `content_type` ASC
+			");
+
+			foreach ($query->rows as $row) {
+				$type = trim((string)($row['content_type'] ?? ''));
+
+				if ($type !== '') {
+					$types[] = $type;
+				}
+			}
+		} catch (\Throwable $exception) {
+		}
+
+		if (!$types) {
+			$types = ['page', 'product', 'blog', 'category'];
+		}
+
+		return array_values(array_unique($types));
+	}
+
+	private function getRedirectActionTypes(): array {
+		try {
+			$this->createRedirectLogTable();
+			$query = $this->db->query("
+				SELECT DISTINCT `action_type`
+				FROM `" . DB_PREFIX . "roko_redirect_log`
+				WHERE `action_type` <> ''
+				ORDER BY `action_type` ASC
+			");
+			$types = [];
+
+			foreach ($query->rows as $row) {
+				$type = trim((string)($row['action_type'] ?? ''));
+
+				if ($type !== '') {
+					$types[] = $type;
+				}
+			}
+
+			return $types;
 		} catch (\Throwable $exception) {
 			return [];
+		}
+	}
+
+	private function normalizeFilterSearch(string $value, int $max = 120): string {
+		$value = trim($value);
+		$value = str_replace(['%', '_'], '', $value);
+
+		return substr($value, 0, $max);
+	}
+
+	private function normalizeFilterType(string $value): string {
+		$value = trim($value);
+		$value = preg_replace('/[^a-z0-9_-]/i', '', $value) ?? '';
+
+		return substr($value, 0, 20);
+	}
+
+	private function normalizeFilterAction(string $value): string {
+		$value = trim($value);
+		$value = preg_replace('/[^a-z0-9_-]/i', '', $value) ?? '';
+
+		return substr($value, 0, 40);
+	}
+
+	private function getLeads(int $page = 1, int $limit = 50, array $filters = []): array {
+		$page = max(1, $page);
+		$limit = min(200, max(10, $limit));
+		$start = ($page - 1) * $limit;
+
+		try {
+			$this->createLeadTable();
+			$where = $this->buildLeadWhereSql($filters);
+			$total_query = $this->db->query("SELECT COUNT(*) AS `total` FROM `" . DB_PREFIX . "roko_lead`" . $where);
+			$total = (int)($total_query->row['total'] ?? 0);
+			$query = $this->db->query("
+				SELECT
+					`date_added`,
+					`conversation_id`,
+					`product_name`,
+					`qty`,
+					`name`,
+					`company`,
+					`contact_number`,
+					`email`,
+					`delivery_location`,
+					`page_url`,
+					`page_title`,
+					`customer_id`,
+					`sent_to_webhook`
+				FROM `" . DB_PREFIX . "roko_lead`
+				" . $where . "
+				ORDER BY `lead_id` DESC
+				LIMIT " . (int)$start . ", " . (int)$limit . "
+			");
+
+			$rows = [];
+
+			foreach ($query->rows as $row) {
+				$rows[] = [
+					'date_added' => (string)($row['date_added'] ?? ''),
+					'conversation_id' => (string)($row['conversation_id'] ?? ''),
+					'product_name' => (string)($row['product_name'] ?? ''),
+					'qty' => (string)($row['qty'] ?? ''),
+					'name' => (string)($row['name'] ?? ''),
+					'company' => (string)($row['company'] ?? ''),
+					'contact_number' => (string)($row['contact_number'] ?? ''),
+					'email' => (string)($row['email'] ?? ''),
+					'delivery_location' => (string)($row['delivery_location'] ?? ''),
+					'page_url' => (string)($row['page_url'] ?? ''),
+					'page_title' => (string)($row['page_title'] ?? ''),
+					'customer_id' => (int)($row['customer_id'] ?? 0),
+					'sent_to_webhook' => (int)($row['sent_to_webhook'] ?? 0)
+				];
+			}
+
+			return [
+				'rows' => $rows,
+				'total' => $total
+			];
+		} catch (\Throwable $exception) {
+			return ['rows' => [], 'total' => 0];
+		}
+	}
+
+	private function buildLeadWhereSql(array $filters): string {
+		$search = trim((string)($filters['search'] ?? ''));
+
+		if ($search === '') {
+			return '';
+		}
+
+		$like = "'%" . $this->db->escape($search) . "%'";
+
+		return " WHERE (`conversation_id` LIKE " . $like
+			. " OR `product_name` LIKE " . $like
+			. " OR `qty` LIKE " . $like
+			. " OR `name` LIKE " . $like
+			. " OR `company` LIKE " . $like
+			. " OR `contact_number` LIKE " . $like
+			. " OR `email` LIKE " . $like
+			. " OR `delivery_location` LIKE " . $like
+			. " OR `page_url` LIKE " . $like
+			. " OR `page_title` LIKE " . $like . ")";
+	}
+
+	private function importLegacyLeadsIfNeeded(): void {
+		try {
+			$this->createLeadTable();
+			$count_query = $this->db->query("SELECT COUNT(*) AS `total` FROM `" . DB_PREFIX . "roko_lead`");
+
+			if ((int)($count_query->row['total'] ?? 0) > 0) {
+				return;
+			}
+
+			$query = $this->db->query("
+				SELECT `conversation_id`, `customer_id`, `content`, `ip`, `user_agent`, `date_added`
+				FROM `" . DB_PREFIX . "roko_chat_log`
+				WHERE `role` = 'lead'
+				ORDER BY `log_id` ASC
+			");
+
+			foreach ($query->rows as $row) {
+				$payload = json_decode((string)($row['content'] ?? ''), true);
+
+				if (!is_array($payload) || !is_array($payload['lead'] ?? null)) {
+					continue;
+				}
+
+				$lead = $payload['lead'];
+				$date_added = (string)($row['date_added'] ?? '');
+
+				$this->db->query("
+					INSERT INTO `" . DB_PREFIX . "roko_lead`
+					SET
+						`conversation_id` = '" . $this->db->escape(substr((string)($row['conversation_id'] ?? ''), 0, 80)) . "',
+						`product_name` = '" . $this->db->escape(substr((string)($lead['product_name'] ?? ''), 0, 180)) . "',
+						`qty` = '" . $this->db->escape(substr((string)($lead['qty'] ?? ''), 0, 40)) . "',
+						`name` = '" . $this->db->escape(substr((string)($lead['name'] ?? ''), 0, 180)) . "',
+						`company` = '" . $this->db->escape(substr((string)($lead['company'] ?? ''), 0, 180)) . "',
+						`contact_number` = '" . $this->db->escape(substr((string)($lead['contact_number'] ?? ''), 0, 180)) . "',
+						`email` = '" . $this->db->escape(substr((string)($lead['email'] ?? ''), 0, 180)) . "',
+						`delivery_location` = '" . $this->db->escape(substr((string)($lead['delivery_location'] ?? ''), 0, 2000)) . "',
+						`page_url` = '',
+						`page_title` = '',
+						`customer_id` = '" . (int)($row['customer_id'] ?? 0) . "',
+						`sent_to_webhook` = '" . (!empty($payload['sent_to_google_sheet']) ? 1 : 0) . "',
+						`ip` = '" . $this->db->escape(substr((string)($row['ip'] ?? ''), 0, 45)) . "',
+						`user_agent` = '" . $this->db->escape(substr((string)($row['user_agent'] ?? ''), 0, 255)) . "',
+						`date_added` = " . ($date_added !== '' ? "'" . $this->db->escape($date_added) . "'" : 'NOW()') . "
+				");
+			}
+		} catch (\Throwable $exception) {
 		}
 	}
 
@@ -766,7 +1310,7 @@ class ControllerExtensionModuleRoko extends Controller {
 			return '';
 		}
 
-		$query = 'route=extension/module/roko/warmSitemap&limit=50&refresh=1';
+		$query = 'route=extension/module/roko/warmSitemap&limit=120&refresh=1';
 		$token = trim((string)$this->config->get('module_roko_catalog_token'));
 
 		if ($token !== '') {
@@ -807,6 +1351,31 @@ class ControllerExtensionModuleRoko extends Controller {
 		}
 	}
 
+	private function getExportRedirectLogs(): array {
+		try {
+			$this->createRedirectLogTable();
+			$query = $this->db->query("
+				SELECT
+					`redirect_log_id`,
+					`conversation_id`,
+					`action_type`,
+					`source_url`,
+					`destination_url`,
+					`destination_url_utm`,
+					`utm_payload`,
+					`ip`,
+					`user_agent`,
+					`date_added`
+				FROM `" . DB_PREFIX . "roko_redirect_log`
+				ORDER BY `redirect_log_id` ASC
+			");
+
+			return $query->rows;
+		} catch (\Throwable $exception) {
+			return [];
+		}
+	}
+
 	private function buildLogsExcel(array $rows): string {
 		$columns = [
 			['key' => 'log_id', 'title' => $this->language->get('column_log_id'), 'type' => 'Number'],
@@ -839,6 +1408,148 @@ class ControllerExtensionModuleRoko extends Controller {
 
 			foreach ($columns as $column) {
 				$value = (string)($row[$column['key']] ?? '');
+				$type = $column['type'];
+
+				if ($type === 'Number' && $value === '') {
+					$type = 'String';
+				}
+
+				$output[] = '<Cell><Data ss:Type="' . $type . '">' . $this->xmlEscape($value) . '</Data></Cell>';
+			}
+
+			$output[] = '</Row>';
+		}
+
+		$output[] = '</Table></Worksheet></Workbook>';
+
+		return implode("\n", $output);
+	}
+
+	private function buildRedirectLogsExcel(array $rows): string {
+		$columns = [
+			['key' => 'redirect_log_id', 'title' => $this->language->get('column_log_id'), 'type' => 'Number'],
+			['key' => 'date_added', 'title' => $this->language->get('column_date'), 'type' => 'String'],
+			['key' => 'conversation_id', 'title' => $this->language->get('column_conversation'), 'type' => 'String'],
+			['key' => 'action_type', 'title' => $this->language->get('column_action_type'), 'type' => 'String'],
+			['key' => 'source_url', 'title' => $this->language->get('column_source_url'), 'type' => 'String'],
+			['key' => 'destination_url', 'title' => $this->language->get('column_destination_url'), 'type' => 'String'],
+			['key' => 'destination_url_utm', 'title' => $this->language->get('column_destination_url_utm'), 'type' => 'String'],
+			['key' => 'utm_payload', 'title' => $this->language->get('column_utm_payload'), 'type' => 'String'],
+			['key' => 'ip', 'title' => $this->language->get('column_ip'), 'type' => 'String'],
+			['key' => 'user_agent', 'title' => $this->language->get('column_user_agent'), 'type' => 'String']
+		];
+
+		$output = [];
+		$output[] = '<?xml version="1.0" encoding="UTF-8"?>';
+		$output[] = '<?mso-application progid="Excel.Sheet"?>';
+		$output[] = '<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet" xmlns:html="http://www.w3.org/TR/REC-html40">';
+		$output[] = '<Styles><Style ss:ID="header"><Font ss:Bold="1"/><Interior ss:Color="#EADCFD" ss:Pattern="Solid"/></Style></Styles>';
+		$output[] = '<Worksheet ss:Name="Redirect logs"><Table>';
+		$output[] = '<Row>';
+
+		foreach ($columns as $column) {
+			$output[] = '<Cell ss:StyleID="header"><Data ss:Type="String">' . $this->xmlEscape($column['title']) . '</Data></Cell>';
+		}
+
+		$output[] = '</Row>';
+
+		foreach ($rows as $row) {
+			$output[] = '<Row>';
+
+			foreach ($columns as $column) {
+				$value = (string)($row[$column['key']] ?? '');
+				$type = $column['type'];
+
+				if ($type === 'Number' && $value === '') {
+					$type = 'String';
+				}
+
+				$output[] = '<Cell><Data ss:Type="' . $type . '">' . $this->xmlEscape($value) . '</Data></Cell>';
+			}
+
+			$output[] = '</Row>';
+		}
+
+		$output[] = '</Table></Worksheet></Workbook>';
+
+		return implode("\n", $output);
+	}
+
+	private function getExportLeads(): array {
+		try {
+			$this->createLeadTable();
+			$query = $this->db->query("
+				SELECT
+					`lead_id`,
+					`date_added`,
+					`conversation_id`,
+					`product_name`,
+					`qty`,
+					`name`,
+					`company`,
+					`contact_number`,
+					`email`,
+					`delivery_location`,
+					`page_url`,
+					`page_title`,
+					`customer_id`,
+					`sent_to_webhook`,
+					`ip`,
+					`user_agent`
+				FROM `" . DB_PREFIX . "roko_lead`
+				ORDER BY `lead_id` ASC
+			");
+
+			return $query->rows;
+		} catch (\Throwable $exception) {
+			return [];
+		}
+	}
+
+	private function buildLeadsExcel(array $rows): string {
+		$columns = [
+			['key' => 'lead_id', 'title' => $this->language->get('column_log_id'), 'type' => 'Number'],
+			['key' => 'date_added', 'title' => $this->language->get('column_date'), 'type' => 'String'],
+			['key' => 'conversation_id', 'title' => $this->language->get('column_conversation'), 'type' => 'String'],
+			['key' => 'product_name', 'title' => $this->language->get('column_product_name'), 'type' => 'String'],
+			['key' => 'qty', 'title' => $this->language->get('column_qty'), 'type' => 'String'],
+			['key' => 'name', 'title' => $this->language->get('column_name'), 'type' => 'String'],
+			['key' => 'company', 'title' => $this->language->get('column_company'), 'type' => 'String'],
+			['key' => 'contact_number', 'title' => $this->language->get('column_contact_number'), 'type' => 'String'],
+			['key' => 'email', 'title' => $this->language->get('column_email'), 'type' => 'String'],
+			['key' => 'delivery_location', 'title' => $this->language->get('column_delivery_location'), 'type' => 'String'],
+			['key' => 'page_url', 'title' => $this->language->get('column_page_url'), 'type' => 'String'],
+			['key' => 'page_title', 'title' => $this->language->get('column_page_title'), 'type' => 'String'],
+			['key' => 'customer_id', 'title' => $this->language->get('column_customer'), 'type' => 'Number'],
+			['key' => 'sent_to_webhook', 'title' => $this->language->get('column_webhook_sent'), 'type' => 'String'],
+			['key' => 'ip', 'title' => $this->language->get('column_ip'), 'type' => 'String'],
+			['key' => 'user_agent', 'title' => $this->language->get('column_user_agent'), 'type' => 'String']
+		];
+
+		$output = [];
+		$output[] = '<?xml version="1.0" encoding="UTF-8"?>';
+		$output[] = '<?mso-application progid="Excel.Sheet"?>';
+		$output[] = '<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet" xmlns:html="http://www.w3.org/TR/REC-html40">';
+		$output[] = '<Styles><Style ss:ID="header"><Font ss:Bold="1"/><Interior ss:Color="#EADCFD" ss:Pattern="Solid"/></Style></Styles>';
+		$output[] = '<Worksheet ss:Name="Leads"><Table>';
+		$output[] = '<Row>';
+
+		foreach ($columns as $column) {
+			$output[] = '<Cell ss:StyleID="header"><Data ss:Type="String">' . $this->xmlEscape($column['title']) . '</Data></Cell>';
+		}
+
+		$output[] = '</Row>';
+
+		foreach ($rows as $row) {
+			$output[] = '<Row>';
+
+			foreach ($columns as $column) {
+				$value = (string)($row[$column['key']] ?? '');
+
+				if ($column['key'] === 'sent_to_webhook') {
+					$value = (int)$value ? $this->language->get('text_yes') : $this->language->get('text_no');
+				}
+
 				$type = $column['type'];
 
 				if ($type === 'Number' && $value === '') {
