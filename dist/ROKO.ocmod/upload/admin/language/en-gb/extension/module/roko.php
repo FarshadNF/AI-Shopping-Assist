@@ -17,6 +17,11 @@ $_['text_sitemap_not_warmed'] = 'Sitemap cache has not been warmed yet.';
 $_['text_sitemap_cached_count'] = '%d cached pages. Last cache update: %s';
 $_['text_cache_status'] = 'Cache status';
 $_['text_warm_sitemap'] = 'Warm sitemap cache';
+$_['text_upload_sitemap'] = 'Upload sitemap XML';
+$_['text_uploaded_sitemap'] = 'Uploaded sitemap XML';
+$_['text_no_uploaded_sitemap'] = 'No XML sitemap has been uploaded.';
+$_['text_uploaded_sitemap_status'] = '%d URLs. Uploaded: %s';
+$_['text_upload_sitemap_success'] = 'Sitemap XML uploaded. %d URLs found. Sitemap cache was cleared.';
 
 $_['entry_status'] = 'Status';
 $_['entry_gemini_api_key'] = 'Gemini API keys';
@@ -34,9 +39,12 @@ $_['entry_footer_injection'] = 'Auto-inject widget';
 $_['entry_widget_title'] = 'Widget title';
 $_['entry_widget_button'] = 'Button text';
 
+$_['button_upload_sitemap'] = 'Upload XML';
+
 $_['help_gemini_api_key'] = 'Add one or more Google AI Studio keys separated by commas. Keys are used server-side and never exposed to the browser.';
 $_['help_catalog_limit'] = 'Maximum products sent to Gemini in each prompt. Keep this moderate for speed and token cost.';
 $_['help_sitemap_url'] = 'Optional. Paste your store sitemap URL so ROKO can use real internal links for navigation and suggestions.';
+$_['help_upload_sitemap'] = 'Upload a full sitemap.xml file. ROKO reads this file before the configured Sitemap URL.';
 $_['help_system_prompt'] = 'Optional. Add store-specific rules, tone, link guidance, offer policy, or recommendation instructions. These rules are appended to every Gemini prompt.';
 $_['help_catalog_token'] = 'Optional. If set, catalog JSON requests must include X-ROKO-Token or X-AI-Assistant-Token.';
 $_['help_lead_webhook_url'] = 'Optional. Paste the Google Apps Script Web App URL. Bulk lead forms will be sent to this URL as JSON.';
@@ -59,3 +67,7 @@ $_['column_cached_at'] = 'Cached at';
 
 $_['error_permission'] = 'Warning: You do not have permission to modify ROKO!';
 $_['error_gemini_api_key'] = 'At least one Gemini API key is required when the module is enabled.';
+$_['error_upload_sitemap'] = 'Please choose a sitemap XML file.';
+$_['error_upload_sitemap_type'] = 'Only .xml, .xml.gz, or .gz sitemap files are allowed.';
+$_['error_upload_sitemap_content'] = 'The uploaded file does not look like a valid sitemap XML.';
+$_['error_upload_sitemap_write'] = 'Could not save the uploaded sitemap XML.';

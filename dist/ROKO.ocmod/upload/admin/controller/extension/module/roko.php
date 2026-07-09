@@ -29,7 +29,11 @@ class ControllerExtensionModuleRoko extends Controller {
 		$data['save'] = $this->url->link('extension/module/roko/save', 'user_token=' . $this->session->data['user_token']);
 		$data['clear_logs'] = $this->url->link('extension/module/roko/clearLogs', 'user_token=' . $this->session->data['user_token']);
 		$data['export_logs'] = $this->url->link('extension/module/roko/exportLogs', 'user_token=' . $this->session->data['user_token']);
+		$data['upload_sitemap'] = $this->url->link('extension/module/roko/uploadSitemap', 'user_token=' . $this->session->data['user_token']);
 		$data['back'] = $this->url->link('marketplace/extension', 'user_token=' . $this->session->data['user_token'] . '&type=module');
+		$data['success'] = (string)($this->session->data['success'] ?? '');
+		$data['error_warning'] = (string)($this->session->data['error'] ?? '');
+		unset($this->session->data['success'], $this->session->data['error']);
 
 		$data['module_roko_status'] = (int)$this->config->get('module_roko_status');
 		$data['module_roko_gemini_api_key'] = (string)$this->config->get('module_roko_gemini_api_key');
@@ -64,8 +68,9 @@ class ControllerExtensionModuleRoko extends Controller {
 		$data['module_roko_widget_button'] = $widget_button;
 		$data['logs'] = $this->getRecentLogs();
 		$data['sitemap_pages'] = $this->getIndexedSitemapPages();
-		$data['sitemap_pages_total'] = count($data['sitemap_pages']);
+		$data['sitemap_pages_total'] = $this->getIndexedSitemapPagesTotal($data['sitemap_pages']);
 		$data['sitemap_cache_status'] = $this->getSitemapCacheStatus($data['sitemap_pages_total']);
+		$data['uploaded_sitemap_status'] = $this->getUploadedSitemapStatus();
 		$data['warm_sitemap_url'] = $this->getWarmSitemapUrl();
 
 		$data['header'] = $this->load->controller('common/header');
@@ -138,6 +143,84 @@ class ControllerExtensionModuleRoko extends Controller {
 
 		$this->response->addHeader('Content-Type: application/json');
 		$this->response->setOutput(json_encode($json));
+	}
+
+	public function uploadSitemap(): void {
+		$this->load->language('extension/module/roko');
+
+		if (!$this->user->hasPermission('modify', 'extension/module/roko')) {
+			$this->session->data['error'] = $this->language->get('error_permission');
+			$this->redirectToModule();
+			return;
+		}
+
+		$file = $this->request->files['sitemap_file'] ?? null;
+
+		if (!is_array($file) || empty($file['tmp_name']) || !is_uploaded_file((string)$file['tmp_name'])) {
+			$this->session->data['error'] = $this->language->get('error_upload_sitemap');
+			$this->redirectToModule();
+			return;
+		}
+
+		$name = strtolower((string)($file['name'] ?? ''));
+
+		if (!preg_match('/\.(xml|xml\.gz|gz)$/i', $name)) {
+			$this->session->data['error'] = $this->language->get('error_upload_sitemap_type');
+			$this->redirectToModule();
+			return;
+		}
+
+		$body = file_get_contents((string)$file['tmp_name']);
+
+		if (!is_string($body) || $body === '') {
+			$this->session->data['error'] = $this->language->get('error_upload_sitemap');
+			$this->redirectToModule();
+			return;
+		}
+
+		if (preg_match('/\.gz$/i', $name)) {
+			if (!function_exists('gzdecode')) {
+				$this->session->data['error'] = $this->language->get('error_upload_sitemap_type');
+				$this->redirectToModule();
+				return;
+			}
+
+			$decoded = @gzdecode($body);
+
+			if (!is_string($decoded) || $decoded === '') {
+				$this->session->data['error'] = $this->language->get('error_upload_sitemap_content');
+				$this->redirectToModule();
+				return;
+			}
+
+			$body = $decoded;
+		}
+
+		if (!preg_match('~<(urlset|sitemapindex|loc)\b~i', $body)) {
+			$this->session->data['error'] = $this->language->get('error_upload_sitemap_content');
+			$this->redirectToModule();
+			return;
+		}
+
+		$path = $this->uploadedSitemapCachePath();
+
+		if ($path === '' || !is_dir(dirname($path)) || !is_writable(dirname($path)) || @file_put_contents($path, $body) === false) {
+			$this->session->data['error'] = $this->language->get('error_upload_sitemap_write');
+			$this->redirectToModule();
+			return;
+		}
+
+		$this->clearSitemapCaches();
+
+		try {
+			$this->createSitemapPageTable();
+			$this->db->query('TRUNCATE TABLE `' . DB_PREFIX . 'roko_sitemap_page`');
+		} catch (\Throwable $exception) {
+		}
+
+		$url_count = preg_match_all('~<loc>~i', $body);
+		$this->session->data['success'] = sprintf($this->language->get('text_upload_sitemap_success'), (int)$url_count);
+		$this->redirectToModule();
 	}
 
 	public function clearLogs(): void {
@@ -232,6 +315,42 @@ class ControllerExtensionModuleRoko extends Controller {
 				KEY `date_added` (`date_added`)
 			) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
 		");
+
+		$this->createSitemapPageTable();
+	}
+
+	private function createSitemapPageTable(): void {
+		$this->db->query("
+			CREATE TABLE IF NOT EXISTS `" . DB_PREFIX . "roko_sitemap_page` (
+				`page_id` int(11) NOT NULL AUTO_INCREMENT,
+				`url_hash` char(32) NOT NULL,
+				`url` text NOT NULL,
+				`title` varchar(255) NOT NULL DEFAULT '',
+				`content_type` varchar(20) NOT NULL DEFAULT 'page',
+				`image` varchar(1000) NOT NULL DEFAULT '',
+				`description` text NOT NULL,
+				`content` mediumtext NOT NULL,
+				`fetched_at` int(11) NOT NULL DEFAULT 0,
+				`date_modified` datetime NOT NULL,
+				PRIMARY KEY (`page_id`),
+				UNIQUE KEY `url_hash` (`url_hash`),
+				KEY `content_type` (`content_type`),
+				KEY `fetched_at` (`fetched_at`)
+			) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+		");
+
+		$this->ensureSitemapPageImageColumn();
+	}
+
+	private function ensureSitemapPageImageColumn(): void {
+		try {
+			$query = $this->db->query("SHOW COLUMNS FROM `" . DB_PREFIX . "roko_sitemap_page` LIKE 'image'");
+
+			if (!$query->num_rows) {
+				$this->db->query("ALTER TABLE `" . DB_PREFIX . "roko_sitemap_page` ADD `image` varchar(1000) NOT NULL DEFAULT '' AFTER `content_type`");
+			}
+		} catch (\Throwable $exception) {
+		}
 	}
 
 	private function getRecentLogs(): array {
@@ -250,14 +369,13 @@ class ControllerExtensionModuleRoko extends Controller {
 	}
 
 	private function getIndexedSitemapPages(): array {
-		$url = $this->configuredSitemapUrl();
+		$db_pages = $this->getIndexedSitemapPagesFromDb();
 
-		if ($url === '') {
-			return [];
+		if ($db_pages) {
+			return $db_pages;
 		}
 
-		$cache_key = 'roko.sitemap.content.v1.' . md5($url);
-		$path = $this->cacheFilePath($cache_key);
+		$path = $this->findSitemapContentCachePath();
 
 		if ($path === '' || !is_file($path)) {
 			return [];
@@ -299,14 +417,122 @@ class ControllerExtensionModuleRoko extends Controller {
 		return array_slice($pages, 0, 200);
 	}
 
-	private function getSitemapCacheStatus(int $cached_pages): string {
-		$url = $this->configuredSitemapUrl();
+	private function getIndexedSitemapPagesFromDb(): array {
+		try {
+			$this->createSitemapPageTable();
 
-		if ($url === '') {
+			$query = $this->db->query("
+				SELECT `title`, `url`, `content_type`, `image`, `description`, `content`, `fetched_at`
+				FROM `" . DB_PREFIX . "roko_sitemap_page`
+				ORDER BY `fetched_at` DESC, `page_id` DESC
+				LIMIT 500
+			");
+
+			$pages = [];
+
+			foreach ($query->rows as $row) {
+				$fetched_at = (int)($row['fetched_at'] ?? 0);
+				$pages[] = [
+					'title' => $this->shortText((string)($row['title'] ?? $row['url'] ?? ''), 120),
+					'url' => (string)($row['url'] ?? ''),
+					'content_type' => (string)($row['content_type'] ?? 'page'),
+					'image' => (string)($row['image'] ?? ''),
+					'summary' => $this->shortText((string)($row['description'] ?? $row['content'] ?? ''), 220),
+					'fetched_at' => $fetched_at ? date('Y-m-d H:i:s', $fetched_at) : ''
+				];
+			}
+
+			return $pages;
+		} catch (\Throwable $exception) {
+			return [];
+		}
+	}
+
+	private function getIndexedSitemapPagesTotal(array $displayed_pages): int {
+		try {
+			$this->createSitemapPageTable();
+			$query = $this->db->query("SELECT COUNT(*) AS `total` FROM `" . DB_PREFIX . "roko_sitemap_page`");
+			$total = (int)($query->row['total'] ?? 0);
+
+			return $total > 0 ? $total : count($displayed_pages);
+		} catch (\Throwable $exception) {
+			return count($displayed_pages);
+		}
+	}
+
+	private function getUploadedSitemapStatus(): string {
+		$path = $this->uploadedSitemapCachePath();
+
+		if ($path === '' || !is_file($path)) {
+			return $this->language->get('text_no_uploaded_sitemap');
+		}
+
+		$body = file_get_contents($path);
+		$url_count = is_string($body) ? (int)preg_match_all('~<loc>~i', $body) : 0;
+
+		return sprintf($this->language->get('text_uploaded_sitemap_status'), $url_count, date('Y-m-d H:i:s', (int)filemtime($path)));
+	}
+
+	private function uploadedSitemapCachePath(): string {
+		if (!defined('DIR_CACHE')) {
+			return '';
+		}
+
+		return rtrim(DIR_CACHE, '/\\') . DIRECTORY_SEPARATOR . 'cache.roko.sitemap.upload.xml';
+	}
+
+	private function clearSitemapCaches(): void {
+		if (!defined('DIR_CACHE')) {
+			return;
+		}
+
+		$cache_root = realpath(DIR_CACHE);
+
+		if (!$cache_root) {
+			return;
+		}
+
+		$patterns = [
+			'cache.roko.sitemap.v*.json',
+			'cache.roko.sitemap.upload.v*.json',
+			'cache.roko.sitemap.content.v1.*.json',
+			'cache.roko.sitemap.content.v2.*.json'
+		];
+
+		foreach ($patterns as $pattern) {
+			$matches = glob(rtrim(DIR_CACHE, '/\\') . DIRECTORY_SEPARATOR . $pattern);
+
+			if (!is_array($matches)) {
+				continue;
+			}
+
+			foreach ($matches as $path) {
+				$real_path = realpath($path);
+
+				if ($real_path && strpos($real_path, $cache_root . DIRECTORY_SEPARATOR) === 0 && is_file($real_path)) {
+					@unlink($real_path);
+				}
+			}
+		}
+	}
+
+	private function redirectToModule(): void {
+		$redirect = html_entity_decode($this->url->link('extension/module/roko', 'user_token=' . $this->session->data['user_token'], true), ENT_QUOTES, 'UTF-8');
+		$this->response->redirect($redirect);
+	}
+
+	private function getSitemapCacheStatus(int $cached_pages): string {
+		if (!$this->sitemapUrlCandidates() && !is_file($this->uploadedSitemapCachePath())) {
 			return $this->language->get('text_sitemap_not_configured');
 		}
 
-		$content_path = $this->cacheFilePath('roko.sitemap.content.v1.' . md5($url));
+		$db_fetched_at = $this->getLatestSitemapDbFetchedAt();
+
+		if ($cached_pages > 0 && $db_fetched_at > 0) {
+			return sprintf($this->language->get('text_sitemap_cached_count'), $cached_pages, date('Y-m-d H:i:s', $db_fetched_at));
+		}
+
+		$content_path = $this->findSitemapContentCachePath();
 
 		if ($content_path === '' || !is_file($content_path)) {
 			return $this->language->get('text_sitemap_not_warmed');
@@ -315,34 +541,117 @@ class ControllerExtensionModuleRoko extends Controller {
 		return sprintf($this->language->get('text_sitemap_cached_count'), $cached_pages, date('Y-m-d H:i:s', (int)filemtime($content_path)));
 	}
 
-	private function configuredSitemapUrl(): string {
-		$url = trim((string)$this->config->get('module_roko_sitemap_url'));
+	private function getLatestSitemapDbFetchedAt(): int {
+		try {
+			$this->createSitemapPageTable();
+			$query = $this->db->query("SELECT MAX(`fetched_at`) AS `fetched_at` FROM `" . DB_PREFIX . "roko_sitemap_page`");
 
-		if ($url === '') {
-			$url = $this->defaultSitemapUrl();
+			return (int)($query->row['fetched_at'] ?? 0);
+		} catch (\Throwable $exception) {
+			return 0;
+		}
+	}
+
+	private function configuredSitemapUrl(): string {
+		$candidates = $this->sitemapUrlCandidates();
+		return $candidates[0] ?? '';
+	}
+
+	private function sitemapUrlCandidates(): array {
+		$urls = [];
+		$configured = trim((string)$this->config->get('module_roko_sitemap_url'));
+
+		if ($configured !== '') {
+			$urls[] = $configured;
 		}
 
-		$parts = parse_url($url);
+		foreach ($this->siteBaseUrlCandidates() as $base) {
+			$urls[] = rtrim($base, '/') . '/sitemap.xml';
+		}
 
-		if (!$parts || empty($parts['scheme']) || empty($parts['host']) || !in_array(strtolower($parts['scheme']), ['http', 'https'], true)) {
+		$expanded = [];
+
+		foreach ($urls as $url) {
+			$url = trim((string)$url);
+			$parts = parse_url($url);
+
+			if (!$parts || empty($parts['scheme']) || empty($parts['host']) || !in_array(strtolower($parts['scheme']), ['http', 'https'], true)) {
+				continue;
+			}
+
+			$path = (string)($parts['path'] ?? '/sitemap.xml');
+			$query = isset($parts['query']) ? '?' . $parts['query'] : '';
+			$host = (string)$parts['host'];
+			$port = isset($parts['port']) ? ':' . (int)$parts['port'] : '';
+			$schemes = array_unique([strtolower((string)$parts['scheme']), strtolower((string)$parts['scheme']) === 'https' ? 'http' : 'https']);
+			$hosts = array_unique([$host, strpos(strtolower($host), 'www.') === 0 ? substr($host, 4) : 'www.' . $host]);
+
+			foreach ($schemes as $scheme) {
+				foreach ($hosts as $candidate_host) {
+					$expanded[] = $scheme . '://' . $candidate_host . $port . $path . $query;
+				}
+			}
+		}
+
+		return array_values(array_unique($expanded));
+	}
+
+	private function siteBaseUrlCandidates(): array {
+		$bases = [];
+
+		foreach (['config_url', 'config_ssl'] as $key) {
+			$value = trim((string)$this->config->get($key));
+
+			if ($value !== '') {
+				$bases[] = $value;
+			}
+		}
+
+		foreach (['HTTP_CATALOG', 'HTTPS_CATALOG', 'HTTPS_SERVER', 'HTTP_SERVER'] as $constant) {
+			if (defined($constant)) {
+				$value = trim((string)constant($constant));
+
+				if ($value !== '') {
+					$bases[] = $value;
+				}
+			}
+		}
+
+		return array_values(array_unique($bases));
+	}
+
+	private function findSitemapContentCachePath(): string {
+		foreach ($this->sitemapUrlCandidates() as $url) {
+			$path = $this->cacheFilePath('roko.sitemap.content.v1.' . md5($url));
+
+			if ($path !== '' && is_file($path)) {
+				return $path;
+			}
+		}
+
+		if (!defined('DIR_CACHE')) {
 			return '';
 		}
 
-		return $url;
-	}
+		$matches = [];
 
-	private function defaultSitemapUrl(): string {
-		$base = (string)$this->config->get('config_url');
+		foreach (['cache.roko.sitemap.content.v2.*.json', 'cache.roko.sitemap.content.v1.*.json'] as $pattern) {
+			$found = glob(rtrim(DIR_CACHE, '/\\') . DIRECTORY_SEPARATOR . $pattern);
 
-		if ($base === '' && defined('HTTP_CATALOG')) {
-			$base = (string)HTTP_CATALOG;
+			if (is_array($found)) {
+				$matches = array_merge($matches, $found);
+			}
 		}
 
-		if ($base === '' && defined('HTTP_SERVER')) {
-			$base = (string)HTTP_SERVER;
+		if (!$matches) {
+			return '';
 		}
 
-		return $base === '' ? '' : rtrim($base, '/') . '/sitemap.xml';
+		usort($matches, function ($a, $b) {
+			return (int)filemtime($b) <=> (int)filemtime($a);
+		});
+
+		return (string)$matches[0];
 	}
 
 	private function getWarmSitemapUrl(): string {
