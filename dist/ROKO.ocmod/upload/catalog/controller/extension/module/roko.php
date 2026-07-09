@@ -1,6 +1,6 @@
 <?php
 class ControllerExtensionModuleRoko extends Controller {
-	private const VERSION = '3.3.0';
+	private const VERSION = '3.3.1';
 	private const MARKER = '<!-- ROKO_WIDGET -->';
 	private const DEFAULT_LEAD_WEBHOOK_URL = 'https://script.google.com/macros/s/AKfycbwV1zaw6C3iKdWVaK-gN8hyAzvW8_RygWTp9Q2ggjYUWcAftM2c7ipOIM5l6UowTsCS/exec';
 	private const DEFAULT_LEAD_WEBHOOK_SECRET = 'f8c9d2a7e1b4c6f9a3d8e7b2c5f1a9d4';
@@ -52,6 +52,8 @@ class ControllerExtensionModuleRoko extends Controller {
 			'checkoutRoute' => 'index.php?route=checkout/checkout',
 			'couponRoute' => 'index.php?route=extension/total/coupon/coupon',
 			'invoiceRoute' => 'index.php?route=extension/module/roko/sendInvoice',
+			'redirectLogRoute' => 'index.php?route=extension/module/roko/logRedirect',
+			'redirectUtm' => trim((string)$this->config->get('module_roko_redirect_utm')),
 			'title' => $widget_title,
 			'buttonText' => $widget_button,
 			'avatarUrl' => $asset_base . 'roko-character.png?v=' . self::VERSION,
@@ -139,7 +141,7 @@ class ControllerExtensionModuleRoko extends Controller {
 			return;
 		}
 
-		$result = $this->askGemini($message, $conversation_id);
+		$result = $this->askGemini($message, $conversation_id, is_array($input['page_context'] ?? null) ? $input['page_context'] : []);
 
 		if ($result['error']) {
 			$this->writeChatLog($conversation_id, 'assistant', 'Gemini error: ' . $result['error']);
@@ -200,7 +202,8 @@ class ControllerExtensionModuleRoko extends Controller {
 			return;
 		}
 
-		$limit = min(500, max(1, (int)($this->request->get['limit'] ?? 25)));
+		$default_limit = $this->hasUploadedSitemap() ? 80 : 120;
+		$limit = min(self::SITEMAP_CRAWL_MAX_PAGES, max(1, (int)($this->request->get['limit'] ?? $default_limit)));
 		$force_refresh = !empty($this->request->get['refresh']);
 		$result = $this->warmSitemapContent('', $limit, $force_refresh);
 
@@ -322,7 +325,30 @@ class ControllerExtensionModuleRoko extends Controller {
 		$this->outputJson(['success' => true, 'message' => 'Invoice request recorded.']);
 	}
 
-	private function askGemini(string $message, string $conversation_id): array {
+	public function logRedirect(): void {
+		if (!$this->config->get('module_roko_status')) {
+			$this->outputJson(['status' => 'error', 'message' => 'ROKO is disabled.'], 403);
+			return;
+		}
+
+		$input = $this->getInputData();
+		$conversation_id = substr(trim((string)($input['conversation_id'] ?? $this->getLocalConversationId())), 0, 80);
+		$action_type = substr(trim((string)($input['action_type'] ?? 'redirect')), 0, 40);
+		$source_url = $this->limitLogUrl((string)($input['source_url'] ?? ''));
+		$destination_url = $this->limitLogUrl((string)($input['destination_url'] ?? ''));
+		$destination_url_utm = $this->limitLogUrl((string)($input['destination_url_utm'] ?? ''));
+		$utm_payload = substr(trim((string)($input['utm_payload'] ?? (string)$this->config->get('module_roko_redirect_utm'))), 0, 500);
+
+		if ($destination_url === '' && $destination_url_utm === '') {
+			$this->outputJson(['status' => 'error', 'message' => 'Destination URL is required.'], 400);
+			return;
+		}
+
+		$this->writeRedirectLog($conversation_id, $action_type, $source_url, $destination_url, $destination_url_utm, $utm_payload);
+		$this->outputJson(['status' => 'success']);
+	}
+
+	private function askGemini(string $message, string $conversation_id, array $page_context = []): array {
 		$api_keys = $this->getGeminiApiKeys();
 
 		if (!$api_keys) {
@@ -341,7 +367,7 @@ class ControllerExtensionModuleRoko extends Controller {
 				[
 					'role' => 'user',
 					'parts' => [
-						['text' => $this->buildGeminiPrompt($message, $conversation_id)]
+						['text' => $this->buildGeminiPrompt($message, $conversation_id, $page_context)]
 					]
 				]
 			],
@@ -406,12 +432,13 @@ class ControllerExtensionModuleRoko extends Controller {
 		return $normalized;
 	}
 
-	private function buildGeminiPrompt(string $message, string $conversation_id): string {
+	private function buildGeminiPrompt(string $message, string $conversation_id, array $page_context = []): string {
 		$brand = (string)($this->config->get('module_roko_store_brand') ?: $this->config->get('config_name'));
 		$assistant_name = (string)($this->config->get('module_roko_assistant_name') ?: 'ROKO');
+		$current_page = $this->resolveCurrentPageContext($page_context);
 		$catalog = $this->getPromptCatalog($message);
 		$navigation = $this->getNavigationPromptCatalog();
-		$site_content = $this->getRelevantSiteContent($message);
+		$site_content = $this->getRelevantSiteContent($message, $current_page);
 		$history = $this->getConversationHistory($conversation_id, $message);
 		$sitemap_url = $this->configuredSitemapUrl();
 		$custom_system_prompt = $this->customSystemPrompt();
@@ -421,6 +448,7 @@ class ControllerExtensionModuleRoko extends Controller {
 			$custom_system_prompt !== '' ? "Store-specific system prompt:\n" . $custom_system_prompt : '',
 			'Default to English. If the latest user message is clearly Persian or another language, you may reply in that language, but your base persona and concise style are English-first.',
 			'Use only the product catalog below for product-specific claims. Check stock before recommending purchase. Keep replies short, natural, and sales-focused.',
+			'If Current page context JSON is present, treat it as the exact page the user is viewing right now. When they ask to summarize "this page/article/post", ask about what they are reading, or refer to the current page, answer from Current page context first.',
 			'Use Relevant crawled site pages for blog, article, category, and general site knowledge. For technical/networking questions, prefer relevant blog/article pages when they answer the question.',
 			'When the user wants an action, include it in actions. Supported action types: add_to_cart, show_cart, redirect_to_cart, redirect_to_product, redirect_to_page, update_cart_item, remove_from_cart, clear_cart, apply_coupon, redirect_to_checkout, send_invoice.',
 			'For bulk, wholesale, B2B, corporate, or high-quantity requests, do not add items to cart and do not send the user to checkout. Ask for lead details using this exact field list: Product Name, QTY, Name, Company, Contact Number, Email, Delivery Location.',
@@ -429,6 +457,7 @@ class ControllerExtensionModuleRoko extends Controller {
 			'Use suggestions for helpful next questions. Use product cards for products and also for relevant blog/article/page recommendations. If Relevant crawled site pages JSON contains a useful match, include the best matching blog/page in products with its exact URL and image URL when available. Use content_type="blog" for blog cards and never invent product_id for non-product pages. Use an empty array for suggestions/products/actions when not needed.',
 			$sitemap_url !== '' ? 'Configured sitemap URL: ' . $sitemap_url : '',
 			'Conversation history JSON: ' . json_encode($history, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+			'Current page context JSON: ' . json_encode($current_page, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
 			'Known site pages JSON: ' . json_encode($navigation, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
 			'Relevant crawled site pages JSON: ' . json_encode($site_content, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
 			'Product catalog JSON: ' . json_encode($catalog, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
@@ -831,17 +860,22 @@ class ControllerExtensionModuleRoko extends Controller {
 		return rtrim(DIR_CACHE, '/\\') . DIRECTORY_SEPARATOR . 'cache.' . preg_replace('/[^a-zA-Z0-9_.-]/', '_', $cache_key) . '.json';
 	}
 
-	private function getRelevantSiteContent(string $message): array {
+	private function getRelevantSiteContent(string $message, array $current_page = []): array {
 		$content = $this->getCrawledSitemapContent($message);
 
 		if (!$content) {
 			return [];
 		}
 
+		$current_url_key = $this->normalizePageUrlKey((string)($current_page['url'] ?? ''));
 		$ranked = [];
 
 		foreach ($content as $entry) {
 			if (!is_array($entry)) {
+				continue;
+			}
+
+			if ($current_url_key !== '' && $this->normalizePageUrlKey((string)($entry['url'] ?? '')) === $current_url_key) {
 				continue;
 			}
 
@@ -873,6 +907,137 @@ class ControllerExtensionModuleRoko extends Controller {
 		}
 
 		return $results;
+	}
+
+	private function resolveCurrentPageContext(array $page_context): array {
+		$url = trim((string)($page_context['url'] ?? ''));
+		$title = trim((string)($page_context['title'] ?? ''));
+		$content = trim((string)($page_context['content'] ?? ''));
+		$description = trim((string)($page_context['description'] ?? ''));
+		$image = trim((string)($page_context['image'] ?? ''));
+		$content_type = trim((string)($page_context['content_type'] ?? ''));
+
+		if ($url === '' && $title === '' && $content === '') {
+			return [];
+		}
+
+		if ($content_type === '') {
+			$content_type = $url !== '' ? $this->contentTypeFromUrl($url) : 'page';
+		}
+
+		if ($content === '' && $url !== '') {
+			$cached = $this->getCachedPageContentByUrl($url);
+
+			if ($cached) {
+				$content = trim((string)($cached['content'] ?? ''));
+
+				if ($title === '') {
+					$title = trim((string)($cached['title'] ?? ''));
+				}
+
+				if ($description === '') {
+					$description = trim((string)($cached['description'] ?? ''));
+				}
+
+				if ($image === '') {
+					$image = trim((string)($cached['image'] ?? ''));
+				}
+			} else {
+				$crawled = $this->crawlSitemapPage([
+					'url' => $url,
+					'page' => $title
+				]);
+
+				if ($crawled) {
+					$content = trim((string)($crawled['content'] ?? ''));
+
+					if ($title === '') {
+						$title = trim((string)($crawled['title'] ?? ''));
+					}
+
+					if ($description === '') {
+						$description = trim((string)($crawled['description'] ?? ''));
+					}
+
+					if ($image === '') {
+						$image = trim((string)($crawled['image'] ?? ''));
+					}
+				}
+			}
+		}
+
+		if ($description === '' && $content !== '') {
+			$description = $this->shortText($content, 260);
+		}
+
+		if ($url === '' && $title === '' && $content === '') {
+			return [];
+		}
+
+		return [
+			'title' => $this->shortText($title, 180),
+			'url' => $url,
+			'content_type' => $content_type,
+			'image' => $image,
+			'description' => $this->shortText($description, 300),
+			'content' => $this->shortText($content, self::SITEMAP_PAGE_TEXT_LIMIT),
+			'is_current_page' => true
+		];
+	}
+
+	private function getCachedPageContentByUrl(string $url): array {
+		$source_key = $this->sitemapSourceCacheKey();
+
+		if ($source_key === '') {
+			return [];
+		}
+
+		$cache_key = 'roko.sitemap.content.v2.' . $source_key;
+		$content = $this->readSitemapContentCache($cache_key);
+		$target = $this->normalizePageUrlKey($url);
+
+		if ($target === '') {
+			return [];
+		}
+
+		foreach ($content as $entry_url => $entry) {
+			if (!is_array($entry)) {
+				continue;
+			}
+
+			if ($this->normalizePageUrlKey((string)$entry_url) === $target) {
+				return $entry;
+			}
+
+			if ($this->normalizePageUrlKey((string)($entry['url'] ?? '')) === $target) {
+				return $entry;
+			}
+		}
+
+		return [];
+	}
+
+	private function normalizePageUrlKey(string $url): string {
+		$url = strtolower(trim(html_entity_decode($url, ENT_QUOTES, 'UTF-8')));
+
+		if ($url === '') {
+			return '';
+		}
+
+		$parts = parse_url($url);
+
+		if (!$parts) {
+			return rtrim($url, '/');
+		}
+
+		$host = strtolower((string)($parts['host'] ?? ''));
+		$path = rtrim((string)($parts['path'] ?? '/'), '/');
+
+		if ($path === '') {
+			$path = '/';
+		}
+
+		return $host . $path;
 	}
 
 	private function getCrawledSitemapContent(string $message): array {
@@ -909,7 +1074,7 @@ class ControllerExtensionModuleRoko extends Controller {
 		$content = $this->readSitemapContentCache($cache_key);
 		$changed = false;
 		$crawled = 0;
-		$limit = min(500, max(1, $limit));
+		$limit = min(self::SITEMAP_CRAWL_MAX_PAGES, max(1, $limit));
 
 		foreach ($this->prioritizeSitemapPagesForCrawl($pages, $content, $message) as $page) {
 			$url = trim((string)($page['url'] ?? ''));
@@ -3100,6 +3265,67 @@ class ControllerExtensionModuleRoko extends Controller {
 		} catch (\Throwable $exception) {
 			$this->log->write('ROKO log failed: ' . $exception->getMessage());
 		}
+	}
+
+	private function writeRedirectLog(
+		string $conversation_id,
+		string $action_type,
+		string $source_url,
+		string $destination_url,
+		string $destination_url_utm,
+		string $utm_payload
+	): void {
+		try {
+			$this->createRedirectLogTable();
+			$ip = (string)($this->request->server['REMOTE_ADDR'] ?? '');
+			$user_agent = substr((string)($this->request->server['HTTP_USER_AGENT'] ?? ''), 0, 255);
+
+			$this->db->query("
+				INSERT INTO `" . DB_PREFIX . "roko_redirect_log`
+				SET
+					`conversation_id` = '" . $this->db->escape($conversation_id) . "',
+					`action_type` = '" . $this->db->escape($action_type) . "',
+					`source_url` = '" . $this->db->escape($source_url) . "',
+					`destination_url` = '" . $this->db->escape($destination_url) . "',
+					`destination_url_utm` = '" . $this->db->escape($destination_url_utm) . "',
+					`utm_payload` = '" . $this->db->escape($utm_payload) . "',
+					`ip` = '" . $this->db->escape(substr($ip, 0, 45)) . "',
+					`user_agent` = '" . $this->db->escape($user_agent) . "',
+					`date_added` = NOW()
+			");
+		} catch (\Throwable $exception) {
+			$this->log->write('ROKO redirect log failed: ' . $exception->getMessage());
+		}
+	}
+
+	private function createRedirectLogTable(): void {
+		$this->db->query("
+			CREATE TABLE IF NOT EXISTS `" . DB_PREFIX . "roko_redirect_log` (
+				`redirect_log_id` int(11) NOT NULL AUTO_INCREMENT,
+				`conversation_id` varchar(80) NOT NULL DEFAULT '',
+				`action_type` varchar(40) NOT NULL DEFAULT '',
+				`source_url` text NOT NULL,
+				`destination_url` text NOT NULL,
+				`destination_url_utm` text NOT NULL,
+				`utm_payload` text NOT NULL,
+				`ip` varchar(45) NOT NULL DEFAULT '',
+				`user_agent` varchar(255) NOT NULL DEFAULT '',
+				`date_added` datetime NOT NULL,
+				PRIMARY KEY (`redirect_log_id`),
+				KEY `conversation_id` (`conversation_id`),
+				KEY `date_added` (`date_added`)
+			) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+		");
+	}
+
+	private function limitLogUrl(string $url): string {
+		$url = trim($url);
+
+		if ($url === '') {
+			return '';
+		}
+
+		return substr($url, 0, 2000);
 	}
 
 	private function getLocalConversationId(): string {

@@ -15,6 +15,8 @@
         checkoutRoute: 'index.php?route=checkout/checkout',
         couponRoute: 'index.php?route=extension/total/coupon/coupon',
         invoiceRoute: 'index.php?route=extension/module/roko/sendInvoice',
+        redirectLogRoute: 'index.php?route=extension/module/roko/logRedirect',
+        redirectUtm: '',
         title: 'ROKO',
         buttonText: 'ROKO',
         avatarUrl: '',
@@ -40,7 +42,10 @@
             title: 'Accessory Suggestion',
             text: 'Can you recommend a useful accessory?'
           }
-        ]
+        ],
+        blogBubbleEnabled: true,
+        blogBubbleMessage: 'Want a quick summary? Chat with ROKO now!',
+        blogBubbleDelayMs: 1500
       };
 
       this.config = Object.assign({}, this.defaults, customConfig || {});
@@ -52,7 +57,8 @@
         conversations: this.storagePrefix + ':conversations',
         chatHistory: this.storagePrefix + ':chat-history',
         legacyMigrated: this.storagePrefix + ':legacy-history-migrated',
-        cartSnapshot: this.storagePrefix + ':cart-snapshot'
+        cartSnapshot: this.storagePrefix + ':cart-snapshot',
+        blogBubbleDismissed: this.storagePrefix + ':blog-bubble-dismissed'
       };
       this.currentConversationId = this.initializeConversations();
 
@@ -66,6 +72,7 @@
       this.restoreChatHistory();
       this.renderStarterSuggestions();
       this.bindEvents();
+      this.initContextBubble();
     }
 
     renderDOM() {
@@ -99,16 +106,27 @@
             <button class="aisa-send" type="submit">Send</button>
           </form>
         </div>
-        <button type="button" class="aisa-toggle">
-          <img class="aisa-toggle-avatar" alt="" hidden />
-          <span class="aisa-toggle-text"></span>
-        </button>
+        <div class="aisa-launcher">
+          <div class="aisa-context-bubble" hidden role="status" aria-live="polite">
+            <button type="button" class="aisa-context-bubble-close" aria-label="Dismiss notification">&times;</button>
+            <p class="aisa-context-bubble-text"></p>
+            <span class="aisa-context-bubble-tail" aria-hidden="true"><i></i><i></i></span>
+          </div>
+          <button type="button" class="aisa-toggle">
+            <img class="aisa-toggle-avatar" alt="" hidden />
+            <span class="aisa-toggle-text"></span>
+          </button>
+        </div>
       `;
       document.body.appendChild(this.root);
     }
 
     cacheElements() {
       this.panel = this.root.querySelector('.aisa-panel');
+      this.launcher = this.root.querySelector('.aisa-launcher');
+      this.contextBubble = this.root.querySelector('.aisa-context-bubble');
+      this.contextBubbleText = this.root.querySelector('.aisa-context-bubble-text');
+      this.contextBubbleClose = this.root.querySelector('.aisa-context-bubble-close');
       this.toggleBtn = this.root.querySelector('.aisa-toggle');
       this.closeBtn = this.root.querySelector('.aisa-close');
       this.historyToggleBtn = this.root.querySelector('.aisa-history-toggle');
@@ -147,6 +165,177 @@
       }
     }
 
+    isBlogPage() {
+      const path = String(location.pathname || '').toLowerCase();
+      return /(^|\/)(blog|article|news)(\/|$)/.test(path) || path.includes('rockford-blog');
+    }
+
+    getPageContentType() {
+      const path = String(location.pathname || '').toLowerCase();
+      const search = String(location.search || '').toLowerCase();
+
+      if (this.isBlogPage()) {
+        return 'blog';
+      }
+
+      if (search.includes('product_id=') || /(^|\/)(product|products)(\/|$)/.test(path)) {
+        return 'product';
+      }
+
+      if (search.includes('path=') || search.includes('category_id=') || /(^|\/)(category|categories)(\/|$)/.test(path)) {
+        return 'category';
+      }
+
+      return 'page';
+    }
+
+    getPageContext() {
+      const cacheKey = String(location.pathname || '') + String(location.search || '');
+      if (!this._pageContextCache || this._pageContextCacheKey !== cacheKey) {
+        this._pageContextCacheKey = cacheKey;
+        this._pageContextCache = this.buildPageContext();
+      }
+      return this._pageContextCache;
+    }
+
+    buildPageContext() {
+      return {
+        url: window.location.href,
+        title: document.title || '',
+        content_type: this.getPageContentType(),
+        description: this.extractMetaDescription(),
+        image: this.extractPageImage(),
+        content: this.extractPageText()
+      };
+    }
+
+    extractMetaDescription() {
+      const meta = document.querySelector('meta[name="description"], meta[property="og:description"]');
+      return meta ? String(meta.getAttribute('content') || '').trim() : '';
+    }
+
+    extractPageImage() {
+      const meta = document.querySelector('meta[property="og:image"], meta[name="twitter:image"]');
+      if (meta) {
+        const content = String(meta.getAttribute('content') || '').trim();
+        if (content) return content;
+      }
+
+      const image = document.querySelector('article img, #content img, main img, .post-image img, .product-thumb img');
+      return image ? String(image.getAttribute('src') || image.src || '').trim() : '';
+    }
+
+    extractPageText() {
+      const selectors = [
+        'article',
+        '.post-content',
+        '.blog-content',
+        '.entry-content',
+        '.article-content',
+        '#content .content',
+        '#content',
+        'main',
+        '.product-description',
+        '#product-description',
+        '#product'
+      ];
+
+      let root = null;
+      for (const selector of selectors) {
+        const element = document.querySelector(selector);
+        if (element && this.getVisibleTextLength(element) > 120) {
+          root = element;
+          break;
+        }
+      }
+
+      if (!root) {
+        root = document.querySelector('#content') || document.querySelector('main') || document.body;
+      }
+
+      const clone = root.cloneNode(true);
+      clone.querySelectorAll(
+        '#roko-widget, script, style, noscript, nav, header, footer, iframe, svg, .breadcrumb, .breadcrumbs, .aisa-panel'
+      ).forEach((element) => element.remove());
+
+      return this.normalizePageText(clone.innerText || clone.textContent || '');
+    }
+
+    getVisibleTextLength(element) {
+      const text = String(element && (element.innerText || element.textContent) || '').replace(/\s+/g, ' ').trim();
+      return text.length;
+    }
+
+    normalizePageText(text) {
+      return String(text || '').replace(/\s+/g, ' ').trim().slice(0, 4500);
+    }
+
+    isBlogBubbleDismissed() {
+      try {
+        const dismissed = JSON.parse(localStorage.getItem(this.keys.blogBubbleDismissed) || '{}');
+        return dismissed[location.pathname] === true;
+      } catch (error) {
+        return false;
+      }
+    }
+
+    dismissBlogBubble() {
+      try {
+        const dismissed = JSON.parse(localStorage.getItem(this.keys.blogBubbleDismissed) || '{}');
+        dismissed[location.pathname] = true;
+        localStorage.setItem(this.keys.blogBubbleDismissed, JSON.stringify(dismissed));
+      } catch (error) {
+        // Ignore storage failures.
+      }
+      this.hideContextBubble();
+    }
+
+    getBlogBubbleMessage() {
+      const configured = String(this.config.blogBubbleMessage || this.defaults.blogBubbleMessage || '').trim();
+      const title = String(document.title || '').replace(/\s*[\-|–|—|•|·|::|:].*$/, '').trim();
+      if (!title || title.length < 8) {
+        return configured;
+      }
+      const shortTitle = title.length > 42 ? title.slice(0, 39).trim() + '...' : title;
+      return 'Want a quick summary of "' + shortTitle + '"? Ask ROKO now!';
+    }
+
+    initContextBubble() {
+      if (!this.contextBubble || this.config.blogBubbleEnabled === false || !this.isBlogPage() || this.isBlogBubbleDismissed()) {
+        return;
+      }
+
+      this.contextBubbleText.textContent = this.getBlogBubbleMessage();
+
+      this.contextBubbleClose.addEventListener('click', (event) => {
+        event.stopPropagation();
+        this.dismissBlogBubble();
+      });
+
+      this.contextBubble.addEventListener('click', () => {
+        this.dismissBlogBubble();
+        this.openPanel();
+      });
+
+      const delay = Number(this.config.blogBubbleDelayMs ?? this.defaults.blogBubbleDelayMs) || 0;
+      this._blogBubbleTimer = window.setTimeout(() => {
+        if (!this.panel.hidden) return;
+        this.showContextBubble();
+      }, Math.max(0, delay));
+    }
+
+    showContextBubble() {
+      if (!this.contextBubble || this.panel.hidden === false) return;
+      this.contextBubble.hidden = false;
+      this.launcher.classList.add('has-context-bubble');
+    }
+
+    hideContextBubble() {
+      if (!this.contextBubble) return;
+      this.contextBubble.hidden = true;
+      this.launcher.classList.remove('has-context-bubble');
+    }
+
     bindEvents() {
       this.toggleBtn.addEventListener('click', () => {
         if (this.panel.hidden) {
@@ -182,7 +371,12 @@
 
     openPanel() {
       this.panel.hidden = false;
-      this.toggleBtn.hidden = true;
+      this.launcher.hidden = true;
+      if (this.contextBubble && !this.contextBubble.hidden) {
+        this.dismissBlogBubble();
+      } else {
+        this.hideContextBubble();
+      }
       this.root.classList.add('is-open');
       this.toggleBtn.setAttribute('aria-expanded', 'true');
       this.scrollMessagesToBottom();
@@ -191,7 +385,7 @@
 
     closePanel() {
       this.panel.hidden = true;
-      this.toggleBtn.hidden = false;
+      this.launcher.hidden = false;
       this.root.classList.remove('is-open');
       this.toggleBtn.setAttribute('aria-expanded', 'false');
       this.conversationTray.hidden = true;
@@ -849,10 +1043,7 @@
       try {
         const body = {
           message: message,
-          page_context: {
-            url: window.location.href,
-            title: document.title
-          }
+          page_context: this.getPageContext()
         };
         const conversationId = this.getActiveConversationId();
         if (conversationId) {
@@ -924,7 +1115,7 @@
       }
 
       if (actionType === 'redirect_to_cart') {
-        this.redirectToRoute(this.config.cartRoute);
+        this.redirectToRoute(this.config.cartRoute, 'redirect_to_cart');
         return;
       }
 
@@ -941,33 +1132,33 @@
       if (actionType === 'update_cart_item') {
         const updated = await this.updateCartItem(action);
         this.addMessage('bot', updated ? this.localizedUpdatedMessage(message) : this.localizedActionFailedMessage(message));
-        if (!updated) this.redirectToRoute(this.config.cartRoute);
+        if (!updated) this.redirectToRoute(this.config.cartRoute, 'add_to_cart');
         return;
       }
 
       if (actionType === 'remove_from_cart') {
         const removed = await this.removeCartItem(action);
         this.addMessage('bot', removed ? this.localizedRemovedMessage(message) : this.localizedActionFailedMessage(message));
-        if (!removed) this.redirectToRoute(this.config.cartRoute);
+        if (!removed) this.redirectToRoute(this.config.cartRoute, 'remove_from_cart');
         return;
       }
 
       if (actionType === 'clear_cart') {
         const cleared = await this.clearCart();
         this.addMessage('bot', cleared ? this.localizedClearedMessage(message) : this.localizedActionFailedMessage(message));
-        if (!cleared) this.redirectToRoute(this.config.cartRoute);
+        if (!cleared) this.redirectToRoute(this.config.cartRoute, 'clear_cart');
         return;
       }
 
       if (actionType === 'apply_coupon') {
         const applied = await this.applyCoupon(action);
         this.addMessage('bot', applied ? this.localizedCouponMessage(message) : this.localizedActionFailedMessage(message));
-        if (!applied) this.redirectToRoute(this.config.cartRoute);
+        if (!applied) this.redirectToRoute(this.config.cartRoute, 'apply_coupon');
         return;
       }
 
       if (actionType === 'redirect_to_checkout') {
-        this.redirectToRoute(this.config.checkoutRoute);
+        this.redirectToRoute(this.config.checkoutRoute, 'redirect_to_checkout');
         return;
       }
 
@@ -978,58 +1169,143 @@
           return;
         }
         this.addMessage('bot', this.localizedInvoiceFallbackMessage(message));
-        this.redirectToRoute(this.config.checkoutRoute);
+        this.redirectToRoute(this.config.checkoutRoute, 'send_invoice');
       }
     }
 
-    redirectToRoute(route) {
+    redirectToRoute(route, actionType = 'redirect_route') {
       if (!route) return;
-      this.redirectToUrl(this.buildShopUrl(route).toString());
+      this.redirectToUrl(this.buildShopUrl(route).toString(), actionType);
     }
 
     redirectToPage(action) {
       const url = String(action.url || action.href || '');
       if (url) {
-        this.redirectToUrl(url);
+        this.redirectToUrl(url, 'redirect_to_page');
         return;
       }
 
       const route = String(action.route || '');
       if (route) {
-        this.redirectToRoute(route);
+        this.redirectToRoute(route, 'redirect_to_page');
       }
     }
 
-    redirectToUrl(url) {
+    redirectToUrl(url, actionType = 'redirect') {
       if (!url) return;
+
+      const sourceUrl = window.location.href;
+      const destinationUrl = this.normalizeRedirectUrl(url);
+      const destinationUrlUtm = this.appendRedirectUtm(destinationUrl);
+
+      this.logRedirect({
+        action_type: actionType,
+        source_url: sourceUrl,
+        destination_url: destinationUrl,
+        destination_url_utm: destinationUrlUtm,
+        utm_payload: String(this.config.redirectUtm || '').trim()
+      });
+
       const delay = Number(this.config.redirectDelayMs || 0);
       window.setTimeout(() => {
-        try {
-          window.location.assign(new URL(url, this.getShopBaseUrl()).toString());
-        } catch (error) {
-          window.location.assign(url);
-        }
+        window.location.assign(destinationUrlUtm || destinationUrl);
       }, Number.isFinite(delay) ? delay : 0);
     }
 
     redirectToProduct(action) {
       const productUrl = String(action.product_url || action.url || action.href || '');
       if (productUrl) {
-        this.redirectToUrl(productUrl);
+        this.redirectToUrl(productUrl, 'redirect_to_product');
         return;
       }
 
       if (action.product_id) {
         const url = this.buildShopUrl(this.config.productRoute);
         url.searchParams.set('product_id', String(action.product_id));
-        this.redirectToUrl(url.toString());
+        this.redirectToUrl(url.toString(), 'redirect_to_product');
         return;
       }
 
       if (action.product_name) {
         const url = this.buildShopUrl(this.config.searchRoute);
         url.searchParams.set('search', String(action.product_name));
-        this.redirectToUrl(url.toString());
+        this.redirectToUrl(url.toString(), 'redirect_to_product');
+      }
+    }
+
+    normalizeRedirectUrl(url) {
+      try {
+        return new URL(url, this.getShopBaseUrl()).toString();
+      } catch (error) {
+        return String(url || '');
+      }
+    }
+
+    appendRedirectUtm(url) {
+      const utm = String(this.config.redirectUtm || '').trim();
+      if (!utm || !url) {
+        return url;
+      }
+
+      try {
+        const parsed = new URL(url, this.getShopBaseUrl());
+        const pairs = utm.split('&');
+
+        pairs.forEach((pair) => {
+          const trimmed = String(pair || '').trim();
+          if (!trimmed) {
+            return;
+          }
+
+          const separatorIndex = trimmed.indexOf('=');
+          const key = decodeURIComponent((separatorIndex >= 0 ? trimmed.slice(0, separatorIndex) : trimmed).trim());
+          const value = decodeURIComponent((separatorIndex >= 0 ? trimmed.slice(separatorIndex + 1) : '').trim());
+
+          if (!key || parsed.searchParams.has(key)) {
+            return;
+          }
+
+          parsed.searchParams.set(key, value);
+        });
+
+        return parsed.toString();
+      } catch (error) {
+        return url;
+      }
+    }
+
+    logRedirect(payload) {
+      if (!this.config.redirectLogRoute) {
+        return;
+      }
+
+      const body = new URLSearchParams({
+        conversation_id: this.currentConversationId || '',
+        action_type: payload.action_type || 'redirect',
+        source_url: payload.source_url || '',
+        destination_url: payload.destination_url || '',
+        destination_url_utm: payload.destination_url_utm || '',
+        utm_payload: payload.utm_payload || ''
+      });
+
+      try {
+        const requestUrl = this.buildShopUrl(this.config.redirectLogRoute).toString();
+        if (typeof navigator !== 'undefined' && typeof navigator.sendBeacon === 'function') {
+          const blob = new Blob([body.toString()], { type: 'application/x-www-form-urlencoded' });
+          const sent = navigator.sendBeacon(requestUrl, blob);
+          if (sent) {
+            return;
+          }
+        }
+
+        fetch(requestUrl, {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body,
+          keepalive: true
+        }).catch(() => {});
+      } catch (error) {
       }
     }
 
@@ -1065,7 +1341,7 @@
       }
       if (cart.source === 'unavailable') {
         this.addMessage('bot', this.localizedCartUnavailableMessage(message));
-        this.redirectToRoute(this.config.cartRoute);
+        this.redirectToRoute(this.config.cartRoute, 'show_cart');
         return;
       }
       this.addMessage('bot', this.localizedCartEmptyMessage(message));
