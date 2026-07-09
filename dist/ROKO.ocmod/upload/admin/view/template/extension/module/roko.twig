@@ -182,7 +182,9 @@
                 <pre style="margin: 8px 0 0; max-height: 180px; overflow: auto; white-space: pre-wrap;">{{ uploaded_sitemap_diagnostics }}</pre>
               </form>
             </div>
-            <form action="{{ module_url }}" method="get" class="form-inline" style="margin: 0 0 10px;">
+            <form action="index.php" method="get" class="form-inline" style="margin: 0 0 10px;">
+              <input type="hidden" name="route" value="extension/module/roko"/>
+              <input type="hidden" name="user_token" value="{{ user_token }}"/>
               <input type="hidden" name="tab" value="indexed-pages"/>
               <div class="form-group" style="margin-right: 8px;">
                 <input type="text" name="sitemap_search" value="{{ sitemap_search }}" class="form-control input-sm" placeholder="{{ text_search }}"/>
@@ -230,7 +232,9 @@
                 <button type="button" id="button-clear-redirect-logs" data-url="{{ clear_redirect_logs }}" class="btn btn-danger btn-xs">{{ text_clear_redirect_logs }}</button>
               </div>
             </div>
-            <form action="{{ module_url }}" method="get" class="form-inline" style="margin: 0 0 10px;">
+            <form action="index.php" method="get" class="form-inline" style="margin: 0 0 10px;">
+              <input type="hidden" name="route" value="extension/module/roko"/>
+              <input type="hidden" name="user_token" value="{{ user_token }}"/>
               <input type="hidden" name="tab" value="redirects"/>
               <div class="form-group" style="margin-right: 8px;">
                 <input type="text" name="redirect_search" value="{{ redirect_search }}" class="form-control input-sm" placeholder="{{ text_search }}"/>
@@ -280,7 +284,9 @@
                 <button type="button" id="button-clear-leads" data-url="{{ clear_leads }}" class="btn btn-danger btn-xs">{{ text_clear_leads }}</button>
               </div>
             </div>
-            <form action="{{ module_url }}" method="get" class="form-inline" style="margin: 0 0 10px;">
+            <form action="index.php" method="get" class="form-inline" style="margin: 0 0 10px;">
+              <input type="hidden" name="route" value="extension/module/roko"/>
+              <input type="hidden" name="user_token" value="{{ user_token }}"/>
               <input type="hidden" name="tab" value="leads"/>
               <div class="form-group" style="margin-right: 8px;">
                 <input type="text" name="lead_search" value="{{ lead_search }}" class="form-control input-sm" placeholder="{{ text_search }}"/>

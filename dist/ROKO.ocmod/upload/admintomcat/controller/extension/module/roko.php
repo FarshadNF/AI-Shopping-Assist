@@ -73,7 +73,8 @@ class ControllerExtensionModuleRoko extends Controller {
 		$data['module_roko_widget_title'] = $widget_title;
 		$data['module_roko_widget_button'] = $widget_button;
 		$data['module_roko_redirect_utm'] = (string)$this->config->get('module_roko_redirect_utm');
-		$data['module_url'] = $this->url->link('extension/module/roko', 'user_token=' . $this->session->data['user_token']);
+		$data['user_token'] = $this->session->data['user_token'];
+		$data['module_url'] = $this->url->link('extension/module/roko', 'user_token=' . $data['user_token']);
 		$active_tab = (string)($this->request->get['tab'] ?? 'logs');
 		$active_tab = in_array($active_tab, ['logs', 'indexed-pages', 'redirects', 'leads'], true) ? $active_tab : 'logs';
 		$log_page = max(1, (int)($this->request->get['log_page'] ?? 1));
