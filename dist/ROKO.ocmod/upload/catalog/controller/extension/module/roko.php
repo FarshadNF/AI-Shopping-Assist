@@ -660,7 +660,9 @@ class ControllerExtensionModuleRoko extends Controller {
 				continue;
 			}
 
-			foreach ($this->extractSitemapPages($body, $sitemap_url) as $page) {
+			$allow_uploaded_urls = $root_body !== '' && $is_root;
+
+			foreach ($this->extractSitemapPages($body, $sitemap_url, $allow_uploaded_urls) as $page) {
 				$pages[] = $page;
 
 				if (count($pages) >= self::SITEMAP_CRAWL_MAX_PAGES) {
@@ -668,7 +670,7 @@ class ControllerExtensionModuleRoko extends Controller {
 				}
 			}
 
-			foreach ($this->extractNestedSitemapUrls($body, $sitemap_url) as $nested_url) {
+			foreach ($this->extractNestedSitemapUrls($body, $sitemap_url, $allow_uploaded_urls) as $nested_url) {
 				$nested_key = strtolower($nested_url);
 
 				if (!isset($seen_sitemaps[$nested_key])) {
@@ -698,11 +700,38 @@ class ControllerExtensionModuleRoko extends Controller {
 	}
 
 	private function uploadedSitemapCachePath(): string {
-		if (!defined('DIR_CACHE')) {
-			return '';
+		foreach ($this->uploadedSitemapCachePaths() as $path) {
+			if (is_file($path) && is_readable($path)) {
+				return $path;
+			}
 		}
 
-		return rtrim(DIR_CACHE, '/\\') . DIRECTORY_SEPARATOR . 'cache.roko.sitemap.upload.xml';
+		$paths = $this->uploadedSitemapCachePaths();
+		return $paths[0] ?? '';
+	}
+
+	private function uploadedSitemapCachePaths(): array {
+		$paths = [];
+
+		if (!defined('DIR_CACHE')) {
+			return [];
+		}
+
+		$paths[] = rtrim(DIR_CACHE, '/\\') . DIRECTORY_SEPARATOR . 'cache.roko.sitemap.upload.xml';
+
+		if (defined('DIR_STORAGE')) {
+			$paths[] = rtrim((string)DIR_STORAGE, '/\\') . DIRECTORY_SEPARATOR . 'cache' . DIRECTORY_SEPARATOR . 'cache.roko.sitemap.upload.xml';
+		}
+
+		if (defined('DIR_SYSTEM')) {
+			$paths[] = rtrim(dirname(rtrim((string)DIR_SYSTEM, '/\\')), '/\\') . DIRECTORY_SEPARATOR . 'system' . DIRECTORY_SEPARATOR . 'storage' . DIRECTORY_SEPARATOR . 'cache' . DIRECTORY_SEPARATOR . 'cache.roko.sitemap.upload.xml';
+		}
+
+		if (defined('DIR_APPLICATION')) {
+			$paths[] = rtrim(dirname(rtrim((string)DIR_APPLICATION, '/\\')), '/\\') . DIRECTORY_SEPARATOR . 'system' . DIRECTORY_SEPARATOR . 'storage' . DIRECTORY_SEPARATOR . 'cache' . DIRECTORY_SEPARATOR . 'cache.roko.sitemap.upload.xml';
+		}
+
+		return array_values(array_unique(array_filter($paths)));
 	}
 
 	private function uploadedSitemapCacheToken(): string {
@@ -727,12 +756,14 @@ class ControllerExtensionModuleRoko extends Controller {
 
 	private function getSitemapDebug(): array {
 		$url = $this->configuredSitemapUrl();
+		$uploaded_path = $this->uploadedSitemapCachePath();
+		$uploaded_body = $this->getUploadedSitemapBody();
 
 		if ($url === '') {
-			return [];
+			$url = $this->defaultSitemapUrl();
 		}
 
-		$body = $this->getRemoteText($url, 20);
+		$body = $url !== '' ? $this->getRemoteText($url, 20) : '';
 		$locs = [];
 
 		if ($body !== '' && preg_match_all('~<loc>\s*(.*?)\s*</loc>~is', $body, $matches)) {
@@ -749,6 +780,11 @@ class ControllerExtensionModuleRoko extends Controller {
 		}
 
 		return [
+			'uploaded_sitemap_found' => $uploaded_path !== '' && is_file($uploaded_path),
+			'uploaded_sitemap_path' => $uploaded_path,
+			'uploaded_sitemap_bytes' => $uploaded_body !== '' ? strlen($uploaded_body) : 0,
+			'uploaded_sitemap_loc_tags' => $uploaded_body !== '' ? preg_match_all('~<loc>~i', $uploaded_body) : 0,
+			'uploaded_sitemap_candidate_paths' => $this->uploadedSitemapCachePaths(),
 			'root_bytes' => $body !== '' ? strlen($body) : 0,
 			'root_loc_tags' => $body !== '' ? preg_match_all('~<loc>~i', $body) : 0,
 			'root_url_tags' => $body !== '' ? preg_match_all('~<url\b~i', $body) : 0,
@@ -978,8 +1014,17 @@ class ControllerExtensionModuleRoko extends Controller {
 
 	private function crawlSitemapPage(array $page): array {
 		$url = trim((string)($page['url'] ?? ''));
+		$trusted_uploaded = (string)($page['source'] ?? '') === 'uploaded_sitemap';
 
-		if ($url === '' || !$this->isInternalAbsoluteUrl($url) || $this->looksLikeSitemapFile($url)) {
+		if ($url === '' || $this->looksLikeSitemapFile($url)) {
+			return [];
+		}
+
+		if ($trusted_uploaded) {
+			if (!preg_match('~^https?://~i', $url)) {
+				return [];
+			}
+		} elseif (!$this->isInternalAbsoluteUrl($url)) {
 			return [];
 		}
 
@@ -1325,7 +1370,7 @@ class ControllerExtensionModuleRoko extends Controller {
 		return array_keys($tokens);
 	}
 
-	private function extractNestedSitemapUrls(string $body, string $base_url): array {
+	private function extractNestedSitemapUrls(string $body, string $base_url, bool $allow_uploaded_urls = false): array {
 		$urls = [];
 		$is_sitemap_index = $this->isSitemapIndexBody($body);
 
@@ -1334,7 +1379,9 @@ class ControllerExtensionModuleRoko extends Controller {
 				$url = html_entity_decode(strip_tags((string)$raw_url), ENT_QUOTES, 'UTF-8');
 				$url = $this->absoluteUrl($url, $base_url);
 
-				if ($url !== '' && $this->isInternalAbsoluteUrl($url) && ($is_sitemap_index || $this->looksLikeSitemapFile($url) || $this->looksLikeSitemapRoute($url))) {
+				$is_allowed_url = $allow_uploaded_urls ? (bool)preg_match('~^https?://~i', $url) : $this->isInternalAbsoluteUrl($url);
+
+				if ($url !== '' && $is_allowed_url && ($is_sitemap_index || $this->looksLikeSitemapFile($url) || $this->looksLikeSitemapRoute($url))) {
 					$urls[] = $url;
 				}
 			}
@@ -1343,7 +1390,7 @@ class ControllerExtensionModuleRoko extends Controller {
 		return array_values(array_unique($urls));
 	}
 
-	private function extractSitemapPages(string $body, string $base_url): array {
+	private function extractSitemapPages(string $body, string $base_url, bool $allow_uploaded_urls = false): array {
 		$pages = [];
 
 		if ($this->isSitemapIndexBody($body)) {
@@ -1355,7 +1402,9 @@ class ControllerExtensionModuleRoko extends Controller {
 				$url = html_entity_decode(strip_tags((string)$raw_url), ENT_QUOTES, 'UTF-8');
 				$url = $this->absoluteUrl($url, $base_url);
 
-				if ($url === '' || !$this->isInternalAbsoluteUrl($url) || $this->looksLikeSitemapFile($url) || $this->looksLikeSitemapRoute($url)) {
+				$is_allowed_url = $allow_uploaded_urls ? (bool)preg_match('~^https?://~i', $url) : $this->isInternalAbsoluteUrl($url);
+
+				if ($url === '' || !$is_allowed_url || $this->looksLikeSitemapFile($url) || $this->looksLikeSitemapRoute($url)) {
 					continue;
 				}
 
@@ -1363,7 +1412,7 @@ class ControllerExtensionModuleRoko extends Controller {
 					'page' => $this->labelFromUrl($url),
 					'url' => $url,
 					'content_type' => $this->contentTypeFromUrl($url),
-					'source' => 'sitemap'
+					'source' => $allow_uploaded_urls ? 'uploaded_sitemap' : 'sitemap'
 				];
 			}
 		}
@@ -1372,7 +1421,9 @@ class ControllerExtensionModuleRoko extends Controller {
 			foreach ($matches as $match) {
 				$url = $this->absoluteUrl((string)$match[1], $base_url);
 
-				if ($url === '' || !$this->isInternalAbsoluteUrl($url)) {
+				$is_allowed_url = $allow_uploaded_urls ? (bool)preg_match('~^https?://~i', $url) : $this->isInternalAbsoluteUrl($url);
+
+				if ($url === '' || !$is_allowed_url) {
 					continue;
 				}
 
@@ -1381,7 +1432,7 @@ class ControllerExtensionModuleRoko extends Controller {
 					'page' => $label !== '' ? $this->shortText($label, 120) : $this->labelFromUrl($url),
 					'url' => $url,
 					'content_type' => $this->contentTypeFromUrl($url),
-					'source' => 'sitemap'
+					'source' => $allow_uploaded_urls ? 'uploaded_sitemap' : 'sitemap'
 				];
 			}
 		}

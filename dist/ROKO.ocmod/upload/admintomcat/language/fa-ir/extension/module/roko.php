@@ -21,7 +21,7 @@ $_['text_upload_sitemap'] = 'Upload sitemap XML';
 $_['text_uploaded_sitemap'] = 'Uploaded sitemap XML';
 $_['text_no_uploaded_sitemap'] = 'No XML sitemap has been uploaded.';
 $_['text_uploaded_sitemap_status'] = '%d URLs. Uploaded: %s';
-$_['text_upload_sitemap_success'] = 'Sitemap XML uploaded. %d URLs found. Sitemap cache was cleared.';
+$_['text_upload_sitemap_success'] = 'Sitemap XML uploaded. %d URLs found. Existing indexed pages were kept; click Warm sitemap cache to index from the uploaded XML.';
 
 $_['entry_status'] = 'Status';
 $_['entry_gemini_api_key'] = 'Gemini API keys';

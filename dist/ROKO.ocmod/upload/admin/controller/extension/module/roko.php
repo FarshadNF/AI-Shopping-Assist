@@ -71,6 +71,7 @@ class ControllerExtensionModuleRoko extends Controller {
 		$data['sitemap_pages_total'] = $this->getIndexedSitemapPagesTotal($data['sitemap_pages']);
 		$data['sitemap_cache_status'] = $this->getSitemapCacheStatus($data['sitemap_pages_total']);
 		$data['uploaded_sitemap_status'] = $this->getUploadedSitemapStatus();
+		$data['uploaded_sitemap_diagnostics'] = $this->getUploadedSitemapDiagnostics();
 		$data['warm_sitemap_url'] = $this->getWarmSitemapUrl();
 
 		$data['header'] = $this->load->controller('common/header');
@@ -157,7 +158,8 @@ class ControllerExtensionModuleRoko extends Controller {
 		$file = $this->request->files['sitemap_file'] ?? null;
 
 		if (!is_array($file) || empty($file['tmp_name']) || !is_uploaded_file((string)$file['tmp_name'])) {
-			$this->session->data['error'] = $this->language->get('error_upload_sitemap');
+			$error_code = is_array($file) ? (int)($file['error'] ?? 0) : 0;
+			$this->session->data['error'] = $this->language->get('error_upload_sitemap') . ' ' . $this->uploadErrorMessage($error_code) . ' ' . $this->uploadPhpLimitSummary();
 			$this->redirectToModule();
 			return;
 		}
@@ -173,7 +175,7 @@ class ControllerExtensionModuleRoko extends Controller {
 		$body = file_get_contents((string)$file['tmp_name']);
 
 		if (!is_string($body) || $body === '') {
-			$this->session->data['error'] = $this->language->get('error_upload_sitemap');
+			$this->session->data['error'] = $this->language->get('error_upload_sitemap') . ' Uploaded temporary file could not be read. ' . $this->uploadPhpLimitSummary();
 			$this->redirectToModule();
 			return;
 		}
@@ -202,21 +204,25 @@ class ControllerExtensionModuleRoko extends Controller {
 			return;
 		}
 
-		$path = $this->uploadedSitemapCachePath();
+		$written = false;
+		$write_results = [];
 
-		if ($path === '' || !is_dir(dirname($path)) || !is_writable(dirname($path)) || @file_put_contents($path, $body) === false) {
-			$this->session->data['error'] = $this->language->get('error_upload_sitemap_write');
+		foreach ($this->uploadedSitemapCachePaths() as $path) {
+			$wrote = $path !== '' && is_dir(dirname($path)) && is_writable(dirname($path)) && @file_put_contents($path, $body) !== false;
+			$write_results[] = $this->sitemapPathDiagnostics($path, $wrote ? 'write=ok' : 'write=failed');
+
+			if ($wrote) {
+				$written = true;
+			}
+		}
+
+		if (!$written) {
+			$this->session->data['error'] = $this->language->get('error_upload_sitemap_write') . ' Tried: ' . implode(' || ', $write_results);
 			$this->redirectToModule();
 			return;
 		}
 
 		$this->clearSitemapCaches();
-
-		try {
-			$this->createSitemapPageTable();
-			$this->db->query('TRUNCATE TABLE `' . DB_PREFIX . 'roko_sitemap_page`');
-		} catch (\Throwable $exception) {
-		}
 
 		$url_count = preg_match_all('~<loc>~i', $body);
 		$this->session->data['success'] = sprintf($this->language->get('text_upload_sitemap_success'), (int)$url_count);
@@ -473,12 +479,95 @@ class ControllerExtensionModuleRoko extends Controller {
 		return sprintf($this->language->get('text_uploaded_sitemap_status'), $url_count, date('Y-m-d H:i:s', (int)filemtime($path)));
 	}
 
-	private function uploadedSitemapCachePath(): string {
-		if (!defined('DIR_CACHE')) {
-			return '';
+	private function getUploadedSitemapDiagnostics(): string {
+		$lines = [
+			$this->uploadPhpLimitSummary(),
+			'CONTENT_LENGTH=' . (string)($this->request->server['CONTENT_LENGTH'] ?? ''),
+			'DIR_CACHE=' . (defined('DIR_CACHE') ? (string)DIR_CACHE : 'not defined'),
+			'DIR_STORAGE=' . (defined('DIR_STORAGE') ? (string)DIR_STORAGE : 'not defined')
+		];
+
+		foreach ($this->uploadedSitemapCachePaths() as $path) {
+			$lines[] = $this->sitemapPathDiagnostics($path);
 		}
 
-		return rtrim(DIR_CACHE, '/\\') . DIRECTORY_SEPARATOR . 'cache.roko.sitemap.upload.xml';
+		return implode("\n", $lines);
+	}
+
+	private function uploadPhpLimitSummary(): string {
+		return 'upload_max_filesize=' . (string)ini_get('upload_max_filesize') . ', post_max_size=' . (string)ini_get('post_max_size') . ', max_file_uploads=' . (string)ini_get('max_file_uploads');
+	}
+
+	private function uploadErrorMessage(int $code): string {
+		$messages = [
+			UPLOAD_ERR_INI_SIZE => 'Upload error 1: file is larger than upload_max_filesize.',
+			UPLOAD_ERR_FORM_SIZE => 'Upload error 2: file is larger than form MAX_FILE_SIZE.',
+			UPLOAD_ERR_PARTIAL => 'Upload error 3: file was only partially uploaded.',
+			UPLOAD_ERR_NO_FILE => 'Upload error 4: no file reached PHP.',
+			UPLOAD_ERR_NO_TMP_DIR => 'Upload error 6: missing temporary upload directory.',
+			UPLOAD_ERR_CANT_WRITE => 'Upload error 7: PHP could not write the uploaded file to disk.',
+			UPLOAD_ERR_EXTENSION => 'Upload error 8: a PHP extension stopped the upload.'
+		];
+
+		return $messages[$code] ?? ('Upload error code: ' . $code);
+	}
+
+	private function sitemapPathDiagnostics(string $path, string $prefix = ''): string {
+		if ($path === '') {
+			return trim($prefix . ' path=empty');
+		}
+
+		$dir = dirname($path);
+		$parts = [
+			$prefix,
+			'path=' . $path,
+			'dir_exists=' . (is_dir($dir) ? 'yes' : 'no'),
+			'dir_writable=' . (is_dir($dir) && is_writable($dir) ? 'yes' : 'no'),
+			'file_exists=' . (is_file($path) ? 'yes' : 'no'),
+			'file_readable=' . (is_file($path) && is_readable($path) ? 'yes' : 'no')
+		];
+
+		if (is_file($path)) {
+			$parts[] = 'bytes=' . (string)(int)filesize($path);
+			$parts[] = 'mtime=' . date('Y-m-d H:i:s', (int)filemtime($path));
+		}
+
+		return trim(implode(' ', array_filter($parts, 'strlen')));
+	}
+
+	private function uploadedSitemapCachePath(): string {
+		foreach ($this->uploadedSitemapCachePaths() as $path) {
+			if (is_file($path) && is_readable($path)) {
+				return $path;
+			}
+		}
+
+		$paths = $this->uploadedSitemapCachePaths();
+		return $paths[0] ?? '';
+	}
+
+	private function uploadedSitemapCachePaths(): array {
+		$paths = [];
+
+		if (!defined('DIR_CACHE')) {
+			return [];
+		}
+
+		$paths[] = rtrim(DIR_CACHE, '/\\') . DIRECTORY_SEPARATOR . 'cache.roko.sitemap.upload.xml';
+
+		if (defined('DIR_STORAGE')) {
+			$paths[] = rtrim((string)DIR_STORAGE, '/\\') . DIRECTORY_SEPARATOR . 'cache' . DIRECTORY_SEPARATOR . 'cache.roko.sitemap.upload.xml';
+		}
+
+		if (defined('DIR_SYSTEM')) {
+			$paths[] = rtrim(dirname(rtrim((string)DIR_SYSTEM, '/\\')), '/\\') . DIRECTORY_SEPARATOR . 'system' . DIRECTORY_SEPARATOR . 'storage' . DIRECTORY_SEPARATOR . 'cache' . DIRECTORY_SEPARATOR . 'cache.roko.sitemap.upload.xml';
+		}
+
+		if (defined('DIR_APPLICATION')) {
+			$paths[] = rtrim(dirname(rtrim((string)DIR_APPLICATION, '/\\')), '/\\') . DIRECTORY_SEPARATOR . 'system' . DIRECTORY_SEPARATOR . 'storage' . DIRECTORY_SEPARATOR . 'cache' . DIRECTORY_SEPARATOR . 'cache.roko.sitemap.upload.xml';
+		}
+
+		return array_values(array_unique(array_filter($paths)));
 	}
 
 	private function clearSitemapCaches(): void {
@@ -486,10 +575,10 @@ class ControllerExtensionModuleRoko extends Controller {
 			return;
 		}
 
-		$cache_root = realpath(DIR_CACHE);
+		$cache_roots = [DIR_CACHE];
 
-		if (!$cache_root) {
-			return;
+		foreach ($this->uploadedSitemapCachePaths() as $path) {
+			$cache_roots[] = dirname($path);
 		}
 
 		$patterns = [
@@ -499,18 +588,26 @@ class ControllerExtensionModuleRoko extends Controller {
 			'cache.roko.sitemap.content.v2.*.json'
 		];
 
-		foreach ($patterns as $pattern) {
-			$matches = glob(rtrim(DIR_CACHE, '/\\') . DIRECTORY_SEPARATOR . $pattern);
+		foreach (array_unique($cache_roots) as $cache_root_path) {
+			$cache_root = realpath($cache_root_path);
 
-			if (!is_array($matches)) {
+			if (!$cache_root) {
 				continue;
 			}
 
-			foreach ($matches as $path) {
-				$real_path = realpath($path);
+			foreach ($patterns as $pattern) {
+				$matches = glob(rtrim($cache_root_path, '/\\') . DIRECTORY_SEPARATOR . $pattern);
 
-				if ($real_path && strpos($real_path, $cache_root . DIRECTORY_SEPARATOR) === 0 && is_file($real_path)) {
-					@unlink($real_path);
+				if (!is_array($matches)) {
+					continue;
+				}
+
+				foreach ($matches as $path) {
+					$real_path = realpath($path);
+
+					if ($real_path && strpos($real_path, $cache_root . DIRECTORY_SEPARATOR) === 0 && is_file($real_path)) {
+						@unlink($real_path);
+					}
 				}
 			}
 		}
