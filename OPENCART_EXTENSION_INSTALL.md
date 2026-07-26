@@ -5,7 +5,7 @@
 اجزای runtime:
 
 - PHP و MySQL خود OpenCart
-- کاتالوگ زنده OpenCart برای قیمت، موجودی و لینک محصول
+- کاتالوگ OpenCart برای نام، مدل، برند، توضیحات، مشخصات فنی و لینک محصول
 - پایگاه دانش محلی برای توضیحات، مشخصات فنی و `datasheet_content`
 - تماس مستقیم و امن PHP با Google Gemini API
 
@@ -36,7 +36,7 @@ KEY_1, KEY_2, KEY_3
 
 ## تنظیمات مهم
 
-`Prompt catalog limit`: تعداد محصولاتی است که در هر پیام برای Gemini فرستاده می‌شود. مقدار پیشنهادی `80` است.
+`Prompt catalog limit`: تعداد محصولات مرتبطی است که بعد از جست‌وجوی ایندکس برای Gemini فرستاده می‌شود. مقدار پیشنهادی `8` تا `12` است؛ کل کاتالوگ در MySQL قابل جست‌وجو می‌ماند.
 
 `Store brand`: نام فروشگاه که دستیار در جواب‌ها استفاده می‌کند.
 
@@ -72,7 +72,7 @@ function doPost(e) {
   }
 
   const spreadsheet = SpreadsheetApp.openById(SHEET_ID);
-  const sheet = spreadsheet.getSheetByName('Bulk Leads') || spreadsheet.insertSheet('Bulk Leads');
+  const sheet = spreadsheet.getSheetByName('Product Enquiries') || spreadsheet.insertSheet('Product Enquiries');
 
   if (sheet.getLastRow() === 0) {
     sheet.appendRow([
@@ -148,7 +148,26 @@ datasheet_content
 sales_angle
 ```
 
-جست‌وجوی دانش با PHP و MySQL انجام می‌شود. برای قیمت، موجودی و خرید همیشه داده زنده کاتالوگ OpenCart اولویت دارد.
+جست‌وجوی دانش با FULLTEXT و cache در PHP/MySQL انجام می‌شود. این نسخه B2B است: قیمت، موجودی و زمان تحویل توسط تیم فروش تأیید می‌شوند و تمام قصدهای خرید به فرم Enquiry هدایت می‌شوند.
+
+## ایندکس کامل محصولات
+
+بعد از نصب یا به‌روزرسانی افزونه:
+
+1. به تنظیمات `AI Shopping Assist` بروید.
+2. در بخش `Local knowledge base` روی `Index all products` بزنید.
+3. تا رسیدن progress به ۱۰۰٪ صفحه را باز نگه دارید.
+4. اگر فایل crawl یا datasheet دارید، بعد از آن `enriched_cache.json` را نیز Import کنید.
+
+ایندکس‌سازی batch است و تمام نام‌ها، مدل‌ها، برندها، توضیحات، کاربردها و attributeهای محصولات را یک‌بار داخل MySQL ذخیره می‌کند. پاسخ‌های چت فقط ۶ تا ۸ نتیجه مرتبط را می‌خوانند و نتیجه retrieval نیز cache می‌شود.
+
+## جریان Enquiry
+
+کارت‌های پیشنهادی چت دکمه‌های `Learn more` و `Enquire` دارند. فرم Enquiry شامل محصول، تعداد، نام، شرکت، شماره تماس، ایمیل و محل تحویل است. لید ابتدا در جدول زیر ذخیره می‌شود و سپس، در صورت تنظیم webhook، به Google Sheet یا CRM ارسال می‌شود:
+
+```text
+oc_ai_shopping_assist_lead
+```
 
 ## نکته runtime
 
