@@ -88,7 +88,7 @@ OPENCART_CATALOG_URL=
 
 اگر `OPENCART_CATALOG_URL` خالی باشد، مسیر از `OPENCART_BASE_URL` و `OPENCART_CATALOG_ROUTE` ساخته می‌شود.
 
-این تنظیمات فقط مربوط به API مستقل Django هستند. extension نسخه 3.4.0 مستقیماً کاتالوگ و پایگاه دانش MySQL خود OpenCart را می‌خواند و هیچ درخواستی به این API نمی‌فرستد.
+این تنظیمات فقط مربوط به API مستقل Django هستند. extension نسخه 3.5.0 مستقیماً کاتالوگ و پایگاه دانش MySQL خود OpenCart را می‌خواند و هیچ درخواستی به این API نمی‌فرستد.
 
 ## همگام‌سازی Vector Brain
 

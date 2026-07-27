@@ -2,10 +2,10 @@
 namespace Opencart\Catalog\Controller\Extension\AiShoppingAssist\Module;
 
 class AiShoppingAssist extends \Opencart\System\Engine\Controller {
-	private const VERSION = '3.4.0';
+	private const VERSION = '3.5.0';
 	private const MARKER = '<!-- AI_SHOPPING_ASSIST_WIDGET -->';
-	private const DEFAULT_LEAD_WEBHOOK_URL = 'https://script.google.com/macros/s/AKfycbwV1zaw6C3iKdWVaK-gN8hyAzvW8_RygWTp9Q2ggjYUWcAftM2c7ipOIM5l6UowTsCS/exec';
-	private const DEFAULT_LEAD_WEBHOOK_SECRET = 'f8c9d2a7e1b4c6f9a3d8e7b2c5f1a9d4';
+	private const DEFAULT_LEAD_WEBHOOK_URL = '';
+	private const DEFAULT_LEAD_WEBHOOK_SECRET = '';
 
 	public function inject(&$route, &$data, &$output = null): void {
 		if (!is_string($output) || $output === '') {
@@ -43,6 +43,7 @@ class AiShoppingAssist extends \Opencart\System\Engine\Controller {
 			'checkoutRoute' => 'index.php?route=checkout/checkout',
 			'couponRoute' => 'index.php?route=extension/opencart/total/coupon.save',
 			'invoiceRoute' => 'index.php?route=extension/ai_shopping_assist/module/ai_shopping_assist.sendInvoice',
+			'leadOnly' => true,
 			'title' => $widget_title,
 			'buttonText' => $widget_button,
 			'avatarUrl' => $asset_base . 'roko-character.png?v=' . self::VERSION,
@@ -94,19 +95,22 @@ class AiShoppingAssist extends \Opencart\System\Engine\Controller {
 		if ($lead) {
 			$missing_fields = $this->missingBulkLeadFields($lead);
 			$reply = '';
+			$lead_id = '';
 
 			if ($missing_fields) {
 				$reply = $this->bulkLeadMissingMessage($missing_fields);
 			} else {
+				$lead_id = $this->saveLead($lead, $conversation_id, $input);
 				$sent = $this->sendBulkLeadToWebhook($lead, $conversation_id, $input);
 				$this->writeChatLog($conversation_id, 'lead', json_encode([
+					'lead_id' => $lead_id,
 					'sent_to_google_sheet' => $sent,
 					'lead' => $lead
 				], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
 				$reply = $this->localizedText(
 					$message,
-					'Thanks. Your bulk order request has been received. Our sales team will contact you shortly.',
-					'ممنون. درخواست خرید عمده شما ثبت شد و تیم فروش به‌زودی با شما تماس می‌گیرد.'
+					'Thanks. Your enquiry has been registered. Our sales team will contact you shortly.',
+					'ممنون. درخواست استعلام شما ثبت شد و تیم فروش به‌زودی با شما تماس می‌گیرد.'
 				);
 			}
 
@@ -114,18 +118,26 @@ class AiShoppingAssist extends \Opencart\System\Engine\Controller {
 			$this->outputJson([
 				'status' => 'success',
 				'reply' => $reply,
-				'conversation_id' => $conversation_id
+				'conversation_id' => $conversation_id,
+				'lead_id' => $lead_id
 			]);
 			return;
 		}
 
-		if ($this->isBulkLeadRequest($message) && !$this->isBulkLeadSubmission($message)) {
-			$reply = $this->bulkLeadMessage();
+		if ($this->isEnquiryRequest($message) && !$this->isBulkLeadSubmission($message)) {
+			$reply = $this->localizedText(
+				$message,
+				'Please complete the short enquiry form and our sales team will prepare availability, delivery time, and a quotation.',
+				'لطفاً فرم کوتاه استعلام را تکمیل کنید تا تیم فروش موجودی، زمان تحویل و پیشنهاد قیمت را برای شما آماده کند.'
+			);
+			$action = $this->enquiryActionFromMessage($message);
 			$this->writeChatLog($conversation_id, 'assistant', $reply);
 			$this->outputJson([
 				'status' => 'success',
 				'reply' => $reply,
-				'conversation_id' => $conversation_id
+				'conversation_id' => $conversation_id,
+				'actions' => [$action],
+				'action' => $action
 			]);
 			return;
 		}
@@ -379,37 +391,49 @@ class AiShoppingAssist extends \Opencart\System\Engine\Controller {
 		if ($assistant_name === 'Rockford Assistant') {
 			$assistant_name = 'ROKO';
 		}
-		$catalog = $this->getPromptCatalog($message);
 		$knowledge = $this->getLocalKnowledge($message);
-		$navigation = $this->getNavigationPromptCatalog();
+		$catalog = $knowledge ? [] : $this->getPromptCatalog($message);
+		$brand_portfolio = $this->getBrandPortfolio($message, $knowledge);
+		$navigation = $this->messageNeedsNavigation($message) ? $this->getNavigationPromptCatalog() : [];
 		$history = $this->getConversationHistory($conversation_id, $message);
 		$sitemap_url = $this->configuredSitemapUrl();
 		$custom_system_prompt = $this->customSystemPrompt();
 
 		return implode("\n\n", [
-			'You are a real online sales assistant inside the OpenCart store "' . $brand . '". Your name is "' . $assistant_name . '".',
+			'You are a B2B pre-sales engineer inside the OpenCart store "' . $brand . '". Your name is "' . $assistant_name . '".',
 			$custom_system_prompt !== '' ? "Store-specific system prompt:\n" . $custom_system_prompt : '',
 			'Default to English. If the latest user message is clearly Persian or another language, you may reply in that language, but your base persona and concise style are English-first.',
-			'Use the live product catalog as the authority for price, stock, product IDs, and purchase links. Use the local knowledge base for descriptions, technical specifications, and datasheet facts. Keep replies short, natural, and sales-focused.',
-			'When the user wants an action, include it in actions. Supported action types: add_to_cart, show_cart, redirect_to_cart, redirect_to_product, redirect_to_page, update_cart_item, remove_from_cart, clear_cart, apply_coupon, redirect_to_checkout, send_invoice.',
-			'For bulk, wholesale, B2B, corporate, or high-quantity requests, do not add items to cart and do not send the user to checkout. Ask for lead details using this exact field list: Product Name, QTY, Name, Company, Contact Number, Email, Delivery Location.',
+			'This is a lead-generation website. Never quote a price, never claim live availability, and never add products to a cart or send users to checkout. Say that price, availability, and delivery time are confirmed by the sales team.',
+			'Use the indexed local knowledge for product families, applications, technical specifications, replacements, and datasheet facts. Recommend only products present in the supplied catalog or knowledge.',
+			'When the user asks for price, availability, purchase, quotation, proforma, or sales contact, use request_enquiry. Supported action types are request_enquiry, redirect_to_product, and redirect_to_page.',
+			'Ask at most two useful technical qualification questions at a time. Once the product or application is clear, offer an enquiry form. Required lead fields are Product Name, QTY, Name, Company, Contact Number, Email, and Delivery Location.',
 			'For navigating to any non-product site page, use {"type":"redirect_to_page","page":"home/contact/account/login/register/orders/wishlist/specials/search/category/information page name","route":"optional OpenCart route","url":"optional internal URL"}. Prefer exact URLs from Known site pages JSON and the configured sitemap. Do not say you cannot navigate.',
-			'Return ONLY valid JSON with this shape: {"reply":"visible message","suggestions":[{"title":"Product Recommendation","text":"Can you recommend a laptop?"}],"products":[{"product_id":"id","name":"exact catalog name","reason":"Why this is a fit"}],"actions":[{"type":"add_to_cart","product_name":"exact name","product_id":"id","qty":1}]} .',
-			'Use suggestions for helpful next questions. Use product cards when recommending, comparing, showing specs, or discussing specific products. Use an empty array for suggestions/products/actions when not needed.',
+			'Return ONLY valid JSON with this shape: {"reply":"visible message","suggestions":[{"title":"Short label","text":"A useful next question grounded in the current products"}],"products":[{"product_id":"id","name":"exact catalog name","reason":"Application-specific reason"}],"actions":[{"type":"request_enquiry","product_name":"exact name","product_id":"id"}]} .',
+			'Provide two or three context-specific suggestions. Suggestions must mention the current brand, application, or recommended model; never return generic laptop/accessory examples. Use product cards when recommending, comparing, or discussing specific products.',
 			$sitemap_url !== '' ? 'Configured sitemap URL: ' . $sitemap_url : '',
 			'Conversation history JSON: ' . json_encode($history, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
 			'Known site pages JSON: ' . json_encode($navigation, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
 			'Product catalog JSON: ' . json_encode($catalog, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
 			'Relevant local knowledge JSON: ' . json_encode($knowledge, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+			'Brand portfolio summary JSON: ' . json_encode($brand_portfolio, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
 			'Latest user message: ' . $message
 		]);
 	}
 
 	private function getNavigationPromptCatalog(): array {
+		$cache_key = 'ai_shopping_assist.navigation_prompt';
+
+		try {
+			$cached = $this->cache->get($cache_key);
+
+			if (is_array($cached)) {
+				return $cached;
+			}
+		} catch (\Throwable $exception) {
+		}
+
 		$pages = [
 			['page' => 'home / صفحه اصلی', 'route' => 'common/home'],
-			['page' => 'cart / سبد خرید', 'route' => 'checkout/cart'],
-			['page' => 'checkout / پرداخت', 'route' => 'checkout/checkout'],
 			['page' => 'account / حساب کاربری', 'route' => 'account/account'],
 			['page' => 'login / ورود', 'route' => 'account/login'],
 			['page' => 'register / ثبت نام', 'route' => 'account/register'],
@@ -470,7 +494,26 @@ class AiShoppingAssist extends \Opencart\System\Engine\Controller {
 			$pages[] = $sitemap_page;
 		}
 
-		return $this->uniqueNavigationPages($pages);
+		$pages = $this->uniqueNavigationPages($pages);
+
+		try {
+			$this->cache->set($cache_key, $pages);
+		} catch (\Throwable $exception) {
+		}
+
+		return $pages;
+	}
+
+	private function messageNeedsNavigation(string $message): bool {
+		$text = $this->normalizePageKey($message);
+
+		foreach (['open', 'go to', 'navigate', 'page', 'contact us', 'website', 'لینک', 'صفحه', 'باز کن', 'برو به', 'تماس با ما'] as $phrase) {
+			if (strpos($text, $this->normalizePageKey($phrase)) !== false) {
+				return true;
+			}
+		}
+
+		return false;
 	}
 
 	private function configuredSitemapUrl(): string {
@@ -764,8 +807,8 @@ class AiShoppingAssist extends \Opencart\System\Engine\Controller {
 	private function getPromptCatalog(string $message): array {
 		$this->load->model('catalog/product');
 
-		$limit = (int)($this->config->get('module_ai_shopping_assist_catalog_limit') ?: 80);
-		$limit = min(200, max(5, $limit));
+		$limit = (int)($this->config->get('module_ai_shopping_assist_catalog_limit') ?: 12);
+		$limit = min(30, max(5, $limit));
 		$rows = [];
 
 		if (trim($message) !== '') {
@@ -799,12 +842,9 @@ class AiShoppingAssist extends \Opencart\System\Engine\Controller {
 				'product_id' => $product['product_id'],
 				'name' => $product['name'],
 				'product_url' => $product['product_url'],
-				'price' => $product['price'],
-				'stock' => $product['stock'],
 				'category' => $product['category'],
-				'image' => $product['image'],
 				'summary' => $this->shortText($product['sales_angle'], 260),
-				'attributes' => array_slice($product['attributes'], 0, 12, true)
+				'attributes' => array_slice($product['attributes'], 0, 6, true)
 			];
 		}
 
@@ -819,7 +859,31 @@ class AiShoppingAssist extends \Opencart\System\Engine\Controller {
 			return [];
 		}
 
+		$cache_key = 'ai_shopping_assist.knowledge_query.' . $this->knowledgeCacheVersion() . '.' . md5(implode('|', $tokens));
+
 		try {
+			$cached = $this->cache->get($cache_key);
+
+			if (is_array($cached)) {
+				return $cached;
+			}
+		} catch (\Throwable $exception) {
+		}
+
+		$boolean_terms = [];
+
+		foreach (array_slice($tokens, 0, 10) as $token) {
+			$term = preg_replace('/[^\p{L}\p{N}_.-]+/u', '', $token);
+
+			if ($term !== '') {
+				$boolean_terms[] = $term . '*';
+			}
+		}
+
+		$rows = [];
+
+		try {
+			$search = $this->db->escape(implode(' ', $boolean_terms));
 			$query = $this->db->query("
 				SELECT
 					`product_id`,
@@ -827,71 +891,30 @@ class AiShoppingAssist extends \Opencart\System\Engine\Controller {
 					`brand`,
 					`source_url`,
 					`content_type`,
-					LEFT(`content`, 60000) AS `content`
+					LEFT(`content`, 8000) AS `content`,
+					MATCH (`name`, `brand`, `content`) AGAINST ('" . $search . "' IN BOOLEAN MODE) AS `relevance`
 				FROM `" . DB_PREFIX . "ai_shopping_assist_knowledge`
-				ORDER BY `knowledge_id` ASC
-				LIMIT 1000
+				WHERE MATCH (`name`, `brand`, `content`) AGAINST ('" . $search . "' IN BOOLEAN MODE)
+				ORDER BY `relevance` DESC, `content_type` = 'catalog_product' DESC
+				LIMIT 8
 			");
+			$rows = $query->rows;
+
+			if (!$rows) {
+				$rows = $this->fallbackKnowledgeLookup($tokens);
+			}
 		} catch (\Throwable $exception) {
-			return [];
+			$rows = $this->fallbackKnowledgeLookup($tokens);
 		}
-
-		$ranked = [];
-
-		foreach ($query->rows as $row) {
-			$name = $this->foldText((string)($row['name'] ?? ''));
-			$brand = $this->foldText((string)($row['brand'] ?? ''));
-			$product_id = $this->foldText((string)($row['product_id'] ?? ''));
-			$source_url = $this->foldText((string)($row['source_url'] ?? ''));
-			$content = $this->foldText((string)($row['content'] ?? ''));
-			$score = 0;
-
-			if ($product_id !== '' && in_array($product_id, $tokens, true)) {
-				$score += 120;
-			}
-
-			if (strlen($query_text) >= 4 && ($name === $query_text || strpos($name, $query_text) !== false)) {
-				$score += 90;
-			}
-
-			foreach ($tokens as $token) {
-				if (strpos($name, $token) !== false) {
-					$score += 30;
-				}
-
-				if ($brand !== '' && strpos($brand, $token) !== false) {
-					$score += 18;
-				}
-
-				if ($source_url !== '' && strpos($source_url, $token) !== false) {
-					$score += 12;
-				}
-
-				if (strpos($content, $token) !== false) {
-					$score += 3;
-				}
-			}
-
-			if ($score < 8) {
-				continue;
-			}
-
-			$row['_score'] = $score;
-			$ranked[] = $row;
-		}
-
-		usort($ranked, function (array $left, array $right): int {
-			return (int)$right['_score'] <=> (int)$left['_score'];
-		});
 
 		$results = [];
 		$total_length = 0;
 
-		foreach (array_slice($ranked, 0, 5) as $row) {
-			$content = $this->shortText((string)$row['content'], 6000);
+		foreach (array_slice($rows, 0, 6) as $row) {
+			$content = $this->shortText((string)$row['content'], 4500);
 			$total_length += strlen($content);
 
-			if ($total_length > 20000) {
+			if ($total_length > 16000) {
 				break;
 			}
 
@@ -905,7 +928,102 @@ class AiShoppingAssist extends \Opencart\System\Engine\Controller {
 			];
 		}
 
+		try {
+			$this->cache->set($cache_key, $results);
+		} catch (\Throwable $exception) {
+		}
+
 		return $results;
+	}
+
+	private function fallbackKnowledgeLookup(array $tokens): array {
+		$conditions = [];
+
+		foreach (array_slice($tokens, 0, 5) as $token) {
+			$prefix = $this->db->escape($token) . '%';
+			$contains = '%' . $this->db->escape($token) . '%';
+			$conditions[] = "(`product_id` LIKE '" . $prefix . "' OR `name` LIKE '" . $contains . "' OR `brand` LIKE '" . $prefix . "')";
+		}
+
+		if (!$conditions) {
+			return [];
+		}
+
+		try {
+			$query = $this->db->query("
+				SELECT `product_id`, `name`, `brand`, `source_url`, `content_type`, LEFT(`content`, 8000) AS `content`
+				FROM `" . DB_PREFIX . "ai_shopping_assist_knowledge`
+				WHERE " . implode(' OR ', $conditions) . "
+				ORDER BY `content_type` = 'catalog_product' DESC, `name` ASC
+				LIMIT 8
+			");
+			return $query->rows;
+		} catch (\Throwable $exception) {
+			return [];
+		}
+	}
+
+	private function getBrandPortfolio(string $message, array $knowledge): array {
+		$brand = '';
+
+		foreach ($knowledge as $row) {
+			$candidate = trim((string)($row['brand'] ?? ''));
+
+			if ($candidate !== '' && stripos($message, $candidate) !== false) {
+				$brand = $candidate;
+				break;
+			}
+		}
+
+		$cache_key = 'ai_shopping_assist.brand_portfolio.' . $this->knowledgeCacheVersion() . '.' . md5($brand ?: 'all');
+
+		try {
+			$cached = $this->cache->get($cache_key);
+
+			if (is_array($cached)) {
+				return $cached;
+			}
+		} catch (\Throwable $exception) {
+		}
+
+		try {
+			if ($brand !== '') {
+				$query = $this->db->query("
+					SELECT `brand`, `name`, LEFT(`content`, 5000) AS `summary`
+					FROM `" . DB_PREFIX . "ai_shopping_assist_knowledge`
+					WHERE `brand` = '" . $this->db->escape($brand) . "'
+						AND `content_type` = 'brand_summary'
+					LIMIT 1
+				");
+			} else {
+				$query = $this->db->query("
+					SELECT `brand`, `name`, LEFT(`content`, 1200) AS `summary`
+					FROM `" . DB_PREFIX . "ai_shopping_assist_knowledge`
+					WHERE `content_type` = 'brand_summary'
+					ORDER BY `brand` ASC
+					LIMIT 20
+				");
+			}
+			$result = $query->rows;
+		} catch (\Throwable $exception) {
+			$result = [];
+		}
+
+		try {
+			$this->cache->set($cache_key, $result);
+		} catch (\Throwable $exception) {
+		}
+
+		return $result;
+	}
+
+	private function knowledgeCacheVersion(): string {
+		try {
+			$version = (string)$this->cache->get('ai_shopping_assist.knowledge_version');
+			return $version !== '' ? md5($version) : '1';
+		} catch (\Throwable $exception) {
+			return '1';
+		}
 	}
 
 	private function knowledgeTokens(string $value): array {
@@ -968,14 +1086,6 @@ class AiShoppingAssist extends \Opencart\System\Engine\Controller {
 			$reply = trim($raw_text) ?: $this->localizedText($message, 'I am ready to help.', 'آماده‌ام کمک کنم.');
 		}
 
-		if ($this->isBulkLeadRequest($message) && !$this->isBulkLeadSubmission($message)) {
-			return [
-				'status' => 'success',
-				'reply' => $this->bulkLeadMessage(),
-				'conversation_id' => $conversation_id
-			];
-		}
-
 		$raw_actions = [];
 
 		if (isset($parsed['actions']) && is_array($parsed['actions'])) {
@@ -991,6 +1101,8 @@ class AiShoppingAssist extends \Opencart\System\Engine\Controller {
 		if (!$products) {
 			$products = $this->productCardsFromActions($actions);
 		}
+
+		$suggestions = $this->ensureHelpfulSuggestions($message, $suggestions, $products);
 
 		if (!$actions) {
 			$fallback_action = $this->fallbackPageNavigationAction($message);
@@ -1045,7 +1157,7 @@ class AiShoppingAssist extends \Opencart\System\Engine\Controller {
 	}
 
 	private function bulkLeadMessage(): string {
-		return "For bulk orders, please share these details:\n\nProduct Name:\nQTY:\nName:\nCompany:\nContact Number:\nEmail:\nDelivery Location:";
+		return "Please share these enquiry details:\n\nProduct Name:\nQTY:\nName:\nCompany:\nContact Number:\nEmail:\nDelivery Location:";
 	}
 
 	private function parseBulkLeadSubmission(string $message): array {
@@ -1258,7 +1370,7 @@ class AiShoppingAssist extends \Opencart\System\Engine\Controller {
 		$lead_date = date('c');
 		$payload = [
 			'secret' => (string)($this->config->get('module_ai_shopping_assist_lead_webhook_secret') ?: self::DEFAULT_LEAD_WEBHOOK_SECRET),
-			'event' => 'bulk_lead',
+			'event' => 'product_enquiry',
 			'id' => $lead_id,
 			'date' => $lead_date,
 			'store' => (string)$this->config->get('config_name'),
@@ -1280,6 +1392,105 @@ class AiShoppingAssist extends \Opencart\System\Engine\Controller {
 		}
 
 		return $ok;
+	}
+
+	private function saveLead(array $lead, string $conversation_id, array $input): string {
+		$this->createLeadTable();
+		$page_context = is_array($input['page_context'] ?? null) ? $input['page_context'] : [];
+		$lead_id = 'ROKO-' . strtoupper(substr(hash('sha256', $conversation_id . '|' . microtime(true) . '|' . random_int(1, PHP_INT_MAX)), 0, 12));
+
+		$this->db->query("
+			INSERT INTO `" . DB_PREFIX . "ai_shopping_assist_lead`
+			SET
+				`lead_id` = '" . $this->db->escape($lead_id) . "',
+				`conversation_id` = '" . $this->db->escape(substr($conversation_id, 0, 80)) . "',
+				`product_name` = '" . $this->db->escape((string)($lead['product_name'] ?? '')) . "',
+				`qty` = '" . $this->db->escape((string)($lead['qty'] ?? '')) . "',
+				`name` = '" . $this->db->escape((string)($lead['name'] ?? '')) . "',
+				`company` = '" . $this->db->escape((string)($lead['company'] ?? '')) . "',
+				`contact_number` = '" . $this->db->escape((string)($lead['contact_number'] ?? '')) . "',
+				`email` = '" . $this->db->escape((string)($lead['email'] ?? '')) . "',
+				`delivery_location` = '" . $this->db->escape((string)($lead['delivery_location'] ?? '')) . "',
+				`page_url` = '" . $this->db->escape((string)($page_context['url'] ?? '')) . "',
+				`status` = 'new',
+				`date_added` = NOW(),
+				`date_modified` = NOW()
+		");
+
+		return $lead_id;
+	}
+
+	private function createLeadTable(): void {
+		$this->db->query("
+			CREATE TABLE IF NOT EXISTS `" . DB_PREFIX . "ai_shopping_assist_lead` (
+				`lead_id` varchar(32) NOT NULL,
+				`conversation_id` varchar(80) NOT NULL DEFAULT '',
+				`product_name` varchar(255) NOT NULL DEFAULT '',
+				`qty` varchar(40) NOT NULL DEFAULT '',
+				`name` varchar(180) NOT NULL DEFAULT '',
+				`company` varchar(180) NOT NULL DEFAULT '',
+				`contact_number` varchar(180) NOT NULL DEFAULT '',
+				`email` varchar(180) NOT NULL DEFAULT '',
+				`delivery_location` varchar(500) NOT NULL DEFAULT '',
+				`page_url` text NOT NULL,
+				`status` varchar(30) NOT NULL DEFAULT 'new',
+				`date_added` datetime NOT NULL,
+				`date_modified` datetime NOT NULL,
+				PRIMARY KEY (`lead_id`),
+				KEY `conversation_id` (`conversation_id`),
+				KEY `status` (`status`),
+				KEY `date_added` (`date_added`)
+			) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+		");
+	}
+
+	private function isEnquiryRequest(string $message): bool {
+		if ($this->isBulkLeadRequest($message)) {
+			return true;
+		}
+
+		$text = $this->normalizePageKey($message);
+		$phrases = [
+			'price', 'pricing', 'cost', 'buy', 'purchase', 'order', 'availability',
+			'in stock', 'lead time', 'delivery time', 'quote', 'quotation', 'enquire',
+			'enquiry', 'inquiry', 'contact sales', 'sales team', 'proforma',
+			'قیمت', 'خرید', 'سفارش', 'موجودی', 'زمان تحویل', 'استعلام', 'پیش فاکتور',
+			'پیش‌فاکتور', 'تماس فروش'
+		];
+
+		foreach ($phrases as $phrase) {
+			if (strpos($text, $this->normalizePageKey($phrase)) !== false) {
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	private function enquiryActionFromMessage(string $message): array {
+		$action = ['type' => 'request_enquiry', 'product_name' => '', 'product_id' => '', 'requested_qty' => 1];
+		$product_query = '';
+
+		if (preg_match('/\b[A-Z]{2,}[A-Z0-9]*[-\/][A-Z0-9][A-Z0-9\-\/.]*\b/i', $message, $match)) {
+			$product_query = (string)$match[0];
+		}
+
+		if ($product_query !== '') {
+			$product = $this->findCatalogProduct($product_query);
+
+			if ($product) {
+				$action['product_name'] = $product['name'];
+				$action['product_id'] = $product['product_id'];
+				$action['product_url'] = $product['product_url'];
+				$action['image'] = $product['image'];
+			}
+		}
+
+		if (preg_match('/\b(\d{1,6})\s*(?:units?|pcs?|pieces?)\b/i', $message, $qty_match)) {
+			$action['requested_qty'] = max(1, (int)$qty_match[1]);
+		}
+
+		return $action;
 	}
 
 	private function isBulkLeadRequest(string $message): bool {
@@ -1363,6 +1574,66 @@ class AiShoppingAssist extends \Opencart\System\Engine\Controller {
 		return $suggestions;
 	}
 
+	private function ensureHelpfulSuggestions(string $message, array $suggestions, array $products): array {
+		$filtered = [];
+
+		foreach ($suggestions as $suggestion) {
+			$text = (string)($suggestion['text'] ?? '');
+
+			if ($text === '' || preg_match('/\b(laptop|smartphone|headphone)\b/i', $text)) {
+				continue;
+			}
+
+			$filtered[] = $suggestion;
+		}
+
+		$product_name = (string)($products[0]['name'] ?? '');
+		$rtl = preg_match('/[\x{0590}-\x{08ff}]/u', $message) > 0;
+		$fallbacks = $product_name !== ''
+			? ($rtl ? [
+				['title' => 'مقایسه فنی', 'text' => $product_name . ' را با نزدیک‌ترین مدل جایگزین مقایسه کن'],
+				['title' => 'کاربرد', 'text' => $product_name . ' برای چه صنایع و کاربردهایی مناسب است؟'],
+				['title' => 'استعلام', 'text' => 'برای ' . $product_name . ' درخواست استعلام دارم']
+			] : [
+				['title' => 'Technical comparison', 'text' => 'Compare ' . $product_name . ' with its closest alternative'],
+				['title' => 'Applications', 'text' => 'Which industries and applications is ' . $product_name . ' designed for?'],
+				['title' => 'Request a quote', 'text' => 'I need a quote for ' . $product_name]
+			])
+			: ($rtl ? [
+				['title' => 'انتخاب محصول', 'text' => 'بر اساس کاربردم محصول مناسب را پیشنهاد بده'],
+				['title' => 'برندها', 'text' => 'برندهای موجود و کاربرد هرکدام را معرفی کن'],
+				['title' => 'استعلام', 'text' => 'برای یک محصول درخواست استعلام دارم']
+			] : [
+				['title' => 'Product selection', 'text' => 'Recommend the right product for my application'],
+				['title' => 'Brand portfolio', 'text' => 'Show the available brands and what each is designed for'],
+				['title' => 'Request a quote', 'text' => 'I would like to submit a product enquiry']
+			]);
+
+		if ($product_name !== '') {
+			return $fallbacks;
+		}
+
+		$seen = [];
+		$result = [];
+
+		foreach (array_merge($filtered, $fallbacks) as $suggestion) {
+			$key = strtolower(trim((string)($suggestion['text'] ?? '')));
+
+			if ($key === '' || isset($seen[$key])) {
+				continue;
+			}
+
+			$seen[$key] = true;
+			$result[] = $suggestion;
+
+			if (count($result) >= 3) {
+				break;
+			}
+		}
+
+		return $result;
+	}
+
 	private function normalizeProductCards($raw_products): array {
 		if (!is_array($raw_products)) {
 			return [];
@@ -1402,8 +1673,6 @@ class AiShoppingAssist extends \Opencart\System\Engine\Controller {
 				'product_id' => $product['product_id'],
 				'name' => $product['name'],
 				'product_url' => $product['product_url'],
-				'price' => $product['price'],
-				'stock' => $product['stock'],
 				'image' => $product['image'],
 				'category' => $product['category'],
 				'summary' => $this->shortText($reason, 360),
@@ -1422,7 +1691,7 @@ class AiShoppingAssist extends \Opencart\System\Engine\Controller {
 		$raw_products = [];
 
 		foreach ($actions as $action) {
-			if (!in_array($action['type'] ?? '', ['add_to_cart', 'redirect_to_product', 'update_cart_item', 'remove_from_cart'])) {
+			if (!in_array($action['type'] ?? '', ['request_enquiry', 'redirect_to_product'])) {
 				continue;
 			}
 
@@ -1510,28 +1779,30 @@ class AiShoppingAssist extends \Opencart\System\Engine\Controller {
 			$type = strtolower(trim((string)($raw_action['type'] ?? $raw_action['action'] ?? '')));
 
 			if ($type === '' && !empty($raw_action['product_id'])) {
-				$type = 'add_to_cart';
+				$type = 'request_enquiry';
 			}
 
 			if (in_array($type, ['navigate_to_page', 'open_page', 'go_to_page', 'redirect'])) {
 				$type = 'redirect_to_page';
 			}
 
-			if (!in_array($type, ['add_to_cart', 'show_cart', 'redirect_to_cart', 'redirect_to_product', 'redirect_to_page', 'update_cart_item', 'remove_from_cart', 'clear_cart', 'apply_coupon', 'redirect_to_checkout', 'send_invoice'])) {
+			if (in_array($type, ['add_to_cart', 'show_cart', 'redirect_to_cart', 'update_cart_item', 'remove_from_cart', 'clear_cart', 'apply_coupon', 'redirect_to_checkout', 'send_invoice'])) {
+				$type = 'request_enquiry';
+			}
+
+			if (!in_array($type, ['request_enquiry', 'redirect_to_product', 'redirect_to_page'])) {
 				continue;
 			}
 
 			$action = ['type' => $type];
 
-			if (in_array($type, ['add_to_cart', 'redirect_to_product', 'update_cart_item', 'remove_from_cart'])) {
+			if (in_array($type, ['request_enquiry', 'redirect_to_product'])) {
 				$product = $this->findCatalogProduct((string)($raw_action['product_name'] ?? ''), (string)($raw_action['product_id'] ?? ''));
 
 				if ($product) {
 					$action['product_name'] = $product['name'];
 					$action['product_id'] = $product['product_id'];
 					$action['product_url'] = $product['product_url'];
-					$action['price'] = $product['price'];
-					$action['stock'] = $product['stock'];
 					$action['image'] = $product['image'];
 				} else {
 					$action['product_name'] = (string)($raw_action['product_name'] ?? '');
@@ -1539,7 +1810,7 @@ class AiShoppingAssist extends \Opencart\System\Engine\Controller {
 				}
 			}
 
-			if (in_array($type, ['add_to_cart', 'update_cart_item'])) {
+			if ($type === 'request_enquiry') {
 				$action['requested_qty'] = max(1, (int)($raw_action['requested_qty'] ?? $raw_action['qty'] ?? $raw_action['quantity'] ?? 1));
 			}
 
@@ -1556,16 +1827,6 @@ class AiShoppingAssist extends \Opencart\System\Engine\Controller {
 				$action['page'] = $resolved['page'];
 				$action['route'] = $resolved['route'];
 				$action['url'] = $resolved['url'];
-			}
-
-			if ($type === 'apply_coupon') {
-				$action['code'] = trim((string)($raw_action['code'] ?? $raw_action['coupon'] ?? ''));
-			}
-
-			if ($type === 'send_invoice') {
-				$action['email'] = trim((string)($raw_action['email'] ?? ''));
-				$action['invoice_type'] = trim((string)($raw_action['invoice_type'] ?? 'invoice')) ?: 'invoice';
-				$action['note'] = trim((string)($raw_action['note'] ?? ''));
 			}
 
 			$actions[] = $action;
