@@ -1,22 +1,11 @@
 <?php
-class ControllerExtensionModuleRoko extends Controller {
-	private const VERSION = '3.3.2-speed';
+namespace Opencart\Catalog\Controller\Extension\Roko\Module;
+
+class Roko extends \Opencart\System\Engine\Controller {
+	private const VERSION = '3.3.1';
 	private const MARKER = '<!-- ROKO_WIDGET -->';
-	private const GEMINI_MAX_OUTPUT_TOKENS = 1024;
-	private const PROMPT_CATALOG_HARD_LIMIT = 24;
-	private const CONVERSATION_HISTORY_LIMIT = 8;
 	private const DEFAULT_LEAD_WEBHOOK_URL = 'https://script.google.com/macros/s/AKfycbwV1zaw6C3iKdWVaK-gN8hyAzvW8_RygWTp9Q2ggjYUWcAftM2c7ipOIM5l6UowTsCS/exec';
 	private const DEFAULT_LEAD_WEBHOOK_SECRET = 'f8c9d2a7e1b4c6f9a3d8e7b2c5f1a9d4';
-	private const SITEMAP_CACHE_TTL = 86400;
-	private const SITEMAP_PAGE_CACHE_TTL = 604800;
-	private const SITEMAP_CRAWL_MAX_PAGES = 50000;
-	private const SITEMAP_CRAWL_BATCH = 6;
-	private const SITEMAP_RELEVANT_CONTEXT_LIMIT = 8;
-	private const SITEMAP_PAGE_TEXT_LIMIT = 3500;
-	private const REMOTE_TEXT_LIMIT = 25000000;
-	private static $sitemap_pages_cache = [];
-	private static $sitemap_content_cache = [];
-	private static $last_remote_error = '';
 
 	public function inject(&$route, &$data, &$output = null): void {
 		if (!is_string($output) || $output === '') {
@@ -31,36 +20,33 @@ class ControllerExtensionModuleRoko extends Controller {
 			return;
 		}
 
-		$asset_base = 'catalog/view/javascript/roko/';
+		$asset_base = 'extension/roko/catalog/view/javascript/roko/';
 		$widget_title = (string)$this->config->get('module_roko_widget_title');
 		$widget_button = (string)$this->config->get('module_roko_widget_button');
 
-		if ($widget_title === '' || $widget_title === 'دستیار هوشمند خرید') {
+		if ($widget_title === '' || $widget_title === 'دستیار هوشمند خرید' || $widget_title === 'Rockford Assistant') {
 			$widget_title = 'ROKO';
 		}
 
-		if ($widget_button === '' || $widget_button === 'دستیار خرید') {
-			$widget_button = 'Chat';
+		if ($widget_button === '' || $widget_button === 'دستیار خرید' || $widget_button === 'Chat') {
+			$widget_button = 'Ask ROKO';
 		}
 
 		$config = [
-			'apiBase' => '',
-			'chatRoute' => 'index.php?route=extension/module/roko/chat',
-			'catalogRoute' => 'index.php?route=extension/module/roko/getCatalog',
+			'chatRoute' => 'index.php?route=extension/roko/module/roko.chat',
+			'catalogRoute' => 'index.php?route=extension/roko/module/roko.getCatalog',
 			'cartRoute' => 'index.php?route=checkout/cart',
 			'productRoute' => 'index.php?route=product/product',
 			'searchRoute' => 'index.php?route=product/search',
-			'cartInfoRoute' => 'index.php?route=extension/module/roko/getCart',
-			'cartActionRoute' => 'index.php?route=extension/module/roko/cartAction',
+			'cartInfoRoute' => 'index.php?route=extension/roko/module/roko.getCart',
+			'cartActionRoute' => 'index.php?route=extension/roko/module/roko.cartAction',
 			'checkoutRoute' => 'index.php?route=checkout/checkout',
-			'couponRoute' => 'index.php?route=extension/total/coupon/coupon',
-			'invoiceRoute' => 'index.php?route=extension/module/roko/sendInvoice',
-			'redirectLogRoute' => 'index.php?route=extension/module/roko/logRedirect',
-			'redirectUtm' => trim((string)$this->config->get('module_roko_redirect_utm')),
+			'couponRoute' => 'index.php?route=extension/opencart/total/coupon.save',
+			'invoiceRoute' => 'index.php?route=extension/roko/module/roko.sendInvoice',
 			'title' => $widget_title,
 			'buttonText' => $widget_button,
 			'avatarUrl' => $asset_base . 'roko-character.png?v=' . self::VERSION,
-			'iconUrl' => $asset_base . 'roko-icon.png?v=' . self::VERSION,
+			'iconUrl' => $asset_base . 'roko-character.png?v=' . self::VERSION,
 			'redirectDelayMs' => 700
 		];
 
@@ -113,7 +99,6 @@ class ControllerExtensionModuleRoko extends Controller {
 				$reply = $this->bulkLeadMissingMessage($missing_fields);
 			} else {
 				$sent = $this->sendBulkLeadToWebhook($lead, $conversation_id, $input);
-				$this->writeLeadRecord($lead, $conversation_id, $input, $sent);
 				$this->writeChatLog($conversation_id, 'lead', json_encode([
 					'sent_to_google_sheet' => $sent,
 					'lead' => $lead
@@ -145,7 +130,7 @@ class ControllerExtensionModuleRoko extends Controller {
 			return;
 		}
 
-		$result = $this->askGemini($message, $conversation_id, is_array($input['page_context'] ?? null) ? $input['page_context'] : []);
+		$result = $this->askGemini($message, $conversation_id);
 
 		if ($result['error']) {
 			$this->writeChatLog($conversation_id, 'assistant', 'Gemini error: ' . $result['error']);
@@ -198,32 +183,6 @@ class ControllerExtensionModuleRoko extends Controller {
 			'products' => $products,
 			'data' => $products
 		]);
-	}
-
-	public function warmSitemap(): void {
-		if (!$this->isCatalogRequestAllowed()) {
-			$this->outputJson(['success' => false, 'error' => 'Invalid catalog token.'], 403);
-			return;
-		}
-
-		$default_limit = $this->hasUploadedSitemap() ? 80 : 120;
-		$limit = min(self::SITEMAP_CRAWL_MAX_PAGES, max(1, (int)($this->request->get['limit'] ?? $default_limit)));
-		$force_refresh = !empty($this->request->get['refresh']);
-		$result = $this->warmSitemapContent('', $limit, $force_refresh);
-
-		unset($result['content']);
-		$output = array_merge([
-			'success' => true,
-			'sitemap_url' => $this->configuredSitemapUrl(),
-			'sitemap_source' => $this->hasUploadedSitemap() ? 'uploaded_xml' : 'url',
-			'fetch_error' => self::$last_remote_error
-		], $result);
-
-		if (!empty($this->request->get['debug'])) {
-			$output['debug'] = $this->getSitemapDebug();
-		}
-
-		$this->outputJson($output);
 	}
 
 	public function getCart(): void {
@@ -329,30 +288,7 @@ class ControllerExtensionModuleRoko extends Controller {
 		$this->outputJson(['success' => true, 'message' => 'Invoice request recorded.']);
 	}
 
-	public function logRedirect(): void {
-		if (!$this->config->get('module_roko_status')) {
-			$this->outputJson(['status' => 'error', 'message' => 'ROKO is disabled.'], 403);
-			return;
-		}
-
-		$input = $this->getInputData();
-		$conversation_id = substr(trim((string)($input['conversation_id'] ?? $this->getLocalConversationId())), 0, 80);
-		$action_type = substr(trim((string)($input['action_type'] ?? 'redirect')), 0, 40);
-		$source_url = $this->limitLogUrl((string)($input['source_url'] ?? ''));
-		$destination_url = $this->limitLogUrl((string)($input['destination_url'] ?? ''));
-		$destination_url_utm = $this->limitLogUrl((string)($input['destination_url_utm'] ?? ''));
-		$utm_payload = substr(trim((string)($input['utm_payload'] ?? (string)$this->config->get('module_roko_redirect_utm'))), 0, 500);
-
-		if ($destination_url === '' && $destination_url_utm === '') {
-			$this->outputJson(['status' => 'error', 'message' => 'Destination URL is required.'], 400);
-			return;
-		}
-
-		$this->writeRedirectLog($conversation_id, $action_type, $source_url, $destination_url, $destination_url_utm, $utm_payload);
-		$this->outputJson(['status' => 'success']);
-	}
-
-	private function askGemini(string $message, string $conversation_id, array $page_context = []): array {
+	private function askGemini(string $message, string $conversation_id): array {
 		$api_keys = $this->getGeminiApiKeys();
 
 		if (!$api_keys) {
@@ -371,14 +307,13 @@ class ControllerExtensionModuleRoko extends Controller {
 				[
 					'role' => 'user',
 					'parts' => [
-						['text' => $this->buildGeminiPrompt($message, $conversation_id, $page_context)]
+						['text' => $this->buildGeminiPrompt($message, $conversation_id)]
 					]
 				]
 			],
 			'generationConfig' => [
 				'temperature' => $temperature,
-				'responseMimeType' => 'application/json',
-				'maxOutputTokens' => self::GEMINI_MAX_OUTPUT_TOKENS
+				'responseMimeType' => 'application/json'
 			]
 		];
 
@@ -437,13 +372,16 @@ class ControllerExtensionModuleRoko extends Controller {
 		return $normalized;
 	}
 
-	private function buildGeminiPrompt(string $message, string $conversation_id, array $page_context = []): string {
+	private function buildGeminiPrompt(string $message, string $conversation_id): string {
 		$brand = (string)($this->config->get('module_roko_store_brand') ?: $this->config->get('config_name'));
 		$assistant_name = (string)($this->config->get('module_roko_assistant_name') ?: 'ROKO');
-		$current_page = $this->resolveCurrentPageContext($page_context);
+
+		if ($assistant_name === 'Rockford Assistant') {
+			$assistant_name = 'ROKO';
+		}
 		$catalog = $this->getPromptCatalog($message);
+		$knowledge = $this->getLocalKnowledge($message);
 		$navigation = $this->getNavigationPromptCatalog();
-		$site_content = $this->getRelevantSiteContent($message, $current_page);
 		$history = $this->getConversationHistory($conversation_id, $message);
 		$sitemap_url = $this->configuredSitemapUrl();
 		$custom_system_prompt = $this->customSystemPrompt();
@@ -452,20 +390,17 @@ class ControllerExtensionModuleRoko extends Controller {
 			'You are a real online sales assistant inside the OpenCart store "' . $brand . '". Your name is "' . $assistant_name . '".',
 			$custom_system_prompt !== '' ? "Store-specific system prompt:\n" . $custom_system_prompt : '',
 			'Default to English. If the latest user message is clearly Persian or another language, you may reply in that language, but your base persona and concise style are English-first.',
-			'Use only the product catalog below for product-specific claims. Check stock before recommending purchase. Keep replies short, natural, and sales-focused.',
-			'If Current page context JSON is present, treat it as the exact page the user is viewing right now. When they ask to summarize "this page/article/post", ask about what they are reading, or refer to the current page, answer from Current page context first.',
-			'Use Relevant crawled site pages for blog, article, category, and general site knowledge. For technical/networking questions, prefer relevant blog/article pages when they answer the question.',
+			'Use the live product catalog as the authority for price, stock, product IDs, and purchase links. Use the local knowledge base for descriptions, technical specifications, and datasheet facts. Keep replies short, natural, and sales-focused.',
 			'When the user wants an action, include it in actions. Supported action types: add_to_cart, show_cart, redirect_to_cart, redirect_to_product, redirect_to_page, update_cart_item, remove_from_cart, clear_cart, apply_coupon, redirect_to_checkout, send_invoice.',
 			'For bulk, wholesale, B2B, corporate, or high-quantity requests, do not add items to cart and do not send the user to checkout. Ask for lead details using this exact field list: Product Name, QTY, Name, Company, Contact Number, Email, Delivery Location.',
 			'For navigating to any non-product site page, use {"type":"redirect_to_page","page":"home/contact/account/login/register/orders/wishlist/specials/search/category/information page name","route":"optional OpenCart route","url":"optional internal URL"}. Prefer exact URLs from Known site pages JSON and the configured sitemap. Do not say you cannot navigate.',
-			'Return ONLY valid JSON with this shape: {"reply":"visible message","suggestions":[{"title":"Product Recommendation","text":"Can you recommend a laptop?"}],"products":[{"product_id":"id","name":"exact catalog name or article title","content_type":"product/blog/page/category","product_url":"internal URL","image":"optional image URL","reason":"Why this is a fit"}],"actions":[{"type":"add_to_cart","product_name":"exact name","product_id":"id","qty":1}]} .',
-			'Use suggestions for helpful next questions. Use product cards for products and also for relevant blog/article/page recommendations. If Relevant crawled site pages JSON contains a useful match, include the best matching blog/page in products with its exact URL and image URL when available. Use content_type="blog" for blog cards and never invent product_id for non-product pages. Use an empty array for suggestions/products/actions when not needed.',
+			'Return ONLY valid JSON with this shape: {"reply":"visible message","suggestions":[{"title":"Product Recommendation","text":"Can you recommend a laptop?"}],"products":[{"product_id":"id","name":"exact catalog name","reason":"Why this is a fit"}],"actions":[{"type":"add_to_cart","product_name":"exact name","product_id":"id","qty":1}]} .',
+			'Use suggestions for helpful next questions. Use product cards when recommending, comparing, showing specs, or discussing specific products. Use an empty array for suggestions/products/actions when not needed.',
 			$sitemap_url !== '' ? 'Configured sitemap URL: ' . $sitemap_url : '',
 			'Conversation history JSON: ' . json_encode($history, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
-			'Current page context JSON: ' . json_encode($current_page, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
 			'Known site pages JSON: ' . json_encode($navigation, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
-			'Relevant crawled site pages JSON: ' . json_encode($site_content, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
 			'Product catalog JSON: ' . json_encode($catalog, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+			'Relevant local knowledge JSON: ' . json_encode($knowledge, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
 			'Latest user message: ' . $message
 		]);
 	}
@@ -542,7 +477,7 @@ class ControllerExtensionModuleRoko extends Controller {
 		$url = trim((string)$this->config->get('module_roko_sitemap_url'));
 
 		if ($url === '') {
-			$url = $this->defaultSitemapUrl();
+			return '';
 		}
 
 		$parts = parse_url($url);
@@ -552,33 +487,6 @@ class ControllerExtensionModuleRoko extends Controller {
 		}
 
 		return $url;
-	}
-
-	private function defaultSitemapUrl(): string {
-		$base = '';
-
-		foreach (['config_url', 'config_ssl'] as $key) {
-			$value = trim((string)$this->config->get($key));
-
-			if ($value !== '') {
-				$base = $value;
-				break;
-			}
-		}
-
-		if ($base === '' && defined('HTTPS_SERVER')) {
-			$base = (string)HTTPS_SERVER;
-		}
-
-		if ($base === '' && defined('HTTP_SERVER')) {
-			$base = (string)HTTP_SERVER;
-		}
-
-		if ($base === '') {
-			return '';
-		}
-
-		return rtrim($base, '/') . '/sitemap.xml';
 	}
 
 	private function customSystemPrompt(): string {
@@ -595,971 +503,60 @@ class ControllerExtensionModuleRoko extends Controller {
 		return substr($value, 0, 12000);
 	}
 
-	private function getConfiguredSitemapPages(bool $force_refresh = false, bool $allow_remote_fetch = false): array {
+	private function getConfiguredSitemapPages(): array {
 		$url = $this->configuredSitemapUrl();
-		$uploaded_body = $this->getUploadedSitemapBody();
-		$using_uploaded = $uploaded_body !== '';
 
-		if (!$using_uploaded && ($url === '' || !$this->isInternalAbsoluteUrl($url))) {
+		if ($url === '' || !$this->isInternalAbsoluteUrl($url)) {
 			return [];
 		}
 
-		if ($url === '') {
-			$url = $this->defaultSitemapUrl() ?: 'https://uploaded-sitemap.local/sitemap.xml';
-		}
+		$cache_key = 'roko.sitemap.' . md5($url);
 
-		$cache_key = $using_uploaded ? 'roko.sitemap.upload.v1.' . $this->uploadedSitemapCacheToken() : 'roko.sitemap.v4.' . md5($url);
+		try {
+			$cached = $this->cache->get($cache_key);
 
-		if (!$force_refresh && isset(self::$sitemap_pages_cache[$cache_key])) {
-			return self::$sitemap_pages_cache[$cache_key];
-		}
-
-		if (!$force_refresh) {
-			try {
-				$cached = $this->cache->get($cache_key);
-
-				if (
-					is_array($cached)
-					&& isset($cached['expires'], $cached['pages'])
-					&& (int)$cached['expires'] > time()
-					&& is_array($cached['pages'])
-					&& $cached['pages']
-				) {
-					self::$sitemap_pages_cache[$cache_key] = $cached['pages'];
-					return $cached['pages'];
-				}
-			} catch (\Throwable $exception) {
+			if (is_array($cached)) {
+				return $cached;
 			}
-
-			$file_cached = $this->readSitemapFileCache($cache_key);
-
-			if (is_array($file_cached) && $file_cached) {
-				try {
-					$this->cache->set($cache_key, [
-						'expires' => time() + self::SITEMAP_CACHE_TTL,
-						'pages' => $file_cached
-					]);
-				} catch (\Throwable $exception) {
-				}
-
-				self::$sitemap_pages_cache[$cache_key] = $file_cached;
-				return $file_cached;
-			}
+		} catch (\Throwable $exception) {
 		}
 
-		if (!$allow_remote_fetch) {
-			return [];
-		}
-
-		$pages = $this->collectConfiguredSitemapPages($url, $uploaded_body);
-
-		$pages = $this->uniqueNavigationPages(array_slice($pages, 0, self::SITEMAP_CRAWL_MAX_PAGES), self::SITEMAP_CRAWL_MAX_PAGES);
-
-		if ($pages) {
-			try {
-				$this->cache->set($cache_key, [
-					'expires' => time() + self::SITEMAP_CACHE_TTL,
-					'pages' => $pages
-				]);
-			} catch (\Throwable $exception) {
-			}
-
-			$this->writeSitemapFileCache($cache_key, $pages);
-			self::$sitemap_pages_cache[$cache_key] = $pages;
-		}
-
-		return $pages;
-	}
-
-	private function collectConfiguredSitemapPages(string $url, string $root_body = ''): array {
 		$pages = [];
-		$pending = [$url];
-		$seen_sitemaps = [];
+		$body = $this->getRemoteText($url, 6);
 
-		while ($pending && count($pages) < self::SITEMAP_CRAWL_MAX_PAGES && count($seen_sitemaps) < 1000) {
-			$sitemap_url = array_shift($pending);
-			$sitemap_url = trim((string)$sitemap_url);
+		if ($body !== '') {
+			$pages = $this->extractSitemapPages($body, $url);
 
-			if ($sitemap_url === '') {
-				continue;
-			}
+			if (!$pages) {
+				foreach (array_slice($this->extractNestedSitemapUrls($body, $url), 0, 3) as $nested_url) {
+					$nested_body = $this->getRemoteText($nested_url, 5);
 
-			$key = strtolower($sitemap_url);
-
-			if (isset($seen_sitemaps[$key])) {
-				continue;
-			}
-
-			$seen_sitemaps[$key] = true;
-			$is_root = count($seen_sitemaps) === 1;
-			$body = $is_root && $root_body !== '' ? $root_body : $this->getRemoteText($sitemap_url, $is_root ? 20 : 12);
-
-			if ($body === '') {
-				continue;
-			}
-
-			$allow_uploaded_urls = $root_body !== '' && $is_root;
-
-			foreach ($this->extractSitemapPages($body, $sitemap_url, $allow_uploaded_urls) as $page) {
-				$pages[] = $page;
-
-				if (count($pages) >= self::SITEMAP_CRAWL_MAX_PAGES) {
-					break;
+					if ($nested_body !== '') {
+						$pages = array_merge($pages, $this->extractSitemapPages($nested_body, $nested_url));
+					}
 				}
 			}
+		}
 
-			foreach ($this->extractNestedSitemapUrls($body, $sitemap_url, $allow_uploaded_urls) as $nested_url) {
-				$nested_key = strtolower($nested_url);
+		$pages = $this->uniqueNavigationPages(array_slice($pages, 0, 120));
 
-				if (!isset($seen_sitemaps[$nested_key])) {
-					$pending[] = $nested_url;
-				}
-			}
+		try {
+			$this->cache->set($cache_key, $pages);
+		} catch (\Throwable $exception) {
 		}
 
 		return $pages;
 	}
 
-	private function hasUploadedSitemap(): bool {
-		$path = $this->uploadedSitemapCachePath();
-		return $path !== '' && is_file($path) && is_readable($path);
-	}
-
-	private function getUploadedSitemapBody(): string {
-		$path = $this->uploadedSitemapCachePath();
-
-		if ($path === '' || !is_file($path) || !is_readable($path)) {
-			return '';
-		}
-
-		$body = file_get_contents($path);
-
-		return is_string($body) ? substr($body, 0, self::REMOTE_TEXT_LIMIT) : '';
-	}
-
-	private function uploadedSitemapCachePath(): string {
-		foreach ($this->uploadedSitemapCachePaths() as $path) {
-			if (is_file($path) && is_readable($path)) {
-				return $path;
-			}
-		}
-
-		$paths = $this->uploadedSitemapCachePaths();
-		return $paths[0] ?? '';
-	}
-
-	private function uploadedSitemapCachePaths(): array {
-		$paths = [];
-
-		if (!defined('DIR_CACHE')) {
-			return [];
-		}
-
-		$paths[] = rtrim(DIR_CACHE, '/\\') . DIRECTORY_SEPARATOR . 'cache.roko.sitemap.upload.xml';
-
-		if (defined('DIR_STORAGE')) {
-			$paths[] = rtrim((string)DIR_STORAGE, '/\\') . DIRECTORY_SEPARATOR . 'cache' . DIRECTORY_SEPARATOR . 'cache.roko.sitemap.upload.xml';
-		}
-
-		if (defined('DIR_SYSTEM')) {
-			$paths[] = rtrim(dirname(rtrim((string)DIR_SYSTEM, '/\\')), '/\\') . DIRECTORY_SEPARATOR . 'system' . DIRECTORY_SEPARATOR . 'storage' . DIRECTORY_SEPARATOR . 'cache' . DIRECTORY_SEPARATOR . 'cache.roko.sitemap.upload.xml';
-		}
-
-		if (defined('DIR_APPLICATION')) {
-			$paths[] = rtrim(dirname(rtrim((string)DIR_APPLICATION, '/\\')), '/\\') . DIRECTORY_SEPARATOR . 'system' . DIRECTORY_SEPARATOR . 'storage' . DIRECTORY_SEPARATOR . 'cache' . DIRECTORY_SEPARATOR . 'cache.roko.sitemap.upload.xml';
-		}
-
-		return array_values(array_unique(array_filter($paths)));
-	}
-
-	private function uploadedSitemapCacheToken(): string {
-		$path = $this->uploadedSitemapCachePath();
-
-		if ($path === '' || !is_file($path)) {
-			return '';
-		}
-
-		return md5($path . '|' . (int)filesize($path) . '|' . (int)filemtime($path));
-	}
-
-	private function sitemapSourceCacheKey(): string {
-		if ($this->hasUploadedSitemap()) {
-			return 'upload.v1.' . $this->uploadedSitemapCacheToken();
-		}
-
-		$url = $this->configuredSitemapUrl();
-
-		return $url !== '' ? 'url.v1.' . md5($url) : '';
-	}
-
-	private function getSitemapDebug(): array {
-		$url = $this->configuredSitemapUrl();
-		$uploaded_path = $this->uploadedSitemapCachePath();
-		$uploaded_body = $this->getUploadedSitemapBody();
-
-		if ($url === '') {
-			$url = $this->defaultSitemapUrl();
-		}
-
-		$body = $url !== '' ? $this->getRemoteText($url, 20) : '';
-		$locs = [];
-
-		if ($body !== '' && preg_match_all('~<loc>\s*(.*?)\s*</loc>~is', $body, $matches)) {
-			foreach (array_slice($matches[1], 0, 20) as $raw_url) {
-				$locs[] = html_entity_decode(strip_tags((string)$raw_url), ENT_QUOTES, 'UTF-8');
-			}
-		}
-
-		$pages = $this->getConfiguredSitemapPages(false);
-		$page_urls = [];
-
-		foreach (array_slice($pages, 0, 20) as $page) {
-			$page_urls[] = (string)($page['url'] ?? '');
-		}
-
-		return [
-			'uploaded_sitemap_found' => $uploaded_path !== '' && is_file($uploaded_path),
-			'uploaded_sitemap_path' => $uploaded_path,
-			'uploaded_sitemap_bytes' => $uploaded_body !== '' ? strlen($uploaded_body) : 0,
-			'uploaded_sitemap_loc_tags' => $uploaded_body !== '' ? preg_match_all('~<loc>~i', $uploaded_body) : 0,
-			'uploaded_sitemap_candidate_paths' => $this->uploadedSitemapCachePaths(),
-			'root_bytes' => $body !== '' ? strlen($body) : 0,
-			'root_loc_tags' => $body !== '' ? preg_match_all('~<loc>~i', $body) : 0,
-			'root_url_tags' => $body !== '' ? preg_match_all('~<url\b~i', $body) : 0,
-			'root_sitemap_tags' => $body !== '' ? preg_match_all('~<sitemap\b~i', $body) : 0,
-			'root_is_sitemap_index' => $body !== '' ? $this->isSitemapIndexBody($body) : false,
-			'root_first_locs' => $locs,
-			'parsed_page_sample' => $page_urls
-		];
-	}
-
-	private function readSitemapFileCache(string $cache_key): ?array {
-		$path = $this->sitemapFileCachePath($cache_key);
-
-		if ($path === '' || !is_file($path) || time() - (int)filemtime($path) > self::SITEMAP_CACHE_TTL) {
-			return null;
-		}
-
-		$payload = json_decode((string)file_get_contents($path), true);
-
-		return is_array($payload) ? $payload : null;
-	}
-
-	private function writeSitemapFileCache(string $cache_key, array $pages): void {
-		$path = $this->sitemapFileCachePath($cache_key);
-
-		if ($path === '') {
-			return;
-		}
-
-		$dir = dirname($path);
-
-		if (!is_dir($dir) || !is_writable($dir)) {
-			return;
-		}
-
-		@file_put_contents($path, json_encode($pages, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
-	}
-
-	private function sitemapFileCachePath(string $cache_key): string {
-		if (!defined('DIR_CACHE')) {
-			return '';
-		}
-
-		return rtrim(DIR_CACHE, '/\\') . DIRECTORY_SEPARATOR . 'cache.' . preg_replace('/[^a-zA-Z0-9_.-]/', '_', $cache_key) . '.json';
-	}
-
-	private function getRelevantSiteContent(string $message, array $current_page = []): array {
-		$content = $this->getCrawledSitemapContent($message);
-
-		if (!$content) {
-			return [];
-		}
-
-		$current_url_key = $this->normalizePageUrlKey((string)($current_page['url'] ?? ''));
-		$ranked = [];
-
-		foreach ($content as $entry) {
-			if (!is_array($entry)) {
-				continue;
-			}
-
-			if ($current_url_key !== '' && $this->normalizePageUrlKey((string)($entry['url'] ?? '')) === $current_url_key) {
-				continue;
-			}
-
-			$score = $this->scoreSiteEntry($message, $entry);
-
-			if ($score <= 0) {
-				continue;
-			}
-
-			$entry['_score'] = $score;
-			$ranked[] = $entry;
-		}
-
-		usort($ranked, function ($a, $b) {
-			return (int)($b['_score'] ?? 0) <=> (int)($a['_score'] ?? 0);
-		});
-
-		$results = [];
-
-		foreach (array_slice($ranked, 0, self::SITEMAP_RELEVANT_CONTEXT_LIMIT) as $entry) {
-			$results[] = [
-				'title' => $this->shortText((string)($entry['title'] ?? ''), 140),
-				'url' => (string)($entry['url'] ?? ''),
-				'content_type' => (string)($entry['content_type'] ?? 'page'),
-				'image' => (string)($entry['image'] ?? ''),
-				'summary' => $this->shortText((string)($entry['description'] ?? ''), 260),
-				'content' => $this->shortText((string)($entry['content'] ?? ''), 1400)
-			];
-		}
-
-		return $results;
-	}
-
-	private function resolveCurrentPageContext(array $page_context): array {
-		$url = trim((string)($page_context['url'] ?? ''));
-		$title = trim((string)($page_context['title'] ?? ''));
-		$content = trim((string)($page_context['content'] ?? ''));
-		$description = trim((string)($page_context['description'] ?? ''));
-		$image = trim((string)($page_context['image'] ?? ''));
-		$content_type = trim((string)($page_context['content_type'] ?? ''));
-
-		if ($url === '' && $title === '' && $content === '') {
-			return [];
-		}
-
-		if ($content_type === '') {
-			$content_type = $url !== '' ? $this->contentTypeFromUrl($url) : 'page';
-		}
-
-		if ($content === '' && $url !== '') {
-			$cached = $this->getCachedPageContentByUrl($url);
-
-			if ($cached) {
-				$content = trim((string)($cached['content'] ?? ''));
-
-				if ($title === '') {
-					$title = trim((string)($cached['title'] ?? ''));
-				}
-
-				if ($description === '') {
-					$description = trim((string)($cached['description'] ?? ''));
-				}
-
-				if ($image === '') {
-					$image = trim((string)($cached['image'] ?? ''));
-				}
-			} else {
-				$crawled = $this->crawlSitemapPage([
-					'url' => $url,
-					'page' => $title
-				]);
-
-				if ($crawled) {
-					$content = trim((string)($crawled['content'] ?? ''));
-
-					if ($title === '') {
-						$title = trim((string)($crawled['title'] ?? ''));
-					}
-
-					if ($description === '') {
-						$description = trim((string)($crawled['description'] ?? ''));
-					}
-
-					if ($image === '') {
-						$image = trim((string)($crawled['image'] ?? ''));
-					}
-				}
-			}
-		}
-
-		if ($description === '' && $content !== '') {
-			$description = $this->shortText($content, 260);
-		}
-
-		if ($url === '' && $title === '' && $content === '') {
-			return [];
-		}
-
-		return [
-			'title' => $this->shortText($title, 180),
-			'url' => $url,
-			'content_type' => $content_type,
-			'image' => $image,
-			'description' => $this->shortText($description, 300),
-			'content' => $this->shortText($content, self::SITEMAP_PAGE_TEXT_LIMIT),
-			'is_current_page' => true
-		];
-	}
-
-	private function getCachedPageContentByUrl(string $url): array {
-		$source_key = $this->sitemapSourceCacheKey();
-
-		if ($source_key === '') {
-			return [];
-		}
-
-		$cache_key = 'roko.sitemap.content.v2.' . $source_key;
-		$content = $this->readSitemapContentCache($cache_key);
-		$target = $this->normalizePageUrlKey($url);
-
-		if ($target === '') {
-			return [];
-		}
-
-		foreach ($content as $entry_url => $entry) {
-			if (!is_array($entry)) {
-				continue;
-			}
-
-			if ($this->normalizePageUrlKey((string)$entry_url) === $target) {
-				return $entry;
-			}
-
-			if ($this->normalizePageUrlKey((string)($entry['url'] ?? '')) === $target) {
-				return $entry;
-			}
-		}
-
-		return [];
-	}
-
-	private function normalizePageUrlKey(string $url): string {
-		$url = strtolower(trim(html_entity_decode($url, ENT_QUOTES, 'UTF-8')));
-
-		if ($url === '') {
-			return '';
-		}
-
-		$parts = parse_url($url);
-
-		if (!$parts) {
-			return rtrim($url, '/');
-		}
-
-		$host = strtolower((string)($parts['host'] ?? ''));
-		$path = rtrim((string)($parts['path'] ?? '/'), '/');
-
-		if ($path === '') {
-			$path = '/';
-		}
-
-		return $host . $path;
-	}
-
-	private function getCrawledSitemapContent(string $message): array {
-		$source_key = $this->sitemapSourceCacheKey();
-
-		if ($source_key === '') {
-			return [];
-		}
-
-		$cache_key = 'roko.sitemap.content.v2.' . $source_key;
-
-		if (isset(self::$sitemap_content_cache[$cache_key])) {
-			return self::$sitemap_content_cache[$cache_key];
-		}
-
-		// Chat requests must never wait for remote sitemap pages. Sitemap crawling
-		// is intentionally performed only by the warm-up action in the admin panel.
-		$content = $this->readSitemapContentCache($cache_key);
-		self::$sitemap_content_cache[$cache_key] = $content;
-
-		return $content;
-	}
-
-	private function warmSitemapContent(string $message, int $limit, bool $force_refresh = false): array {
-		$source_key = $this->sitemapSourceCacheKey();
-
-		if ($source_key === '') {
-			return ['total_pages' => 0, 'cached_pages' => 0, 'crawled_pages' => 0, 'remaining_pages' => 0, 'content' => []];
-		}
-
-		$cache_key = 'roko.sitemap.content.v2.' . $source_key;
-		$pages = $this->getConfiguredSitemapPages($force_refresh, true);
-
-		if (!$pages) {
-			return ['total_pages' => 0, 'cached_pages' => 0, 'crawled_pages' => 0, 'remaining_pages' => 0, 'content' => []];
-		}
-
-		$content = $this->readSitemapContentCache($cache_key);
-		$changed = false;
-		$crawled = 0;
-		$limit = min(self::SITEMAP_CRAWL_MAX_PAGES, max(1, $limit));
-
-		foreach ($this->prioritizeSitemapPagesForCrawl($pages, $content, $message) as $page) {
-			$url = trim((string)($page['url'] ?? ''));
-
-			if ($url === '' || !$this->sitemapPageNeedsRefresh($content[$url] ?? null)) {
-				continue;
-			}
-
-			if ($crawled >= $limit) {
-				break;
-			}
-
-			$entry = $this->crawlSitemapPage($page);
-			$crawled++;
-
-			if ($entry) {
-				$content[$url] = $entry;
-				$changed = true;
-			}
-		}
-
-		if ($changed) {
-			$this->writeSitemapContentCache($cache_key, $content);
-		}
-
-		if ($content) {
-			$this->persistSitemapContent($content);
-		}
-
-		self::$sitemap_content_cache[$cache_key] = $content;
-
-		$remaining = 0;
-
-		foreach ($pages as $page) {
-			$url = trim((string)($page['url'] ?? ''));
-
-			if ($url !== '' && $this->sitemapPageNeedsRefresh($content[$url] ?? null)) {
-				$remaining++;
-			}
-		}
-
-		return [
-			'total_pages' => count($pages),
-			'cached_pages' => count($content),
-			'crawled_pages' => $crawled,
-			'remaining_pages' => $remaining,
-			'content' => $content
-		];
-	}
-
-	private function prioritizeSitemapPagesForCrawl(array $pages, array $content, string $message): array {
-		$ranked = [];
-
-		foreach (array_slice($pages, 0, self::SITEMAP_CRAWL_MAX_PAGES) as $index => $page) {
-			if (!is_array($page)) {
-				continue;
-			}
-
-			$url = trim((string)($page['url'] ?? ''));
-
-			if ($url === '') {
-				continue;
-			}
-
-			$score = $this->scoreSiteEntry($message, [
-				'title' => (string)($page['page'] ?? ''),
-				'url' => $url,
-				'content_type' => (string)($page['content_type'] ?? $this->contentTypeFromUrl($url)),
-				'content' => ''
-			]);
-
-			if (!isset($content[$url])) {
-				$score += 40;
-			} elseif ($this->sitemapPageNeedsRefresh($content[$url])) {
-				$score += 20;
-			}
-
-			if (($page['content_type'] ?? '') === 'blog') {
-				$score += 10;
-			}
-
-			$ranked[] = ['score' => $score, 'index' => $index, 'page' => $page];
-		}
-
-		usort($ranked, function ($a, $b) {
-			$score = (int)$b['score'] <=> (int)$a['score'];
-			return $score ?: ((int)$a['index'] <=> (int)$b['index']);
-		});
-
-		return array_map(function ($item) {
-			return $item['page'];
-		}, $ranked);
-	}
-
-	private function sitemapPageNeedsRefresh($entry): bool {
-		if (!is_array($entry) || empty($entry['fetched_at'])) {
-			return true;
-		}
-
-		return time() - (int)$entry['fetched_at'] > self::SITEMAP_PAGE_CACHE_TTL;
-	}
-
-	private function crawlSitemapPage(array $page): array {
-		$url = trim((string)($page['url'] ?? ''));
-		$trusted_uploaded = (string)($page['source'] ?? '') === 'uploaded_sitemap';
-
-		if ($url === '' || $this->looksLikeSitemapFile($url)) {
-			return [];
-		}
-
-		if ($trusted_uploaded) {
-			if (!preg_match('~^https?://~i', $url)) {
-				return [];
-			}
-		} elseif (!$this->isInternalAbsoluteUrl($url)) {
-			return [];
-		}
-
-		$body = $this->getRemoteText($url, 4);
-
-		if ($body === '') {
-			return [];
-		}
-
-		return $this->extractPageContent($body, $url, (string)($page['page'] ?? ''));
-	}
-
-	private function extractPageContent(string $html, string $url, string $fallback_title = ''): array {
-		$title = $this->extractHtmlTitle($html);
-		$description = $this->extractMetaDescription($html);
-		$image = $this->extractPageImage($html, $url);
-		$text = preg_replace('~<(script|style|noscript|svg|canvas)\b[^>]*>.*?</\1>~is', ' ', $html);
-		$text = preg_replace('~</(p|div|li|h[1-6]|br|section|article)>~i', "\n", (string)$text);
-		$text = $this->shortText($text, self::SITEMAP_PAGE_TEXT_LIMIT);
-
-		if ($title === '') {
-			$title = $fallback_title !== '' ? $fallback_title : $this->labelFromUrl($url);
-		}
-
-		if ($description === '') {
-			$description = $this->shortText($text, 260);
-		}
-
-		return [
-			'title' => $this->shortText($title, 180),
-			'url' => $url,
-			'content_type' => $this->contentTypeFromUrl($url),
-			'image' => $image,
-			'description' => $description,
-			'content' => $text,
-			'fetched_at' => time()
-		];
-	}
-
-	private function extractHtmlTitle(string $html): string {
-		if (preg_match('~<title[^>]*>(.*?)</title>~is', $html, $match)) {
-			return $this->shortText((string)$match[1], 180);
-		}
-
-		if (preg_match('~<h1[^>]*>(.*?)</h1>~is', $html, $match)) {
-			return $this->shortText((string)$match[1], 180);
-		}
-
-		return '';
-	}
-
-	private function extractMetaDescription(string $html): string {
-		if (preg_match('~<meta\b[^>]*(?:name|property)=["\'](?:description|og:description)["\'][^>]*content=["\']([^"\']+)["\'][^>]*>~is', $html, $match)) {
-			return $this->shortText((string)$match[1], 300);
-		}
-
-		if (preg_match('~<meta\b[^>]*content=["\']([^"\']+)["\'][^>]*(?:name|property)=["\'](?:description|og:description)["\'][^>]*>~is', $html, $match)) {
-			return $this->shortText((string)$match[1], 300);
-		}
-
-		return '';
-	}
-
-	private function extractPageImage(string $html, string $base_url): string {
-		$patterns = [
-			'~<div\b[^>]*class=["\'][^"\']*\bpost-image\b[^"\']*["\'][^>]*>.*?<img\b[^>]*\bsrc=["\']([^"\']+)["\']~is',
-			'~<meta\b[^>]*(?:name|property)=["\'](?:og:image|twitter:image)["\'][^>]*content=["\']([^"\']+)["\'][^>]*>~is',
-			'~<meta\b[^>]*content=["\']([^"\']+)["\'][^>]*(?:name|property)=["\'](?:og:image|twitter:image)["\'][^>]*>~is'
-		];
-
-		foreach ($patterns as $pattern) {
-			if (preg_match($pattern, $html, $match)) {
-				$image = $this->normalizePageImageUrl((string)$match[1], $base_url);
-
-				if ($image !== '') {
-					return $image;
-				}
-			}
-		}
-
-		if (preg_match_all('~<img\b[^>]*\bsrc=["\']([^"\']+)["\']~is', $html, $matches)) {
-			foreach (($matches[1] ?? []) as $raw_image) {
-				$image = $this->normalizePageImageUrl((string)$raw_image, $base_url);
-
-				if ($image !== '') {
-					return $image;
-				}
-			}
-		}
-
-		return '';
-	}
-
-	private function normalizePageImageUrl(string $url, string $base_url): string {
-		$url = trim(html_entity_decode($url, ENT_QUOTES, 'UTF-8'));
-
-		if ($url === '' || stripos($url, 'data:') === 0 || stripos($url, 'blob:') === 0) {
-			return '';
-		}
-
-		$image = $this->absoluteUrl($url, $base_url);
-
-		if ($image === '' || !$this->isInternalAbsoluteUrl($image)) {
-			return '';
-		}
-
-		$path = strtolower((string)(parse_url($image, PHP_URL_PATH) ?: ''));
-
-		if ($path === '' || preg_match('~\.(svg|ico)$~i', $path) || strpos($path, 'logo') !== false || strpos($path, 'placeholder') !== false) {
-			return '';
-		}
-
-		return $image;
-	}
-
-	private function readSitemapContentCache(string $cache_key): array {
-		$path = $this->sitemapFileCachePath($cache_key);
-
-		if ($path !== '' && is_file($path) && time() - (int)filemtime($path) <= self::SITEMAP_PAGE_CACHE_TTL) {
-			$payload = json_decode((string)file_get_contents($path), true);
-
-			if (is_array($payload)) {
-				return $payload;
-			}
-		}
-
-		return $this->readSitemapContentDbCache();
-	}
-
-	private function writeSitemapContentCache(string $cache_key, array $content): void {
-		$path = $this->sitemapFileCachePath($cache_key);
-
-		if ($path === '') {
-			return;
-		}
-
-		$dir = dirname($path);
-
-		if (!is_dir($dir) || !is_writable($dir)) {
-			return;
-		}
-
-		@file_put_contents($path, json_encode($content, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
-	}
-
-	private function createSitemapPageTable(): void {
-		$this->db->query("
-			CREATE TABLE IF NOT EXISTS `" . DB_PREFIX . "roko_sitemap_page` (
-				`page_id` int(11) NOT NULL AUTO_INCREMENT,
-				`url_hash` char(32) NOT NULL,
-				`url` text NOT NULL,
-				`title` varchar(255) NOT NULL DEFAULT '',
-				`content_type` varchar(20) NOT NULL DEFAULT 'page',
-				`image` varchar(1000) NOT NULL DEFAULT '',
-				`description` text NOT NULL,
-				`content` mediumtext NOT NULL,
-				`fetched_at` int(11) NOT NULL DEFAULT 0,
-				`date_modified` datetime NOT NULL,
-				PRIMARY KEY (`page_id`),
-				UNIQUE KEY `url_hash` (`url_hash`),
-				KEY `content_type` (`content_type`),
-				KEY `fetched_at` (`fetched_at`)
-			) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
-		");
-
-		$this->ensureSitemapPageImageColumn();
-	}
-
-	private function ensureSitemapPageImageColumn(): void {
-		try {
-			$query = $this->db->query("SHOW COLUMNS FROM `" . DB_PREFIX . "roko_sitemap_page` LIKE 'image'");
-
-			if (!$query->num_rows) {
-				$this->db->query("ALTER TABLE `" . DB_PREFIX . "roko_sitemap_page` ADD `image` varchar(1000) NOT NULL DEFAULT '' AFTER `content_type`");
-			}
-		} catch (\Throwable $exception) {
-		}
-	}
-
-	private function persistSitemapContent(array $content): void {
-		if (!$content) {
-			return;
-		}
-
-		try {
-			$this->createSitemapPageTable();
-
-			foreach ($content as $url => $entry) {
-				if (!is_array($entry)) {
-					continue;
-				}
-
-				$page_url = trim((string)($entry['url'] ?? $url));
-
-				if ($page_url === '') {
-					continue;
-				}
-
-				$this->db->query("
-					INSERT INTO `" . DB_PREFIX . "roko_sitemap_page`
-					SET
-						`url_hash` = '" . $this->db->escape(md5($page_url)) . "',
-						`url` = '" . $this->db->escape($page_url) . "',
-						`title` = '" . $this->db->escape(substr((string)($entry['title'] ?? $page_url), 0, 255)) . "',
-						`content_type` = '" . $this->db->escape(substr((string)($entry['content_type'] ?? 'page'), 0, 20)) . "',
-						`image` = '" . $this->db->escape(substr((string)($entry['image'] ?? ''), 0, 1000)) . "',
-						`description` = '" . $this->db->escape((string)($entry['description'] ?? '')) . "',
-						`content` = '" . $this->db->escape((string)($entry['content'] ?? '')) . "',
-						`fetched_at` = '" . (int)($entry['fetched_at'] ?? time()) . "',
-						`date_modified` = NOW()
-					ON DUPLICATE KEY UPDATE
-						`url` = VALUES(`url`),
-						`title` = VALUES(`title`),
-						`content_type` = VALUES(`content_type`),
-						`image` = VALUES(`image`),
-						`description` = VALUES(`description`),
-						`content` = VALUES(`content`),
-						`fetched_at` = VALUES(`fetched_at`),
-						`date_modified` = NOW()
-				");
-			}
-		} catch (\Throwable $exception) {
-			$this->log->write('ROKO sitemap DB cache failed: ' . $exception->getMessage());
-		}
-	}
-
-	private function readSitemapContentDbCache(): array {
-		try {
-			$this->createSitemapPageTable();
-
-			$query = $this->db->query("
-				SELECT `title`, `url`, `content_type`, `image`, `description`, `content`, `fetched_at`
-				FROM `" . DB_PREFIX . "roko_sitemap_page`
-				WHERE `fetched_at` > '" . (int)(time() - self::SITEMAP_PAGE_CACHE_TTL) . "'
-				ORDER BY `fetched_at` DESC
-				LIMIT " . (int)self::SITEMAP_CRAWL_MAX_PAGES . "
-			");
-
-			$content = [];
-
-			foreach ($query->rows as $row) {
-				$url = trim((string)($row['url'] ?? ''));
-
-				if ($url === '') {
-					continue;
-				}
-
-				$content[$url] = [
-					'title' => (string)($row['title'] ?? ''),
-					'url' => $url,
-					'content_type' => (string)($row['content_type'] ?? 'page'),
-					'image' => (string)($row['image'] ?? ''),
-					'description' => (string)($row['description'] ?? ''),
-					'content' => (string)($row['content'] ?? ''),
-					'fetched_at' => (int)($row['fetched_at'] ?? 0)
-				];
-			}
-
-			return $content;
-		} catch (\Throwable $exception) {
-			return [];
-		}
-	}
-
-	private function contentTypeFromUrl(string $url): string {
-		$path = strtolower(trim((string)(parse_url($url, PHP_URL_PATH) ?: ''), '/'));
-
-		if ($path === '') {
-			return 'page';
-		}
-
-		if (strpos($path, 'blog') !== false || strpos($path, 'article') !== false || strpos($path, 'news') !== false) {
-			return 'blog';
-		}
-
-		if (strpos($path, 'product') !== false || strpos($path, 'products') !== false) {
-			return 'product';
-		}
-
-		if (strpos($path, 'category') !== false || strpos($path, 'categories') !== false) {
-			return 'category';
-		}
-
-		return 'page';
-	}
-
-	private function scoreSiteEntry(string $message, array $entry): int {
-		$tokens = $this->contentTokens($message);
-
-		if (!$tokens) {
-			return 0;
-		}
-
-		$title = $this->foldText((string)($entry['title'] ?? $entry['page'] ?? ''));
-		$content = $this->foldText(implode(' ', [
-			$title,
-			(string)($entry['description'] ?? ''),
-			(string)($entry['content'] ?? ''),
-			(string)($entry['url'] ?? ''),
-			(string)($entry['content_type'] ?? '')
-		]));
-		$score = 0;
-
-		foreach ($tokens as $token) {
-			if (strpos($title, $token) !== false) {
-				$score += 8;
-			}
-
-			if (strpos($content, $token) !== false) {
-				$score += 3;
-			}
-		}
-
-		if (($entry['content_type'] ?? '') === 'blog') {
-			$score += 4;
-		}
-
-		return $score;
-	}
-
-	private function contentTokens(string $value): array {
-		$value = $this->foldText($value);
-
-		if ($value === '') {
-			return [];
-		}
-
-		preg_match_all('/[\p{L}\p{N}][\p{L}\p{N}_.-]*/u', $value, $matches);
-		$stop_words = array_flip(['the', 'and', 'for', 'with', 'this', 'that', 'what', 'how', 'can', 'you', 'please', 'about', 'into', 'from', 'your', 'are', 'is']);
-		$tokens = [];
-
-		foreach (($matches[0] ?? []) as $token) {
-			$token = trim((string)$token, '.-_');
-			$length = function_exists('mb_strlen') ? mb_strlen($token, 'UTF-8') : strlen($token);
-
-			if ($length < 3 || isset($stop_words[$token])) {
-				continue;
-			}
-
-			$tokens[$token] = true;
-		}
-
-		return array_keys($tokens);
-	}
-
-	private function extractNestedSitemapUrls(string $body, string $base_url, bool $allow_uploaded_urls = false): array {
+	private function extractNestedSitemapUrls(string $body, string $base_url): array {
 		$urls = [];
-		$is_sitemap_index = $this->isSitemapIndexBody($body);
 
 		if (preg_match_all('~<loc>\s*(.*?)\s*</loc>~is', $body, $matches)) {
 			foreach ($matches[1] as $raw_url) {
 				$url = html_entity_decode(strip_tags((string)$raw_url), ENT_QUOTES, 'UTF-8');
 				$url = $this->absoluteUrl($url, $base_url);
 
-				$is_allowed_url = $allow_uploaded_urls ? (bool)preg_match('~^https?://~i', $url) : $this->isInternalAbsoluteUrl($url);
-
-				if ($url !== '' && $is_allowed_url && ($is_sitemap_index || $this->looksLikeSitemapFile($url) || $this->looksLikeSitemapRoute($url))) {
+				if ($url !== '' && $this->isInternalAbsoluteUrl($url) && $this->looksLikeSitemapFile($url)) {
 					$urls[] = $url;
 				}
 			}
@@ -1568,29 +565,22 @@ class ControllerExtensionModuleRoko extends Controller {
 		return array_values(array_unique($urls));
 	}
 
-	private function extractSitemapPages(string $body, string $base_url, bool $allow_uploaded_urls = false): array {
+	private function extractSitemapPages(string $body, string $base_url): array {
 		$pages = [];
-
-		if ($this->isSitemapIndexBody($body)) {
-			return [];
-		}
 
 		if (preg_match_all('~<loc>\s*(.*?)\s*</loc>~is', $body, $matches)) {
 			foreach ($matches[1] as $raw_url) {
 				$url = html_entity_decode(strip_tags((string)$raw_url), ENT_QUOTES, 'UTF-8');
 				$url = $this->absoluteUrl($url, $base_url);
 
-				$is_allowed_url = $allow_uploaded_urls ? (bool)preg_match('~^https?://~i', $url) : $this->isInternalAbsoluteUrl($url);
-
-				if ($url === '' || !$is_allowed_url || $this->looksLikeSitemapFile($url) || $this->looksLikeSitemapRoute($url)) {
+				if ($url === '' || !$this->isInternalAbsoluteUrl($url) || $this->looksLikeSitemapFile($url)) {
 					continue;
 				}
 
 				$pages[] = [
 					'page' => $this->labelFromUrl($url),
 					'url' => $url,
-					'content_type' => $this->contentTypeFromUrl($url),
-					'source' => $allow_uploaded_urls ? 'uploaded_sitemap' : 'sitemap'
+					'source' => 'sitemap'
 				];
 			}
 		}
@@ -1599,9 +589,7 @@ class ControllerExtensionModuleRoko extends Controller {
 			foreach ($matches as $match) {
 				$url = $this->absoluteUrl((string)$match[1], $base_url);
 
-				$is_allowed_url = $allow_uploaded_urls ? (bool)preg_match('~^https?://~i', $url) : $this->isInternalAbsoluteUrl($url);
-
-				if ($url === '' || !$is_allowed_url) {
+				if ($url === '' || !$this->isInternalAbsoluteUrl($url)) {
 					continue;
 				}
 
@@ -1609,8 +597,7 @@ class ControllerExtensionModuleRoko extends Controller {
 				$pages[] = [
 					'page' => $label !== '' ? $this->shortText($label, 120) : $this->labelFromUrl($url),
 					'url' => $url,
-					'content_type' => $this->contentTypeFromUrl($url),
-					'source' => $allow_uploaded_urls ? 'uploaded_sitemap' : 'sitemap'
+					'source' => 'sitemap'
 				];
 			}
 		}
@@ -1618,14 +605,9 @@ class ControllerExtensionModuleRoko extends Controller {
 		return $pages;
 	}
 
-	private function isSitemapIndexBody(string $body): bool {
-		return (bool)preg_match('~<sitemapindex\b|<sitemap\b~i', $body);
-	}
-
-	private function uniqueNavigationPages(array $pages, int $limit = 180): array {
+	private function uniqueNavigationPages(array $pages): array {
 		$unique = [];
 		$seen = [];
-		$limit = max(1, $limit);
 
 		foreach ($pages as $page) {
 			if (!is_array($page)) {
@@ -1649,7 +631,7 @@ class ControllerExtensionModuleRoko extends Controller {
 			$seen[$key] = true;
 			$unique[] = $page;
 
-			if (count($unique) >= $limit) {
+			if (count($unique) >= 180) {
 				break;
 			}
 		}
@@ -1658,21 +640,14 @@ class ControllerExtensionModuleRoko extends Controller {
 	}
 
 	private function getRemoteText(string $url, int $timeout = 6): string {
-		$timeout = max(3, min(30, $timeout));
-		self::$last_remote_error = '';
-		$local_body = $this->getLocalInternalText($url);
-
-		if ($local_body !== '') {
-			return substr($this->decodeRemoteBody($url, $local_body), 0, self::REMOTE_TEXT_LIMIT);
-		}
+		$timeout = max(3, min(10, $timeout));
 
 		if (function_exists('curl_init')) {
 			$handle = curl_init($url);
 			curl_setopt($handle, CURLOPT_RETURNTRANSFER, true);
 			curl_setopt($handle, CURLOPT_CONNECTTIMEOUT, min(4, $timeout));
 			curl_setopt($handle, CURLOPT_TIMEOUT, $timeout);
-			curl_setopt($handle, CURLOPT_USERAGENT, 'Mozilla/5.0 (compatible; ROKO/3.4; +https://rockford-qatar.com)');
-			curl_setopt($handle, CURLOPT_ENCODING, '');
+			curl_setopt($handle, CURLOPT_USERAGENT, 'AI-Shopping-Assist/3.4');
 
 			if (!ini_get('open_basedir')) {
 				curl_setopt($handle, CURLOPT_FOLLOWLOCATION, true);
@@ -1680,14 +655,12 @@ class ControllerExtensionModuleRoko extends Controller {
 
 			$response = curl_exec($handle);
 			$status = (int)curl_getinfo($handle, CURLINFO_RESPONSE_CODE);
-			$error = curl_error($handle);
 			curl_close($handle);
 
 			if ($status >= 200 && $status < 300 && is_string($response)) {
-				return substr($this->decodeRemoteBody($url, $response), 0, self::REMOTE_TEXT_LIMIT);
+				return substr($response, 0, 400000);
 			}
 
-			self::$last_remote_error = $error !== '' ? $error : ('HTTP ' . ($status ?: 0));
 			return '';
 		}
 
@@ -1695,71 +668,13 @@ class ControllerExtensionModuleRoko extends Controller {
 			'http' => [
 				'method' => 'GET',
 				'timeout' => $timeout,
-				'header' => "User-Agent: ROKO/3.4\r\n",
+				'header' => "User-Agent: AI-Shopping-Assist/3.4\r\n",
 				'ignore_errors' => true
 			]
 		]);
 		$response = @file_get_contents($url, false, $context);
 
-		if (is_string($response)) {
-			return substr($this->decodeRemoteBody($url, $response), 0, self::REMOTE_TEXT_LIMIT);
-		}
-
-		$error = error_get_last();
-		self::$last_remote_error = (string)($error['message'] ?? 'HTTP request failed');
-
-		return '';
-	}
-
-	private function getLocalInternalText(string $url): string {
-		if (!$this->isInternalAbsoluteUrl($url)) {
-			return '';
-		}
-
-		$path = (string)(parse_url($url, PHP_URL_PATH) ?: '');
-		$path = rawurldecode($path);
-
-		if ($path === '' || substr($path, -1) === '/' || strpos($path, '..') !== false) {
-			return '';
-		}
-
-		$roots = [];
-
-		foreach (['DIR_APPLICATION', 'DIR_SYSTEM', 'DIR_IMAGE'] as $constant) {
-			if (defined($constant)) {
-				$root = realpath(dirname(rtrim((string)constant($constant), '/\\')));
-
-				if ($root) {
-					$roots[] = $root;
-				}
-			}
-		}
-
-		foreach (array_unique($roots) as $root) {
-			$file = $root . DIRECTORY_SEPARATOR . ltrim(str_replace(['/', '\\'], DIRECTORY_SEPARATOR, $path), DIRECTORY_SEPARATOR);
-			$real_file = realpath($file);
-
-			if ($real_file && strpos($real_file, $root . DIRECTORY_SEPARATOR) === 0 && is_file($real_file) && is_readable($real_file)) {
-				$body = file_get_contents($real_file);
-				return is_string($body) ? $body : '';
-			}
-		}
-
-		return '';
-	}
-
-	private function decodeRemoteBody(string $url, string $body): string {
-		$path = strtolower((string)(parse_url($url, PHP_URL_PATH) ?: ''));
-
-		if (substr($path, -3) === '.gz' && function_exists('gzdecode')) {
-			$decoded = @gzdecode($body);
-
-			if (is_string($decoded) && $decoded !== '') {
-				return $decoded;
-			}
-		}
-
-		return $body;
+		return is_string($response) ? substr($response, 0, 400000) : '';
 	}
 
 	private function absoluteUrl(string $url, string $base_url): string {
@@ -1818,20 +733,7 @@ class ControllerExtensionModuleRoko extends Controller {
 			}
 		}
 
-		$target_host = $this->canonicalHost((string)$parts['host']);
-
-		foreach (array_unique($allowed_hosts) as $allowed_host) {
-			if ($target_host === $this->canonicalHost($allowed_host)) {
-				return true;
-			}
-		}
-
-		return false;
-	}
-
-	private function canonicalHost(string $host): string {
-		$host = strtolower(trim($host));
-		return strpos($host, 'www.') === 0 ? substr($host, 4) : $host;
+		return in_array(strtolower($parts['host']), array_unique($allowed_hosts), true);
 	}
 
 	private function looksLikeSitemapFile(string $url): bool {
@@ -1839,13 +741,6 @@ class ControllerExtensionModuleRoko extends Controller {
 
 		return (bool)preg_match('~(?:^|/)[^/]*sitemap[^/]*\.xml(?:\.gz)?$~', $path)
 			|| (bool)preg_match('~\.xml(?:\.gz)?$~', $path);
-	}
-
-	private function looksLikeSitemapRoute(string $url): bool {
-		$query = strtolower((string)(parse_url($url, PHP_URL_QUERY) ?: ''));
-		$path = strtolower((string)(parse_url($url, PHP_URL_PATH) ?: ''));
-
-		return strpos($query, 'sitemap') !== false || strpos($path, 'sitemap') !== false;
 	}
 
 	private function labelFromUrl(string $url): string {
@@ -1870,7 +765,7 @@ class ControllerExtensionModuleRoko extends Controller {
 		$this->load->model('catalog/product');
 
 		$limit = (int)($this->config->get('module_roko_catalog_limit') ?: 80);
-		$limit = min(self::PROMPT_CATALOG_HARD_LIMIT, max(5, $limit));
+		$limit = min(200, max(5, $limit));
 		$rows = [];
 
 		if (trim($message) !== '') {
@@ -1916,6 +811,127 @@ class ControllerExtensionModuleRoko extends Controller {
 		return $products;
 	}
 
+	private function getLocalKnowledge(string $message): array {
+		$query_text = $this->foldText($message);
+		$tokens = $this->knowledgeTokens($query_text);
+
+		if ($query_text === '' || !$tokens) {
+			return [];
+		}
+
+		try {
+			$query = $this->db->query("
+				SELECT
+					`product_id`,
+					`name`,
+					`brand`,
+					`source_url`,
+					`content_type`,
+					LEFT(`content`, 60000) AS `content`
+				FROM `" . DB_PREFIX . "roko_knowledge`
+				ORDER BY `knowledge_id` ASC
+				LIMIT 1000
+			");
+		} catch (\Throwable $exception) {
+			return [];
+		}
+
+		$ranked = [];
+
+		foreach ($query->rows as $row) {
+			$name = $this->foldText((string)($row['name'] ?? ''));
+			$brand = $this->foldText((string)($row['brand'] ?? ''));
+			$product_id = $this->foldText((string)($row['product_id'] ?? ''));
+			$source_url = $this->foldText((string)($row['source_url'] ?? ''));
+			$content = $this->foldText((string)($row['content'] ?? ''));
+			$score = 0;
+
+			if ($product_id !== '' && in_array($product_id, $tokens, true)) {
+				$score += 120;
+			}
+
+			if (strlen($query_text) >= 4 && ($name === $query_text || strpos($name, $query_text) !== false)) {
+				$score += 90;
+			}
+
+			foreach ($tokens as $token) {
+				if (strpos($name, $token) !== false) {
+					$score += 30;
+				}
+
+				if ($brand !== '' && strpos($brand, $token) !== false) {
+					$score += 18;
+				}
+
+				if ($source_url !== '' && strpos($source_url, $token) !== false) {
+					$score += 12;
+				}
+
+				if (strpos($content, $token) !== false) {
+					$score += 3;
+				}
+			}
+
+			if ($score < 8) {
+				continue;
+			}
+
+			$row['_score'] = $score;
+			$ranked[] = $row;
+		}
+
+		usort($ranked, function (array $left, array $right): int {
+			return (int)$right['_score'] <=> (int)$left['_score'];
+		});
+
+		$results = [];
+		$total_length = 0;
+
+		foreach (array_slice($ranked, 0, 5) as $row) {
+			$content = $this->shortText((string)$row['content'], 6000);
+			$total_length += strlen($content);
+
+			if ($total_length > 20000) {
+				break;
+			}
+
+			$results[] = [
+				'product_id' => (string)$row['product_id'],
+				'name' => (string)$row['name'],
+				'brand' => (string)$row['brand'],
+				'content_type' => (string)$row['content_type'],
+				'source_url' => (string)$row['source_url'],
+				'content' => $content
+			];
+		}
+
+		return $results;
+	}
+
+	private function knowledgeTokens(string $value): array {
+		preg_match_all('/[\p{L}\p{N}][\p{L}\p{N}_.-]*/u', $value, $matches);
+		$stopwords = [
+			'the', 'and', 'for', 'with', 'from', 'this', 'that', 'what', 'which', 'about',
+			'product', 'products', 'tell', 'show', 'need', 'want', 'have', 'your', 'please',
+			'این', 'آن', 'برای', 'با', 'از', 'در', 'چیست', 'چیه', 'محصول', 'محصولات',
+			'لطفا', 'لطفاً', 'میخوام', 'می‌خواهم', 'دارید', 'درباره'
+		];
+		$tokens = [];
+
+		foreach ($matches[0] ?? [] as $token) {
+			$length = function_exists('mb_strlen') ? mb_strlen($token, 'UTF-8') : strlen($token);
+			$has_digit = (bool)preg_match('/\p{N}/u', $token);
+
+			if (($length < 3 && !$has_digit) || in_array($token, $stopwords, true) || in_array($token, $tokens, true)) {
+				continue;
+			}
+
+			$tokens[] = $token;
+		}
+
+		return array_slice($tokens, 0, 20);
+	}
+
 	private function getConversationHistory(string $conversation_id, string $latest_message): array {
 		try {
 			$query = $this->db->query("
@@ -1924,7 +940,7 @@ class ControllerExtensionModuleRoko extends Controller {
 				WHERE `conversation_id` = '" . $this->db->escape(substr($conversation_id, 0, 80)) . "'
 				AND `role` IN ('user', 'assistant')
 				ORDER BY `log_id` DESC
-				LIMIT " . (int)self::CONVERSATION_HISTORY_LIMIT . "
+				LIMIT 12
 			");
 
 			$rows = array_reverse($query->rows);
@@ -2364,57 +1380,6 @@ class ControllerExtensionModuleRoko extends Controller {
 				continue;
 			}
 
-			$raw_url = trim((string)($raw_product['product_url'] ?? $raw_product['url'] ?? $raw_product['href'] ?? ''));
-			$content_type = strtolower(trim((string)($raw_product['content_type'] ?? $raw_product['type'] ?? 'product')));
-
-			if ($content_type === 'product' && empty($raw_product['product_id']) && empty($raw_product['id']) && $raw_url !== '') {
-				$content_type = $this->contentTypeFromUrl($raw_url);
-			}
-
-			if ($content_type === 'article') {
-				$content_type = 'blog';
-			}
-
-			if (in_array($content_type, ['blog', 'page', 'category'], true)) {
-				$url = $this->internalUrl($raw_url);
-				$name = trim((string)($raw_product['name'] ?? $raw_product['title'] ?? $raw_product['page'] ?? ''));
-				$image = trim((string)($raw_product['image'] ?? ''));
-
-				if ($url === '' || $name === '') {
-					continue;
-				}
-
-				if ($image === '') {
-					$image = $this->cachedSitemapImage($url);
-				}
-
-				$key = $content_type . ':' . $url;
-
-				if (isset($seen[$key])) {
-					continue;
-				}
-
-				$seen[$key] = true;
-				$cards[] = [
-					'product_id' => '',
-					'name' => $this->shortText($name, 180),
-					'product_url' => $url,
-					'content_type' => $content_type,
-					'price' => '',
-					'stock' => null,
-					'image' => $image,
-					'category' => ucfirst($content_type),
-					'summary' => $this->shortText((string)($raw_product['reason'] ?? $raw_product['summary'] ?? $raw_product['description'] ?? $raw_product['content'] ?? ''), 360),
-					'attributes' => []
-				];
-
-				if (count($cards) >= 4) {
-					break;
-				}
-
-				continue;
-			}
-
 			$product = $this->findCatalogProduct(
 				(string)($raw_product['name'] ?? $raw_product['product_name'] ?? ''),
 				(string)($raw_product['product_id'] ?? $raw_product['id'] ?? '')
@@ -2437,7 +1402,6 @@ class ControllerExtensionModuleRoko extends Controller {
 				'product_id' => $product['product_id'],
 				'name' => $product['name'],
 				'product_url' => $product['product_url'],
-				'content_type' => 'product',
 				'price' => $product['price'],
 				'stock' => $product['stock'],
 				'image' => $product['image'],
@@ -2452,30 +1416,6 @@ class ControllerExtensionModuleRoko extends Controller {
 		}
 
 		return $cards;
-	}
-
-	private function cachedSitemapImage(string $url): string {
-		$url = trim($url);
-
-		if ($url === '') {
-			return '';
-		}
-
-		try {
-			$this->createSitemapPageTable();
-
-			$query = $this->db->query("
-				SELECT `image`
-				FROM `" . DB_PREFIX . "roko_sitemap_page`
-				WHERE `url_hash` = '" . $this->db->escape(md5($url)) . "'
-				AND `image` <> ''
-				LIMIT 1
-			");
-
-			return (string)($query->row['image'] ?? '');
-		} catch (\Throwable $exception) {
-			return '';
-		}
 	}
 
 	private function productCardsFromActions(array $actions): array {
@@ -3046,8 +1986,10 @@ class ControllerExtensionModuleRoko extends Controller {
 			'price' => $this->formatProductPrice($price, (int)($product['tax_class_id'] ?? 0)),
 			'stock' => (int)($product['quantity'] ?? 0),
 			'category' => $this->cleanText((string)($product['manufacturer'] ?? ($product['model'] ?? 'General'))),
+			'brand' => $this->cleanText((string)($product['manufacturer'] ?? '')),
 			'attributes' => $this->catalogAttributes($product),
 			'sales_angle' => $this->cleanText((string)($product['description'] ?? '')),
+			'full_description' => $this->cleanText((string)($product['description'] ?? '')),
 			'image' => $this->productImage((string)($product['image'] ?? '')),
 			'alternatives' => []
 		];
@@ -3165,13 +2107,7 @@ class ControllerExtensionModuleRoko extends Controller {
 			return true;
 		}
 
-		$provided = $this->getHeader('X-AI-Assistant-Token');
-
-		if ($provided === '') {
-			$provided = (string)($this->request->get['token'] ?? '');
-		}
-
-		return hash_equals($token, $provided);
+		return hash_equals($token, $this->getHeader('X-AI-Assistant-Token'));
 	}
 
 	private function getHeader(string $name): string {
@@ -3252,65 +2188,6 @@ class ControllerExtensionModuleRoko extends Controller {
 		return ['status' => $status, 'body' => $response, 'error' => ''];
 	}
 
-	private function writeLeadRecord(array $lead, string $conversation_id, array $input, bool $sent_to_webhook): void {
-		try {
-			$this->createLeadTable();
-			$page_context = is_array($input['page_context'] ?? null) ? $input['page_context'] : [];
-			$ip = (string)($this->request->server['REMOTE_ADDR'] ?? '');
-			$user_agent = substr((string)($this->request->server['HTTP_USER_AGENT'] ?? ''), 0, 255);
-			$customer_id = $this->customer->isLogged() ? (int)$this->customer->getId() : 0;
-
-			$this->db->query("
-				INSERT INTO `" . DB_PREFIX . "roko_lead`
-				SET
-					`conversation_id` = '" . $this->db->escape(substr($conversation_id, 0, 80)) . "',
-					`product_name` = '" . $this->db->escape(substr((string)($lead['product_name'] ?? ''), 0, 180)) . "',
-					`qty` = '" . $this->db->escape(substr((string)($lead['qty'] ?? ''), 0, 40)) . "',
-					`name` = '" . $this->db->escape(substr((string)($lead['name'] ?? ''), 0, 180)) . "',
-					`company` = '" . $this->db->escape(substr((string)($lead['company'] ?? ''), 0, 180)) . "',
-					`contact_number` = '" . $this->db->escape(substr((string)($lead['contact_number'] ?? ''), 0, 180)) . "',
-					`email` = '" . $this->db->escape(substr((string)($lead['email'] ?? ''), 0, 180)) . "',
-					`delivery_location` = '" . $this->db->escape(substr((string)($lead['delivery_location'] ?? ''), 0, 2000)) . "',
-					`page_url` = '" . $this->db->escape(substr((string)($page_context['url'] ?? ''), 0, 2000)) . "',
-					`page_title` = '" . $this->db->escape(substr((string)($page_context['title'] ?? ''), 0, 255)) . "',
-					`customer_id` = '" . (int)$customer_id . "',
-					`sent_to_webhook` = '" . ($sent_to_webhook ? 1 : 0) . "',
-					`ip` = '" . $this->db->escape(substr($ip, 0, 45)) . "',
-					`user_agent` = '" . $this->db->escape($user_agent) . "',
-					`date_added` = NOW()
-			");
-		} catch (\Throwable $exception) {
-			$this->log->write('ROKO lead record failed: ' . $exception->getMessage());
-		}
-	}
-
-	private function createLeadTable(): void {
-		$this->db->query("
-			CREATE TABLE IF NOT EXISTS `" . DB_PREFIX . "roko_lead` (
-				`lead_id` int(11) NOT NULL AUTO_INCREMENT,
-				`conversation_id` varchar(80) NOT NULL DEFAULT '',
-				`product_name` varchar(180) NOT NULL DEFAULT '',
-				`qty` varchar(40) NOT NULL DEFAULT '',
-				`name` varchar(180) NOT NULL DEFAULT '',
-				`company` varchar(180) NOT NULL DEFAULT '',
-				`contact_number` varchar(180) NOT NULL DEFAULT '',
-				`email` varchar(180) NOT NULL DEFAULT '',
-				`delivery_location` text NOT NULL,
-				`page_url` text NOT NULL,
-				`page_title` varchar(255) NOT NULL DEFAULT '',
-				`customer_id` int(11) NOT NULL DEFAULT 0,
-				`sent_to_webhook` tinyint(1) NOT NULL DEFAULT 0,
-				`ip` varchar(45) NOT NULL DEFAULT '',
-				`user_agent` varchar(255) NOT NULL DEFAULT '',
-				`date_added` datetime NOT NULL,
-				PRIMARY KEY (`lead_id`),
-				KEY `conversation_id` (`conversation_id`),
-				KEY `email` (`email`),
-				KEY `date_added` (`date_added`)
-			) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
-		");
-	}
-
 	private function writeChatLog(string $conversation_id, string $role, string $content): void {
 		if ($content === '') {
 			return;
@@ -3337,67 +2214,6 @@ class ControllerExtensionModuleRoko extends Controller {
 		} catch (\Throwable $exception) {
 			$this->log->write('ROKO log failed: ' . $exception->getMessage());
 		}
-	}
-
-	private function writeRedirectLog(
-		string $conversation_id,
-		string $action_type,
-		string $source_url,
-		string $destination_url,
-		string $destination_url_utm,
-		string $utm_payload
-	): void {
-		try {
-			$this->createRedirectLogTable();
-			$ip = (string)($this->request->server['REMOTE_ADDR'] ?? '');
-			$user_agent = substr((string)($this->request->server['HTTP_USER_AGENT'] ?? ''), 0, 255);
-
-			$this->db->query("
-				INSERT INTO `" . DB_PREFIX . "roko_redirect_log`
-				SET
-					`conversation_id` = '" . $this->db->escape($conversation_id) . "',
-					`action_type` = '" . $this->db->escape($action_type) . "',
-					`source_url` = '" . $this->db->escape($source_url) . "',
-					`destination_url` = '" . $this->db->escape($destination_url) . "',
-					`destination_url_utm` = '" . $this->db->escape($destination_url_utm) . "',
-					`utm_payload` = '" . $this->db->escape($utm_payload) . "',
-					`ip` = '" . $this->db->escape(substr($ip, 0, 45)) . "',
-					`user_agent` = '" . $this->db->escape($user_agent) . "',
-					`date_added` = NOW()
-			");
-		} catch (\Throwable $exception) {
-			$this->log->write('ROKO redirect log failed: ' . $exception->getMessage());
-		}
-	}
-
-	private function createRedirectLogTable(): void {
-		$this->db->query("
-			CREATE TABLE IF NOT EXISTS `" . DB_PREFIX . "roko_redirect_log` (
-				`redirect_log_id` int(11) NOT NULL AUTO_INCREMENT,
-				`conversation_id` varchar(80) NOT NULL DEFAULT '',
-				`action_type` varchar(40) NOT NULL DEFAULT '',
-				`source_url` text NOT NULL,
-				`destination_url` text NOT NULL,
-				`destination_url_utm` text NOT NULL,
-				`utm_payload` text NOT NULL,
-				`ip` varchar(45) NOT NULL DEFAULT '',
-				`user_agent` varchar(255) NOT NULL DEFAULT '',
-				`date_added` datetime NOT NULL,
-				PRIMARY KEY (`redirect_log_id`),
-				KEY `conversation_id` (`conversation_id`),
-				KEY `date_added` (`date_added`)
-			) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
-		");
-	}
-
-	private function limitLogUrl(string $url): string {
-		$url = trim($url);
-
-		if ($url === '') {
-			return '';
-		}
-
-		return substr($url, 0, 2000);
 	}
 
 	private function getLocalConversationId(): string {
@@ -3462,7 +2278,9 @@ class ControllerExtensionModuleRoko extends Controller {
 			403 => 'Forbidden',
 			404 => 'Not Found',
 			500 => 'Internal Server Error',
-			502 => 'Bad Gateway'
+			502 => 'Bad Gateway',
+			503 => 'Service Unavailable',
+			504 => 'Gateway Timeout'
 		];
 
 		return $map[$status] ?? 'OK';
