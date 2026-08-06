@@ -67,6 +67,10 @@ class ControllerExtensionModuleRoko extends Controller {
 		$data['module_roko_system_prompt'] = (string)$this->config->get('module_roko_system_prompt');
 		$data['module_roko_catalog_token'] = (string)$this->config->get('module_roko_catalog_token');
 		$data['module_roko_footer_injection'] = $this->config->get('module_roko_footer_injection') !== null ? (int)$this->config->get('module_roko_footer_injection') : 1;
+		$data['module_roko_suggest_next_questions'] = $this->config->get('module_roko_suggest_next_questions') !== null ? (int)$this->config->get('module_roko_suggest_next_questions') : 1;
+		$data['module_roko_suggest_blogs'] = $this->config->get('module_roko_suggest_blogs') !== null ? (int)$this->config->get('module_roko_suggest_blogs') : 1;
+		$data['module_roko_suggest_categories'] = $this->config->get('module_roko_suggest_categories') !== null ? (int)$this->config->get('module_roko_suggest_categories') : 1;
+		$data['module_roko_suggest_products'] = $this->config->get('module_roko_suggest_products') !== null ? (int)$this->config->get('module_roko_suggest_products') : 1;
 		$data['module_roko_widget_title'] = $widget_title;
 		$data['module_roko_widget_button'] = $widget_button;
 		$data['module_roko_redirect_utm'] = (string)$this->config->get('module_roko_redirect_utm');
@@ -182,6 +186,10 @@ class ControllerExtensionModuleRoko extends Controller {
 				'module_roko_system_prompt' => $this->limitSettingText((string)($this->request->post['module_roko_system_prompt'] ?? ''), 12000),
 				'module_roko_catalog_token' => trim((string)($this->request->post['module_roko_catalog_token'] ?? '')),
 				'module_roko_footer_injection' => (int)($this->request->post['module_roko_footer_injection'] ?? 0),
+				'module_roko_suggest_next_questions' => (int)($this->request->post['module_roko_suggest_next_questions'] ?? 0),
+				'module_roko_suggest_blogs' => (int)($this->request->post['module_roko_suggest_blogs'] ?? 0),
+				'module_roko_suggest_categories' => (int)($this->request->post['module_roko_suggest_categories'] ?? 0),
+				'module_roko_suggest_products' => (int)($this->request->post['module_roko_suggest_products'] ?? 0),
 				'module_roko_widget_title' => trim((string)($this->request->post['module_roko_widget_title'] ?? 'ROKO')),
 				'module_roko_widget_button' => trim((string)($this->request->post['module_roko_widget_button'] ?? 'Chat')),
 				'module_roko_redirect_utm' => $this->limitSettingText((string)($this->request->post['module_roko_redirect_utm'] ?? ''), 500)
@@ -433,6 +441,10 @@ class ControllerExtensionModuleRoko extends Controller {
 			'module_roko_system_prompt' => '',
 			'module_roko_catalog_token' => '',
 			'module_roko_footer_injection' => 1,
+			'module_roko_suggest_next_questions' => 1,
+			'module_roko_suggest_blogs' => 1,
+			'module_roko_suggest_categories' => 1,
+			'module_roko_suggest_products' => 1,
 			'module_roko_widget_title' => 'ROKO',
 			'module_roko_widget_button' => 'Chat',
 			'module_roko_redirect_utm' => 'utm_source=roko&utm_medium=assistant&utm_campaign=chat'

@@ -39,6 +39,7 @@ $_['text_no_leads'] = 'هنوز لیدی ثبت نشده.';
 $_['text_clear_leads'] = 'پاک کردن لیدها';
 $_['text_yes'] = 'بله';
 $_['text_no'] = 'خیر';
+$_['text_suggestion_controls'] = 'کنترل پیشنهادها';
 
 $_['text_repair_lead_storage'] = 'ترمیم جدول لیدها';
 $_['text_lead_storage_ready'] = 'جدول ذخیره لیدها آماده است: %s';
@@ -54,6 +55,10 @@ $_['entry_sitemap_url'] = 'Sitemap URL';
 $_['entry_system_prompt'] = 'System prompt';
 $_['entry_catalog_token'] = 'Catalog token';
 $_['entry_footer_injection'] = 'Auto-inject widget';
+$_['entry_suggest_next_questions'] = 'پیشنهاد سؤال بعدی چت';
+$_['entry_suggest_blogs'] = 'پیشنهاد بلاگ و صفحه';
+$_['entry_suggest_categories'] = 'پیشنهاد دسته‌بندی';
+$_['entry_suggest_products'] = 'پیشنهاد محصول';
 $_['entry_widget_title'] = 'Widget title';
 $_['entry_widget_button'] = 'Button text';
 $_['entry_redirect_utm'] = 'پارامترهای UTM ریدایرکت';
@@ -72,6 +77,7 @@ $_['help_sitemap_url'] = 'Optional. Paste your store sitemap URL so ROKO can use
 $_['help_upload_sitemap'] = 'Upload a full sitemap.xml file. ROKO reads this file before the configured Sitemap URL.';
 $_['help_system_prompt'] = 'Optional. Add store-specific rules, tone, link guidance, offer policy, or recommendation instructions. These rules are appended to every Gemini prompt.';
 $_['help_catalog_token'] = 'Optional. If set, catalog JSON requests must include X-ROKO-Token or X-AI-Assistant-Token.';
+$_['help_suggestion_controls'] = 'مشخص کنید ROKO بعد از هر پاسخ کدام نوع پیشنهادها را تولید و نمایش دهد. موارد غیرفعال از تاریخچه چت نیز نمایش داده نمی‌شوند.';
 $_['help_redirect_utm'] = 'اختیاری. پارامترهای UTM برای ریدایرکت‌های ROKO، مثلاً: utm_source=roko&utm_medium=assistant&utm_campaign=chat';
 
 $_['column_date'] = 'Date';

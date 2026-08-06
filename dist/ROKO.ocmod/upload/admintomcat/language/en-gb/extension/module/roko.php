@@ -41,6 +41,7 @@ $_['text_repair_lead_storage'] = 'Repair lead storage';
 $_['text_lead_storage_ready'] = 'Lead storage is ready: %s';
 $_['text_yes'] = 'Yes';
 $_['text_no'] = 'No';
+$_['text_suggestion_controls'] = 'Suggestion controls';
 
 $_['entry_status'] = 'Status';
 $_['entry_gemini_api_key'] = 'Gemini API keys';
@@ -53,6 +54,10 @@ $_['entry_sitemap_url'] = 'Sitemap URL';
 $_['entry_system_prompt'] = 'System prompt';
 $_['entry_catalog_token'] = 'Catalog token';
 $_['entry_footer_injection'] = 'Auto-inject widget';
+$_['entry_suggest_next_questions'] = 'Next-question suggestions';
+$_['entry_suggest_blogs'] = 'Blog and page suggestions';
+$_['entry_suggest_categories'] = 'Category suggestions';
+$_['entry_suggest_products'] = 'Product suggestions';
 $_['entry_widget_title'] = 'Widget title';
 $_['entry_widget_button'] = 'Button text';
 $_['entry_redirect_utm'] = 'Redirect UTM parameters';
@@ -71,6 +76,7 @@ $_['help_sitemap_url'] = 'Optional. Paste your store sitemap URL so ROKO can use
 $_['help_upload_sitemap'] = 'Upload a full sitemap.xml file. ROKO reads this file before the configured Sitemap URL.';
 $_['help_system_prompt'] = 'Optional. Add store-specific rules, tone, link guidance, offer policy, or recommendation instructions. These rules are appended to every Gemini prompt.';
 $_['help_catalog_token'] = 'Optional. If set, catalog JSON requests must include X-ROKO-Token or X-AI-Assistant-Token.';
+$_['help_suggestion_controls'] = 'Choose which suggestion types ROKO may generate and display after each reply. Disabled types are also hidden when saved chat history is displayed.';
 $_['help_redirect_utm'] = 'Optional. Add UTM query parameters for ROKO redirects, for example: utm_source=roko&utm_medium=assistant&utm_campaign=chat';
 
 $_['column_date'] = 'Date';
