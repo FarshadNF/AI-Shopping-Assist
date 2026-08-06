@@ -3,8 +3,6 @@ class ControllerExtensionModuleRoko extends Controller {
 	private const SETTING_CODE = 'module_roko';
 	private const EVENT_CONTROLLER = 'roko_footer_controller';
 	private const EVENT_VIEW = 'roko_footer_view';
-	private const DEFAULT_LEAD_WEBHOOK_URL = 'https://script.google.com/macros/s/AKfycbwV1zaw6C3iKdWVaK-gN8hyAzvW8_RygWTp9Q2ggjYUWcAftM2c7ipOIM5l6UowTsCS/exec';
-	private const DEFAULT_LEAD_WEBHOOK_SECRET = 'f8c9d2a7e1b4c6f9a3d8e7b2c5f1a9d4';
 
 	public function index(): void {
 		$this->load->language('extension/module/roko');
@@ -34,6 +32,7 @@ class ControllerExtensionModuleRoko extends Controller {
 		$data['clear_redirect_logs'] = $this->url->link('extension/module/roko/clearRedirectLogs', 'user_token=' . $this->session->data['user_token']);
 		$data['export_redirect_logs'] = $this->url->link('extension/module/roko/exportRedirectLogs', 'user_token=' . $this->session->data['user_token']);
 		$data['clear_leads'] = $this->url->link('extension/module/roko/clearLeads', 'user_token=' . $this->session->data['user_token']);
+		$data['repair_lead_storage'] = $this->url->link('extension/module/roko/repairLeadStorage', 'user_token=' . $this->session->data['user_token']);
 		$data['export_leads'] = $this->url->link('extension/module/roko/exportLeads', 'user_token=' . $this->session->data['user_token']);
 		$data['upload_sitemap'] = $this->url->link('extension/module/roko/uploadSitemap', 'user_token=' . $this->session->data['user_token']);
 		$data['back'] = $this->url->link('marketplace/extension', 'user_token=' . $this->session->data['user_token'] . '&type=module');
@@ -67,8 +66,6 @@ class ControllerExtensionModuleRoko extends Controller {
 		$data['module_roko_sitemap_url'] = (string)$this->config->get('module_roko_sitemap_url');
 		$data['module_roko_system_prompt'] = (string)$this->config->get('module_roko_system_prompt');
 		$data['module_roko_catalog_token'] = (string)$this->config->get('module_roko_catalog_token');
-		$data['module_roko_lead_webhook_url'] = (string)($this->config->get('module_roko_lead_webhook_url') ?: self::DEFAULT_LEAD_WEBHOOK_URL);
-		$data['module_roko_lead_webhook_secret'] = (string)($this->config->get('module_roko_lead_webhook_secret') ?: self::DEFAULT_LEAD_WEBHOOK_SECRET);
 		$data['module_roko_footer_injection'] = $this->config->get('module_roko_footer_injection') !== null ? (int)$this->config->get('module_roko_footer_injection') : 1;
 		$data['module_roko_widget_title'] = $widget_title;
 		$data['module_roko_widget_button'] = $widget_button;
@@ -184,8 +181,6 @@ class ControllerExtensionModuleRoko extends Controller {
 				'module_roko_sitemap_url' => $this->normalizeUrl((string)($this->request->post['module_roko_sitemap_url'] ?? '')),
 				'module_roko_system_prompt' => $this->limitSettingText((string)($this->request->post['module_roko_system_prompt'] ?? ''), 12000),
 				'module_roko_catalog_token' => trim((string)($this->request->post['module_roko_catalog_token'] ?? '')),
-				'module_roko_lead_webhook_url' => trim((string)($this->request->post['module_roko_lead_webhook_url'] ?? self::DEFAULT_LEAD_WEBHOOK_URL)),
-				'module_roko_lead_webhook_secret' => trim((string)($this->request->post['module_roko_lead_webhook_secret'] ?? self::DEFAULT_LEAD_WEBHOOK_SECRET)),
 				'module_roko_footer_injection' => (int)($this->request->post['module_roko_footer_injection'] ?? 0),
 				'module_roko_widget_title' => trim((string)($this->request->post['module_roko_widget_title'] ?? 'ROKO')),
 				'module_roko_widget_button' => trim((string)($this->request->post['module_roko_widget_button'] ?? 'Chat')),
@@ -377,9 +372,28 @@ class ControllerExtensionModuleRoko extends Controller {
 		}
 
 		if (!$json) {
-			$this->createLeadTable();
-			$this->db->query('TRUNCATE TABLE `' . DB_PREFIX . 'roko_lead`');
-			$json['success'] = $this->language->get('text_success');
+			if ($this->createLeadTable()) {
+				$this->db->query('TRUNCATE TABLE `' . DB_PREFIX . 'roko_lead`');
+				$json['success'] = $this->language->get('text_success');
+			} else {
+				$json['error'] = sprintf($this->language->get('error_lead_storage'), DB_PREFIX . 'roko_lead');
+			}
+		}
+
+		$this->response->addHeader('Content-Type: application/json');
+		$this->response->setOutput(json_encode($json));
+	}
+
+	public function repairLeadStorage(): void {
+		$this->load->language('extension/module/roko');
+		$json = [];
+
+		if (!$this->user->hasPermission('modify', 'extension/module/roko')) {
+			$json['error'] = $this->language->get('error_permission');
+		} elseif ($this->createLeadTable()) {
+			$json['success'] = sprintf($this->language->get('text_lead_storage_ready'), DB_PREFIX . 'roko_lead');
+		} else {
+			$json['error'] = sprintf($this->language->get('error_lead_storage'), DB_PREFIX . 'roko_lead');
 		}
 
 		$this->response->addHeader('Content-Type: application/json');
@@ -418,8 +432,6 @@ class ControllerExtensionModuleRoko extends Controller {
 			'module_roko_sitemap_url' => '',
 			'module_roko_system_prompt' => '',
 			'module_roko_catalog_token' => '',
-			'module_roko_lead_webhook_url' => self::DEFAULT_LEAD_WEBHOOK_URL,
-			'module_roko_lead_webhook_secret' => self::DEFAULT_LEAD_WEBHOOK_SECRET,
 			'module_roko_footer_injection' => 1,
 			'module_roko_widget_title' => 'ROKO',
 			'module_roko_widget_button' => 'Chat',
@@ -467,9 +479,14 @@ class ControllerExtensionModuleRoko extends Controller {
 		$this->createLeadTable();
 	}
 
-	private function createLeadTable(): void {
-		$this->db->query("
-			CREATE TABLE IF NOT EXISTS `" . DB_PREFIX . "roko_lead` (
+	private function createLeadTable(): bool {
+		if ($this->leadTableExists()) {
+			return true;
+		}
+
+		$table = DB_PREFIX . 'roko_lead';
+		$definition = "
+			CREATE TABLE IF NOT EXISTS `" . $table . "` (
 				`lead_id` int(11) NOT NULL AUTO_INCREMENT,
 				`conversation_id` varchar(80) NOT NULL DEFAULT '',
 				`product_name` varchar(180) NOT NULL DEFAULT '',
@@ -482,7 +499,6 @@ class ControllerExtensionModuleRoko extends Controller {
 				`page_url` text NOT NULL,
 				`page_title` varchar(255) NOT NULL DEFAULT '',
 				`customer_id` int(11) NOT NULL DEFAULT 0,
-				`sent_to_webhook` tinyint(1) NOT NULL DEFAULT 0,
 				`ip` varchar(45) NOT NULL DEFAULT '',
 				`user_agent` varchar(255) NOT NULL DEFAULT '',
 				`date_added` datetime NOT NULL,
@@ -490,8 +506,37 @@ class ControllerExtensionModuleRoko extends Controller {
 				KEY `conversation_id` (`conversation_id`),
 				KEY `email` (`email`),
 				KEY `date_added` (`date_added`)
-			) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
-		");
+			)";
+		$options = [
+			' ENGINE=InnoDB DEFAULT CHARSET=utf8mb4',
+			' ENGINE=InnoDB DEFAULT CHARSET=utf8',
+			' ENGINE=MyISAM DEFAULT CHARSET=utf8'
+		];
+		$errors = [];
+
+		foreach ($options as $option) {
+			try {
+				$this->db->query($definition . $option);
+
+				if ($this->leadTableExists()) {
+					return true;
+				}
+			} catch (\Throwable $exception) {
+				$errors[] = $exception->getMessage();
+			}
+		}
+
+		$this->log->write('ROKO lead table setup failed for ' . $table . ': ' . implode(' | ', array_unique($errors)));
+		return false;
+	}
+
+	private function leadTableExists(): bool {
+		try {
+			$this->db->query("SELECT `lead_id` FROM `" . DB_PREFIX . "roko_lead` LIMIT 1");
+			return true;
+		} catch (\Throwable $exception) {
+			return false;
+		}
 	}
 
 	private function createRedirectLogTable(): void {
@@ -891,8 +936,7 @@ class ControllerExtensionModuleRoko extends Controller {
 					`delivery_location`,
 					`page_url`,
 					`page_title`,
-					`customer_id`,
-					`sent_to_webhook`
+					`customer_id`
 				FROM `" . DB_PREFIX . "roko_lead`
 				" . $where . "
 				ORDER BY `lead_id` DESC
@@ -914,8 +958,7 @@ class ControllerExtensionModuleRoko extends Controller {
 					'delivery_location' => (string)($row['delivery_location'] ?? ''),
 					'page_url' => (string)($row['page_url'] ?? ''),
 					'page_title' => (string)($row['page_title'] ?? ''),
-					'customer_id' => (int)($row['customer_id'] ?? 0),
-					'sent_to_webhook' => (int)($row['sent_to_webhook'] ?? 0)
+					'customer_id' => (int)($row['customer_id'] ?? 0)
 				];
 			}
 
@@ -989,7 +1032,6 @@ class ControllerExtensionModuleRoko extends Controller {
 						`page_url` = '',
 						`page_title` = '',
 						`customer_id` = '" . (int)($row['customer_id'] ?? 0) . "',
-						`sent_to_webhook` = '" . (!empty($payload['sent_to_google_sheet']) ? 1 : 0) . "',
 						`ip` = '" . $this->db->escape(substr((string)($row['ip'] ?? ''), 0, 45)) . "',
 						`user_agent` = '" . $this->db->escape(substr((string)($row['user_agent'] ?? ''), 0, 255)) . "',
 						`date_added` = " . ($date_added !== '' ? "'" . $this->db->escape($date_added) . "'" : 'NOW()') . "
@@ -1494,7 +1536,6 @@ class ControllerExtensionModuleRoko extends Controller {
 					`page_url`,
 					`page_title`,
 					`customer_id`,
-					`sent_to_webhook`,
 					`ip`,
 					`user_agent`
 				FROM `" . DB_PREFIX . "roko_lead`
@@ -1522,7 +1563,6 @@ class ControllerExtensionModuleRoko extends Controller {
 			['key' => 'page_url', 'title' => $this->language->get('column_page_url'), 'type' => 'String'],
 			['key' => 'page_title', 'title' => $this->language->get('column_page_title'), 'type' => 'String'],
 			['key' => 'customer_id', 'title' => $this->language->get('column_customer'), 'type' => 'Number'],
-			['key' => 'sent_to_webhook', 'title' => $this->language->get('column_webhook_sent'), 'type' => 'String'],
 			['key' => 'ip', 'title' => $this->language->get('column_ip'), 'type' => 'String'],
 			['key' => 'user_agent', 'title' => $this->language->get('column_user_agent'), 'type' => 'String']
 		];
@@ -1546,10 +1586,6 @@ class ControllerExtensionModuleRoko extends Controller {
 
 			foreach ($columns as $column) {
 				$value = (string)($row[$column['key']] ?? '');
-
-				if ($column['key'] === 'sent_to_webhook') {
-					$value = (int)$value ? $this->language->get('text_yes') : $this->language->get('text_no');
-				}
 
 				$type = $column['type'];
 

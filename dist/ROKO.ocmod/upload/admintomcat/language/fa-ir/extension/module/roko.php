@@ -40,6 +40,9 @@ $_['text_clear_leads'] = 'پاک کردن لیدها';
 $_['text_yes'] = 'بله';
 $_['text_no'] = 'خیر';
 
+$_['text_repair_lead_storage'] = 'ترمیم جدول لیدها';
+$_['text_lead_storage_ready'] = 'جدول ذخیره لیدها آماده است: %s';
+
 $_['entry_status'] = 'Status';
 $_['entry_gemini_api_key'] = 'Gemini API keys';
 $_['entry_gemini_model'] = 'Gemini model';
@@ -50,8 +53,6 @@ $_['entry_assistant_name'] = 'Assistant name';
 $_['entry_sitemap_url'] = 'Sitemap URL';
 $_['entry_system_prompt'] = 'System prompt';
 $_['entry_catalog_token'] = 'Catalog token';
-$_['entry_lead_webhook_url'] = 'Lead webhook URL';
-$_['entry_lead_webhook_secret'] = 'Lead webhook secret';
 $_['entry_footer_injection'] = 'Auto-inject widget';
 $_['entry_widget_title'] = 'Widget title';
 $_['entry_widget_button'] = 'Button text';
@@ -71,8 +72,6 @@ $_['help_sitemap_url'] = 'Optional. Paste your store sitemap URL so ROKO can use
 $_['help_upload_sitemap'] = 'Upload a full sitemap.xml file. ROKO reads this file before the configured Sitemap URL.';
 $_['help_system_prompt'] = 'Optional. Add store-specific rules, tone, link guidance, offer policy, or recommendation instructions. These rules are appended to every Gemini prompt.';
 $_['help_catalog_token'] = 'Optional. If set, catalog JSON requests must include X-ROKO-Token or X-AI-Assistant-Token.';
-$_['help_lead_webhook_url'] = 'Optional. Paste the Google Apps Script Web App URL. Bulk lead forms will be sent to this URL as JSON.';
-$_['help_lead_webhook_secret'] = 'Optional shared secret. If set here, use the same value in Apps Script to reject unknown requests.';
 $_['help_redirect_utm'] = 'اختیاری. پارامترهای UTM برای ریدایرکت‌های ROKO، مثلاً: utm_source=roko&utm_medium=assistant&utm_campaign=chat';
 
 $_['column_date'] = 'Date';
@@ -103,7 +102,6 @@ $_['column_email'] = 'ایمیل';
 $_['column_delivery_location'] = 'محل تحویل';
 $_['column_page_url'] = 'آدرس صفحه';
 $_['column_page_title'] = 'عنوان صفحه';
-$_['column_webhook_sent'] = 'ارسال به Webhook';
 
 $_['error_permission'] = 'Warning: You do not have permission to modify ROKO!';
 $_['error_gemini_api_key'] = 'At least one Gemini API key is required when the module is enabled.';
@@ -111,3 +109,4 @@ $_['error_upload_sitemap'] = 'Please choose a sitemap XML file.';
 $_['error_upload_sitemap_type'] = 'Only .xml, .xml.gz, or .gz sitemap files are allowed.';
 $_['error_upload_sitemap_content'] = 'The uploaded file does not look like a valid sitemap XML.';
 $_['error_upload_sitemap_write'] = 'Could not save the uploaded sitemap XML.';
+$_['error_lead_storage'] = 'ساخت جدول لیدها (%s) انجام نشد. خطای دیتابیس را در لاگ OpenCart بررسی کنید.';
