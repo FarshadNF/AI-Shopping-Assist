@@ -1009,6 +1009,206 @@
     }
 
     startProductEnquiry(product) {
+      const products = this.normalizeQuoteProducts([product]);
+      if (products.length) this.startQuoteRequest(products, products[0].product_name);
+    }
+
+    normalizeQuoteProducts(products) {
+      if (!Array.isArray(products)) return [];
+      return products.map((product) => {
+        if (typeof product === 'string') product = { product_name: product };
+        if (!product || typeof product !== 'object') return null;
+        const productName = String(product.product_name || product.name || product.item || '').replace(/\s+/g, ' ').trim();
+        if (!productName) return null;
+        const rawQty = product.qty !== undefined ? product.qty : (product.quantity !== undefined ? product.quantity : product.requested_qty);
+        return {
+          product_name: productName,
+          brand: String(product.brand || product.make || product.manufacturer || '').trim(),
+          model: String(product.model || '').trim(),
+          part_number: String(product.part_number || product.part_no || product.pn || '').trim(),
+          qty: String(rawQty === undefined || rawQty === null || rawQty === '' ? 'Not specified' : rawQty).trim(),
+          unit: String(product.unit || product.uom || '').trim(),
+          details: String(product.details || product.description || product.specifications || '').trim(),
+          requirements: String(product.requirements || product.requested_information || '').trim()
+        };
+      }).filter(Boolean).slice(0, 50);
+    }
+
+    appendQuoteField(parent, field) {
+      const label = document.createElement('label');
+      label.className = 'aisa-enquiry-field' + (field.wide ? ' is-wide' : '');
+
+      const caption = document.createElement('span');
+      caption.textContent = field.label;
+      label.appendChild(caption);
+
+      const control = field.multiline ? document.createElement('textarea') : document.createElement('input');
+      control.name = field.name;
+      if (!field.multiline) control.type = field.type || 'text';
+      control.required = field.required === true;
+      control.value = String(field.value || '');
+      control.autocomplete = field.autocomplete || 'off';
+      if (field.placeholder) control.placeholder = field.placeholder;
+      if (field.multiline) control.rows = field.rows || 2;
+      label.appendChild(control);
+      parent.appendChild(label);
+      return control;
+    }
+
+    startQuoteRequest(rawProducts, sourceMessage) {
+      const products = this.normalizeQuoteProducts(rawProducts);
+      if (!products.length) return;
+
+      const previousForm = this.messagesContainer.querySelector('.aisa-enquiry-card');
+      if (previousForm) previousForm.remove();
+
+      const form = document.createElement('form');
+      form.className = 'aisa-enquiry-card aisa-rfq-card';
+      form.dir = this.isRtlMessage(sourceMessage) ? 'rtl' : 'ltr';
+      form.dataset.sourceRequest = String(sourceMessage || '').slice(0, 12000);
+
+      const heading = document.createElement('div');
+      heading.className = 'aisa-rfq-heading';
+      const title = document.createElement('strong');
+      title.className = 'aisa-enquiry-title';
+      title.textContent = 'Quotation request';
+      const count = document.createElement('span');
+      count.className = 'aisa-rfq-count';
+      count.textContent = products.length + (products.length === 1 ? ' item' : ' items');
+      heading.appendChild(title);
+      heading.appendChild(count);
+      form.appendChild(heading);
+
+      const hint = document.createElement('p');
+      hint.className = 'aisa-rfq-hint';
+      hint.textContent = 'Please review the extracted product data, then enter your contact details.';
+      form.appendChild(hint);
+
+      const items = document.createElement('div');
+      items.className = 'aisa-rfq-items';
+      products.forEach((product, index) => {
+        const item = document.createElement('fieldset');
+        item.className = 'aisa-rfq-item';
+
+        const legend = document.createElement('legend');
+        legend.textContent = 'Item ' + (index + 1);
+        item.appendChild(legend);
+
+        this.appendQuoteField(item, { name: 'product_name', label: 'Product', value: product.product_name, required: true, wide: true });
+
+        const identity = document.createElement('div');
+        identity.className = 'aisa-rfq-grid';
+        this.appendQuoteField(identity, { name: 'brand', label: 'Make / Brand', value: product.brand });
+        this.appendQuoteField(identity, { name: 'model', label: 'Model', value: product.model });
+        this.appendQuoteField(identity, { name: 'part_number', label: 'Part number', value: product.part_number });
+        this.appendQuoteField(identity, { name: 'qty', label: 'QTY', value: product.qty, required: true });
+        this.appendQuoteField(identity, { name: 'unit', label: 'Unit', value: product.unit });
+        item.appendChild(identity);
+
+        this.appendQuoteField(item, { name: 'details', label: 'Item details / specification', value: product.details, multiline: true, rows: 2, wide: true });
+        this.appendQuoteField(item, { name: 'requirements', label: 'Requested commercial & technical information', value: product.requirements, multiline: true, rows: 3, wide: true });
+        items.appendChild(item);
+      });
+      form.appendChild(items);
+
+      const contactTitle = document.createElement('strong');
+      contactTitle.className = 'aisa-rfq-contact-title';
+      contactTitle.textContent = 'Your details';
+      form.appendChild(contactTitle);
+
+      this.appendQuoteField(form, { name: 'customer_name', label: 'Name', required: true, autocomplete: 'name', wide: true });
+      this.appendQuoteField(form, { name: 'customer_address', label: 'Address / delivery location', required: true, autocomplete: 'street-address', multiline: true, rows: 2, wide: true });
+      this.appendQuoteField(form, { name: 'customer_contact', label: 'Contact (phone or email)', required: true, autocomplete: 'tel', wide: true });
+
+      const submit = document.createElement('button');
+      submit.type = 'submit';
+      submit.className = 'aisa-enquiry-submit';
+      submit.textContent = 'Submit quotation request';
+      form.appendChild(submit);
+
+      form.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        await this.submitQuoteRequest(form);
+      });
+
+      this.messagesContainer.appendChild(form);
+      this.scrollMessagesToBottom();
+      const firstInput = form.querySelector('input[name="customer_name"]');
+      if (firstInput) firstInput.focus();
+    }
+
+    async submitQuoteRequest(form) {
+      if (!form || form.dataset.submitting === '1') return;
+
+      const products = Array.from(form.querySelectorAll('.aisa-rfq-item')).map((item) => {
+        const value = (name) => {
+          const control = item.querySelector('[name="' + name + '"]');
+          return control ? String(control.value || '').trim() : '';
+        };
+        return {
+          product_name: value('product_name'),
+          brand: value('brand'),
+          model: value('model'),
+          part_number: value('part_number'),
+          qty: value('qty'),
+          unit: value('unit'),
+          details: value('details'),
+          requirements: value('requirements')
+        };
+      });
+      const formValue = (name) => {
+        const control = form.querySelector('[name="' + name + '"]');
+        return control ? String(control.value || '').trim() : '';
+      };
+      const payload = {
+        submission_type: 'rfq',
+        conversation_id: this.getActiveConversationId(),
+        source_request: String(form.dataset.sourceRequest || ''),
+        page_context: this.getPageContext(),
+        products: products,
+        contact: {
+          name: formValue('customer_name'),
+          address: formValue('customer_address'),
+          contact: formValue('customer_contact')
+        }
+      };
+
+      form.dataset.submitting = '1';
+      form.querySelectorAll('input, textarea, button').forEach((control) => { control.disabled = true; });
+      const submit = form.querySelector('.aisa-enquiry-submit');
+      if (submit) submit.textContent = 'Submitting...';
+      this.setStatus('Submitting request...');
+
+      try {
+        const response = await fetch(this.getChatUrl(), {
+          method: 'POST',
+          mode: this.config.chatRoute ? 'same-origin' : 'cors',
+          credentials: this.config.chatRoute ? 'same-origin' : 'omit',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        const data = await response.json().catch(() => ({}));
+
+        if (data.conversation_id) this.setActiveConversationId(data.conversation_id);
+        if (!response.ok || data.status !== 'success') {
+          throw new Error(data.reply || 'The quotation request could not be submitted.');
+        }
+
+        this.addMessage('user', 'Quotation request submitted (' + products.length + ' item' + (products.length === 1 ? '' : 's') + ').', true);
+        form.remove();
+        this.addMessage('bot', data.reply || 'Thank you. Your quotation request has been submitted.', true);
+      } catch (error) {
+        form.dataset.submitting = '0';
+        form.querySelectorAll('input, textarea, button').forEach((control) => { control.disabled = false; });
+        if (submit) submit.textContent = 'Submit quotation request';
+        this.addMessage('bot', error.message || 'The quotation request could not be submitted. Please try again.', true);
+      } finally {
+        this.setStatus('Ready to help');
+        this.scrollMessagesToBottom();
+      }
+    }
+
+    startProductEnquiryLegacy(product) {
       const item = product && typeof product === 'object' ? product : {};
       const productName = String(item.product_name || item.name || '').replace(/\s+/g, ' ').trim();
       if (!productName) return;
@@ -1245,7 +1445,25 @@
           products: data.products || []
         });
 
-        for (const action of this.getActions(data)) {
+        const actions = this.getActions(data);
+        const quoteProducts = [];
+
+        actions.forEach((action) => {
+          const type = String(action.type || (action.product_id ? 'enquire' : '')).toLowerCase();
+          if (type === 'quote_request') {
+            quoteProducts.push(...this.normalizeQuoteProducts(action.products || action.items || []));
+          } else if (type === 'enquire' || type === 'add_to_cart') {
+            quoteProducts.push(...this.normalizeQuoteProducts([action]));
+          }
+        });
+
+        if (quoteProducts.length) {
+          this.startQuoteRequest(quoteProducts, message);
+        }
+
+        for (const action of actions) {
+          const type = String(action.type || (action.product_id ? 'enquire' : '')).toLowerCase();
+          if (type === 'quote_request' || type === 'enquire' || type === 'add_to_cart') continue;
           await this.handleAction(action, message, data);
         }
       } catch (error) {

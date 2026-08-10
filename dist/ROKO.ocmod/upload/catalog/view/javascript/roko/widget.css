@@ -469,6 +469,141 @@
   border-bottom-left-radius: 5px !important;
 }
 
+/* ROKO 3.6 multi-product RFQ form */
+#roko-widget .aisa-enquiry-card.aisa-rfq-card {
+  display: block !important;
+  margin-left: 36px !important;
+  width: calc(100% - 36px) !important;
+  padding: 14px !important;
+}
+
+#roko-widget .aisa-rfq-heading {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 10px !important;
+}
+
+#roko-widget .aisa-rfq-count {
+  padding: 4px 8px !important;
+  border-radius: 999px !important;
+  background: #f3e4eb !important;
+  color: #72134f !important;
+  font-size: 10px !important;
+  font-weight: 800 !important;
+  white-space: nowrap !important;
+}
+
+#roko-widget .aisa-rfq-hint {
+  margin: 7px 0 12px !important;
+  color: #6d6269 !important;
+  font-size: 11px !important;
+  line-height: 1.5 !important;
+}
+
+#roko-widget .aisa-rfq-items {
+  display: grid !important;
+  gap: 10px !important;
+  margin-bottom: 14px !important;
+}
+
+#roko-widget .aisa-rfq-item {
+  min-width: 0 !important;
+  margin: 0 !important;
+  padding: 12px !important;
+  border: 1px solid #e4d5dc !important;
+  border-radius: 13px !important;
+  background: #fffafd !important;
+}
+
+#roko-widget .aisa-rfq-item legend {
+  width: auto !important;
+  margin: 0 0 8px !important;
+  padding: 0 6px !important;
+  border: 0 !important;
+  color: #72134f !important;
+  font-size: 11px !important;
+  font-weight: 850 !important;
+}
+
+#roko-widget .aisa-rfq-grid {
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  gap: 8px !important;
+  margin-top: 8px !important;
+}
+
+#roko-widget .aisa-rfq-item > .aisa-enquiry-field + .aisa-enquiry-field,
+#roko-widget .aisa-rfq-item > .aisa-rfq-grid + .aisa-enquiry-field,
+#roko-widget .aisa-rfq-contact-title + .aisa-enquiry-field,
+#roko-widget .aisa-rfq-card > .aisa-enquiry-field + .aisa-enquiry-field {
+  margin-top: 8px !important;
+}
+
+#roko-widget .aisa-rfq-card .aisa-enquiry-field {
+  display: flex !important;
+  grid-column: auto !important;
+}
+
+#roko-widget .aisa-rfq-card .aisa-enquiry-field input,
+#roko-widget .aisa-rfq-card .aisa-enquiry-field textarea {
+  width: 100% !important;
+  min-width: 0 !important;
+  padding: 9px 10px !important;
+  border: 1px solid #dacbd3 !important;
+  border-radius: 9px !important;
+  background: #ffffff !important;
+  color: #2b2027 !important;
+  font: inherit !important;
+  font-size: 12px !important;
+  font-weight: 450 !important;
+  line-height: 1.45 !important;
+  outline: none !important;
+  resize: vertical !important;
+}
+
+#roko-widget .aisa-rfq-card .aisa-enquiry-field input {
+  height: 37px !important;
+}
+
+#roko-widget .aisa-rfq-card .aisa-enquiry-field textarea {
+  min-height: 58px !important;
+}
+
+#roko-widget .aisa-rfq-card .aisa-enquiry-field input:focus,
+#roko-widget .aisa-rfq-card .aisa-enquiry-field textarea:focus {
+  border-color: #9c1d60 !important;
+  box-shadow: 0 0 0 3px rgba(156, 29, 96, 0.09) !important;
+}
+
+#roko-widget .aisa-rfq-contact-title {
+  display: block !important;
+  margin: 2px 0 8px !important;
+  color: #4f163c !important;
+  font-size: 13px !important;
+}
+
+#roko-widget .aisa-rfq-card .aisa-enquiry-submit {
+  width: 100% !important;
+  margin-top: 12px !important;
+}
+
+#roko-widget .aisa-rfq-card [disabled] {
+  cursor: wait !important;
+  opacity: 0.65 !important;
+}
+
+@media (max-width: 480px) {
+  #roko-widget .aisa-enquiry-card.aisa-rfq-card {
+    margin-left: 30px !important;
+    width: calc(100% - 30px) !important;
+  }
+
+  #roko-widget .aisa-rfq-grid {
+    grid-template-columns: 1fr !important;
+  }
+}
+
 .aisa-message.bot.aisa-typing {
   min-width: 62px !important;
   min-height: 42px !important;
@@ -2664,5 +2799,288 @@
 
   #roko-widget .aisa-head {
     min-height: 76px !important;
+  }
+}
+
+/* ROKO 3.5.1 profile and product-card polish */
+#roko-widget .aisa-head {
+  background:
+    radial-gradient(circle at 8% 10%, rgba(243, 188, 203, 0.3), transparent 30%),
+    linear-gradient(135deg, #fffdfd 0%, #fff8fb 100%) !important;
+}
+
+#roko-widget .aisa-head-main {
+  position: relative !important;
+}
+
+#roko-widget .aisa-avatar {
+  width: 58px !important;
+  height: 58px !important;
+  padding: 0 !important;
+  border: 2px solid #ffffff !important;
+  border-radius: 19px !important;
+  background:
+    radial-gradient(circle at 50% 32%, #f7deea 0%, #ead2df 62%, #dcc1d0 100%) !important;
+  object-fit: cover !important;
+  object-position: center 16% !important;
+  box-shadow: 0 0 0 1px #e2c4d3, 0 9px 22px rgba(89, 24, 65, 0.16) !important;
+}
+
+#roko-widget .aisa-kicker {
+  width: fit-content !important;
+  margin-bottom: 4px !important;
+  padding: 3px 7px !important;
+  border-radius: 999px !important;
+  background: #f7e5ee !important;
+  color: #8c416a !important;
+  font-size: 7.5px !important;
+  letter-spacing: 0.075em !important;
+}
+
+#roko-widget .aisa-title {
+  color: #4f163c !important;
+  font-size: 20px !important;
+  letter-spacing: -0.02em !important;
+}
+
+#roko-widget .aisa-status {
+  margin-top: 4px !important;
+  color: #76636f !important;
+}
+
+#roko-widget .aisa-message.bot {
+  position: relative !important;
+  margin-left: 36px !important;
+}
+
+#roko-widget .aisa-message.bot::before {
+  content: "" !important;
+  position: absolute !important;
+  left: -36px !important;
+  bottom: 0 !important;
+  width: 28px !important;
+  height: 28px !important;
+  border: 1px solid #dfc5d2 !important;
+  border-radius: 50% !important;
+  display: block !important;
+  background-color: #f5e5ed !important;
+  background-image: url("roko-profile-v2.png") !important;
+  background-repeat: no-repeat !important;
+  background-position: center 15% !important;
+  background-size: cover !important;
+  box-shadow: 0 4px 10px rgba(74, 16, 57, 0.11) !important;
+}
+
+#roko-widget .aisa-message.bot.aisa-typing::before {
+  bottom: 1px !important;
+}
+
+#roko-widget .aisa-suggestions,
+#roko-widget .aisa-product-cards {
+  width: calc(100% - 36px) !important;
+  margin-left: 36px !important;
+}
+
+#roko-widget .aisa-product-card,
+#roko-widget .aisa-product-card.is-text-link {
+  width: 248px !important;
+  min-width: 248px !important;
+  flex-basis: 248px !important;
+  border-color: #e3d2db !important;
+  background:
+    linear-gradient(180deg, rgba(248, 241, 244, 0.98) 0%, rgba(252, 247, 249, 0.98) 100%) !important;
+  box-shadow: 0 7px 18px rgba(73, 32, 57, 0.07) !important;
+  transform: none !important;
+  transition: border-color 160ms ease, box-shadow 160ms ease !important;
+}
+
+#roko-widget .aisa-product-card:hover,
+#roko-widget .aisa-product-card:focus-within,
+#roko-widget .aisa-product-card.is-text-link:hover {
+  border-color: #cda9bc !important;
+  background:
+    linear-gradient(180deg, rgba(248, 241, 244, 0.98) 0%, rgba(252, 247, 249, 0.98) 100%) !important;
+  box-shadow: 0 9px 22px rgba(73, 32, 57, 0.1) !important;
+  transform: none !important;
+}
+
+#roko-widget .aisa-product-media,
+#roko-widget .aisa-product-card.is-article .aisa-product-media {
+  height: 164px !important;
+  padding: 14px !important;
+  border-bottom-color: #e5d7de !important;
+  background: #f2e9ee !important;
+}
+
+#roko-widget .aisa-product-card.is-article .aisa-product-media {
+  padding: 0 !important;
+}
+
+#roko-widget .aisa-product-image {
+  background: transparent !important;
+  mix-blend-mode: multiply !important;
+  filter: saturate(0.96) contrast(1.02) !important;
+  transform: none !important;
+  transition: none !important;
+}
+
+#roko-widget .aisa-product-card:hover .aisa-product-image,
+#roko-widget .aisa-product-card:focus-within .aisa-product-image {
+  transform: none !important;
+}
+
+#roko-widget .aisa-product-card.is-article .aisa-product-image {
+  mix-blend-mode: normal !important;
+}
+
+#roko-widget .aisa-product-main {
+  padding: 13px 13px 12px !important;
+}
+
+#roko-widget .aisa-product-title,
+#roko-widget .aisa-product-card.is-product .aisa-product-title,
+#roko-widget .aisa-product-card.is-text-link .aisa-product-title {
+  color: #59133f !important;
+  font-size: 13px !important;
+  font-weight: 820 !important;
+  line-height: 1.42 !important;
+}
+
+#roko-widget .aisa-product-summary,
+#roko-widget .aisa-product-card.is-text-link .aisa-product-summary {
+  margin-top: 5px !important;
+  color: #655660 !important;
+  font-size: 10.5px !important;
+  line-height: 1.5 !important;
+}
+
+#roko-widget .aisa-product-actions {
+  border-top-color: #dfcfd7 !important;
+  background: rgba(255, 251, 253, 0.64) !important;
+}
+
+#roko-widget .aisa-product-action,
+#roko-widget .aisa-product-action.primary,
+#roko-widget .aisa-product-action.secondary {
+  height: 41px !important;
+  border-right-color: #dfcfd7 !important;
+  background: transparent !important;
+  color: #72134f !important;
+  transform: none !important;
+  transition: color 140ms ease, background 140ms ease !important;
+}
+
+#roko-widget .aisa-product-action:hover,
+#roko-widget .aisa-product-action.primary:hover,
+#roko-widget .aisa-product-action.secondary:hover {
+  background: #f3dfe9 !important;
+  color: #4a1039 !important;
+  transform: none !important;
+}
+
+#roko-widget .aisa-product-cards {
+  padding-bottom: 10px !important;
+  scrollbar-color: #cdb6c2 transparent !important;
+}
+
+#roko-widget .aisa-product-cards::-webkit-scrollbar-track {
+  margin: 0 5px !important;
+  border-radius: 999px !important;
+  background: #eee4e9 !important;
+}
+
+#roko-widget .aisa-product-cards::-webkit-scrollbar-thumb {
+  border-radius: 999px !important;
+  background: #bea2b1 !important;
+}
+
+#roko-widget .aisa-toggle {
+  min-width: 166px !important;
+  height: 66px !important;
+  padding: 7px 20px 7px 7px !important;
+  border-color: rgba(113, 19, 79, 0.18) !important;
+  background:
+    radial-gradient(circle at 22% 15%, rgba(243, 188, 203, 0.34), transparent 34%),
+    linear-gradient(135deg, #ffffff 0%, #fff7fa 100%) !important;
+}
+
+#roko-widget .aisa-toggle-avatar {
+  width: 52px !important;
+  height: 52px !important;
+  border: 1px solid #dfc4d2 !important;
+  object-fit: cover !important;
+  object-position: center 15% !important;
+  box-shadow: 0 6px 15px rgba(74, 16, 57, 0.13) !important;
+}
+
+#roko-widget .aisa-toggle::after {
+  left: 46px !important;
+  bottom: 7px !important;
+}
+
+#roko-widget .aisa-toggle-text {
+  position: relative !important;
+  display: grid !important;
+  color: #53163e !important;
+  font-size: 13px !important;
+  font-weight: 850 !important;
+  line-height: 1.2 !important;
+}
+
+#roko-widget .aisa-toggle-text::after {
+  content: "Product assistant" !important;
+  margin-top: 3px !important;
+  color: #8b7482 !important;
+  font-size: 9px !important;
+  font-weight: 620 !important;
+  letter-spacing: 0 !important;
+}
+
+#roko-widget .aisa-input {
+  border-color: #d8c4ce !important;
+  background: #fffdfd !important;
+}
+
+#roko-widget .aisa-send {
+  background: linear-gradient(145deg, #71134f, #9c1d60) !important;
+}
+
+@media (max-width: 480px) {
+  #roko-widget .aisa-avatar {
+    width: 50px !important;
+    height: 50px !important;
+  }
+
+  #roko-widget .aisa-product-card,
+  #roko-widget .aisa-product-card.is-text-link {
+    width: 228px !important;
+    min-width: 228px !important;
+    flex-basis: 228px !important;
+  }
+
+  #roko-widget .aisa-product-media,
+  #roko-widget .aisa-product-card.is-article .aisa-product-media {
+    width: 100% !important;
+    height: 148px !important;
+  }
+
+  #roko-widget .aisa-toggle {
+    width: 60px !important;
+    min-width: 60px !important;
+    height: 60px !important;
+    padding: 4px !important;
+  }
+
+  #roko-widget .aisa-toggle-avatar {
+    width: 52px !important;
+    height: 52px !important;
+  }
+
+  #roko-widget .aisa-toggle-text {
+    position: absolute !important;
+    width: 1px !important;
+    height: 1px !important;
+    overflow: hidden !important;
+    clip: rect(0 0 0 0) !important;
   }
 }

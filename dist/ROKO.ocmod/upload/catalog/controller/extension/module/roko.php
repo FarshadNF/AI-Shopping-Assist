@@ -1,8 +1,8 @@
 <?php
 class ControllerExtensionModuleRoko extends Controller {
-	private const VERSION = '3.5.0-chatbot-ui';
+	private const VERSION = '3.6.0-multi-rfq';
 	private const MARKER = '<!-- ROKO_WIDGET -->';
-	private const GEMINI_MAX_OUTPUT_TOKENS = 1024;
+	private const GEMINI_MAX_OUTPUT_TOKENS = 4096;
 	private const MAX_RESPONSE_PRODUCTS = 3;
 	private const MAX_RESPONSE_SUGGESTIONS = 3;
 	private const PROMPT_CATALOG_HARD_LIMIT = 24;
@@ -39,8 +39,8 @@ class ControllerExtensionModuleRoko extends Controller {
 			$widget_title = 'ROKO';
 		}
 
-		if ($widget_button === '' || $widget_button === 'دستیار خرید') {
-			$widget_button = 'Chat';
+		if ($widget_button === '' || $widget_button === 'دستیار خرید' || $widget_button === 'Chat') {
+			$widget_button = 'Ask ROKO';
 		}
 
 		$config = [
@@ -63,8 +63,8 @@ class ControllerExtensionModuleRoko extends Controller {
 			'showProductSuggestions' => $this->suggestionSettingEnabled('module_roko_suggest_products'),
 			'title' => $widget_title,
 			'buttonText' => $widget_button,
-			'avatarUrl' => $asset_base . 'roko-character.png?v=' . self::VERSION,
-			'iconUrl' => $asset_base . 'roko-icon.png?v=' . self::VERSION,
+			'avatarUrl' => $asset_base . 'roko-profile-v2.png?v=' . self::VERSION,
+			'iconUrl' => $asset_base . 'roko-profile-v2.png?v=' . self::VERSION,
 			'redirectDelayMs' => 700
 		];
 
@@ -91,6 +91,12 @@ class ControllerExtensionModuleRoko extends Controller {
 		}
 
 		$input = $this->getInputData();
+
+		if (strtolower(trim((string)($input['submission_type'] ?? ''))) === 'rfq') {
+			$this->submitQuoteRequest($input);
+			return;
+		}
+
 		$message = trim((string)($input['message'] ?? ''));
 
 		if ($message === '') {
@@ -100,8 +106,8 @@ class ControllerExtensionModuleRoko extends Controller {
 
 		$message_length = function_exists('mb_strlen') ? mb_strlen($message) : strlen($message);
 
-		if ($message_length > 2000) {
-			$message = function_exists('mb_substr') ? mb_substr($message, 0, 2000) : substr($message, 0, 2000);
+		if ($message_length > 12000) {
+			$message = function_exists('mb_substr') ? mb_substr($message, 0, 12000) : substr($message, 0, 12000);
 		}
 
 		$conversation_id = (string)($input['conversation_id'] ?? $this->getLocalConversationId());
@@ -141,17 +147,6 @@ class ControllerExtensionModuleRoko extends Controller {
 			$this->writeChatLog($conversation_id, 'assistant', $reply);
 			$this->outputJson([
 				'status' => $response_status,
-				'reply' => $reply,
-				'conversation_id' => $conversation_id
-			]);
-			return;
-		}
-
-		if ($this->isBulkLeadRequest($message) && !$this->isBulkLeadSubmission($message)) {
-			$reply = $this->bulkLeadMessage();
-			$this->writeChatLog($conversation_id, 'assistant', $reply);
-			$this->outputJson([
-				'status' => 'success',
 				'reply' => $reply,
 				'conversation_id' => $conversation_id
 			]);
@@ -488,12 +483,12 @@ class ControllerExtensionModuleRoko extends Controller {
 			'Use only the product catalog below for product-specific claims. Check stock before recommending purchase. Keep replies short, natural, and sales-focused.',
 			'If Current page context JSON is present, treat it as the exact page the user is viewing right now. When they ask to summarize "this page/article/post", ask about what they are reading, or refer to the current page, answer from Current page context first.',
 			'Use Relevant crawled site pages for blog, article, category, and general site knowledge. For technical/networking questions, prefer relevant blog/article pages when they answer the question.',
-			'When the user wants an action, include it in actions. Supported action types: enquire, show_cart, redirect_to_cart, redirect_to_product, redirect_to_page, update_cart_item, remove_from_cart, clear_cart, apply_coupon, redirect_to_checkout, send_invoice.',
+			'When the user wants an action, include it in actions. Supported action types: enquire, quote_request, show_cart, redirect_to_cart, redirect_to_product, redirect_to_page, update_cart_item, remove_from_cart, clear_cart, apply_coupon, redirect_to_checkout, send_invoice.',
 			'For any product purchase, quote, availability, contact-sales, or enquiry intent, use the enquire action. Never use add_to_cart and never add a product to the cart automatically.',
-			'For bulk, wholesale, B2B, corporate, or high-quantity requests, use enquiry and do not send the user to checkout. Ask for lead details using this exact field list: Product Name, QTY, Name, Company, Contact Number, Email, Delivery Location.',
+			'RFQ EXTRACTION: When the latest message is an RFQ, quotation request, availability request, commercial proposal request, bulk request, or contains one or more requested line items, return exactly one quote_request action. Extract EVERY distinct requested item, including products that are not in the store catalog. Use {"type":"quote_request","shared_requirements":"datasheet, availability, warranty, delivery, lifecycle and other requirements that apply to all items","products":[{"product_name":"verbatim item name","brand":"make/manufacturer if stated","model":"model if stated","part_number":"part number if stated","qty":"quantity if stated, otherwise Not specified","unit":"EA/PCS/NOS/etc if stated","details":"application, type, category, port count, voltage or other item-specific description","requirements":"requirements unique to this item"}]}. Do not invent missing values. Preserve model and part-number punctuation exactly. The visible reply should tell the user to review the extracted items and complete the contact form; do not ask them to retype product data.',
 			'For navigating to any non-product site page, use {"type":"redirect_to_page","page":"home/contact/account/login/register/orders/wishlist/specials/search/category/information page name","route":"optional OpenCart route","url":"optional internal URL"}. Prefer exact URLs from Known site pages JSON and the configured sitemap. Do not say you cannot navigate.',
 			'Suggestion output controls JSON: ' . json_encode($suggestion_controls, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) . '. Obey these controls exactly: when next_question_suggestions is false return suggestions as []; when a card type is false do not include that content_type in products. The blog_and_page_cards control covers blog, article, news, and page cards.',
-			'Return ONLY one complete valid JSON object with this shape: {"reply":"visible message","suggestions":[{"title":"short title","text":"short next question"}],"products":[{"product_id":"id","name":"exact catalog name or article title","content_type":"product/blog/page/category","product_url":"URL only for non-product pages","reason":"short reason"}],"actions":[{"type":"enquire","product_name":"exact name","product_id":"id","qty":1}]} .',
+			'Return ONLY one complete valid JSON object with this shape: {"reply":"visible message","suggestions":[{"title":"short title","text":"short next question"}],"products":[{"product_id":"id","name":"exact catalog name or article title","content_type":"product/blog/page/category","product_url":"URL only for non-product pages","reason":"short reason"}],"actions":[{"type":"enquire","product_name":"exact name","product_id":"id","qty":1}]} . A quote_request action may instead contain the products array defined above.',
 			'Keep the JSON compact: maximum 3 suggestions and maximum 3 product/page cards; each reason must be at most 18 words. Never output image URLs. For catalog products output only product_id, name, content_type and reason because the server fills URL, image, price and stock from OpenCart. Include a blog/page card only when the user explicitly asks for an article, guide, blog or site page; ordinary product searches must return content_type="product" cards only. Use empty arrays when suggestions/products/actions are not needed, and always close the JSON object.',
 			$sitemap_url !== '' ? 'Configured sitemap URL: ' . $sitemap_url : '',
 			'Known site pages JSON: ' . json_encode($navigation, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
@@ -2130,14 +2125,6 @@ class ControllerExtensionModuleRoko extends Controller {
 			$reply = $this->localizedText($message, 'I am ready to help.', 'آماده‌ام کمک کنم.');
 		}
 
-		if ($this->isBulkLeadRequest($message) && !$this->isBulkLeadSubmission($message)) {
-			return [
-				'status' => 'success',
-				'reply' => $this->bulkLeadMessage(),
-				'conversation_id' => $conversation_id
-			];
-		}
-
 		$raw_actions = [];
 
 		if (isset($parsed['actions']) && is_array($parsed['actions'])) {
@@ -2764,11 +2751,33 @@ class ControllerExtensionModuleRoko extends Controller {
 				$type = 'redirect_to_page';
 			}
 
-			if (!in_array($type, ['enquire', 'show_cart', 'redirect_to_cart', 'redirect_to_product', 'redirect_to_page', 'update_cart_item', 'remove_from_cart', 'clear_cart', 'apply_coupon', 'redirect_to_checkout', 'send_invoice'])) {
+			if (!in_array($type, ['enquire', 'quote_request', 'show_cart', 'redirect_to_cart', 'redirect_to_product', 'redirect_to_page', 'update_cart_item', 'remove_from_cart', 'clear_cart', 'apply_coupon', 'redirect_to_checkout', 'send_invoice'])) {
 				continue;
 			}
 
 			$action = ['type' => $type];
+
+			if ($type === 'quote_request') {
+				$action['products'] = $this->normalizeQuoteProducts($raw_action['products'] ?? $raw_action['items'] ?? []);
+				$shared_requirements = $this->shortText(trim((string)($raw_action['shared_requirements'] ?? '')), 8000);
+
+				if ($shared_requirements !== '') {
+					foreach ($action['products'] as &$quote_product) {
+						$item_requirements = trim((string)($quote_product['requirements'] ?? ''));
+						$quote_product['requirements'] = $item_requirements !== ''
+							? $item_requirements . ' | Shared: ' . $shared_requirements
+							: $shared_requirements;
+					}
+					unset($quote_product);
+				}
+
+				if (!$action['products']) {
+					continue;
+				}
+
+				$actions[] = $action;
+				continue;
+			}
 
 			if (in_array($type, ['enquire', 'redirect_to_product', 'update_cart_item', 'remove_from_cart'])) {
 				$product = $this->findCatalogProduct((string)($raw_action['product_name'] ?? ''), (string)($raw_action['product_id'] ?? ''));
@@ -3422,6 +3431,150 @@ class ControllerExtensionModuleRoko extends Controller {
 		return ['status' => $status, 'body' => $response, 'error' => ''];
 	}
 
+	private function submitQuoteRequest(array $input): void {
+		$conversation_id = trim((string)($input['conversation_id'] ?? $this->getLocalConversationId()));
+		$conversation_id = $conversation_id !== '' ? $conversation_id : $this->getLocalConversationId();
+		$contact = is_array($input['contact'] ?? null) ? $input['contact'] : [];
+		$name = $this->shortText(trim((string)($contact['name'] ?? '')), 180);
+		$address = $this->shortText(trim((string)($contact['address'] ?? $contact['delivery_location'] ?? '')), 500);
+		$contact_value = $this->shortText(trim((string)($contact['contact'] ?? $contact['contact_number'] ?? '')), 180);
+		$company = $this->shortText(trim((string)($contact['company'] ?? '')), 180);
+		$email = strpos($contact_value, '@') !== false ? $contact_value : $this->shortText(trim((string)($contact['email'] ?? '')), 180);
+		$phone = $email === $contact_value ? '' : $contact_value;
+		$products = $this->normalizeQuoteProducts($input['products'] ?? []);
+		$source_request = $this->shortText(trim((string)($input['source_request'] ?? '')), 12000);
+		$missing = [];
+
+		if ($name === '') {
+			$missing[] = 'Name';
+		}
+		if ($address === '') {
+			$missing[] = 'Address';
+		}
+		if ($contact_value === '') {
+			$missing[] = 'Contact';
+		}
+		if (!$products) {
+			$missing[] = 'Products';
+		}
+
+		if ($missing) {
+			$this->outputJson([
+				'status' => 'error',
+				'reply' => 'Please complete: ' . implode(', ', $missing) . '.',
+				'conversation_id' => $conversation_id
+			], 422);
+			return;
+		}
+
+		$request_id = $this->generateQuoteRequestId();
+		$saved_count = 0;
+		$page_context = is_array($input['page_context'] ?? null) ? $input['page_context'] : [];
+
+		foreach ($products as $index => $product) {
+			$lead = array_merge($product, [
+				'request_id' => $request_id,
+				'item_index' => $index + 1,
+				'name' => $name,
+				'company' => $company,
+				'contact_number' => $phone,
+				'email' => $email,
+				'delivery_location' => $address,
+				'source_request' => $source_request
+			]);
+
+			$stored = $this->writeLeadRecord($lead, $conversation_id, ['page_context' => $page_context]);
+			if ($stored) {
+				$saved_count++;
+			}
+
+			$this->writeChatLog($conversation_id, 'lead', json_encode([
+				'stored_locally' => $stored,
+				'request_id' => $request_id,
+				'item_index' => $index + 1,
+				'lead' => $lead
+			], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+		}
+
+		$this->writeChatLog($conversation_id, 'user', 'RFQ form submitted: ' . $request_id . ' (' . count($products) . ' item(s))');
+
+		if ($saved_count !== count($products)) {
+			$reply = $saved_count > 0
+				? 'Your request was only partially saved. Please contact our sales team and mention request ' . $request_id . '.'
+				: 'Your request could not be saved. Please try again after the lead storage is repaired in the ROKO admin panel.';
+			$this->writeChatLog($conversation_id, 'assistant', $reply);
+			$this->outputJson([
+				'status' => 'error',
+				'reply' => $reply,
+				'request_id' => $request_id,
+				'saved_count' => $saved_count,
+				'conversation_id' => $conversation_id
+			], 500);
+			return;
+		}
+
+		$reply = 'Thank you. Request ' . $request_id . ' was submitted with ' . $saved_count . ' separate product item(s). Our sales team will contact you shortly.';
+		$this->writeChatLog($conversation_id, 'assistant', $reply);
+		$this->outputJson([
+			'status' => 'success',
+			'reply' => $reply,
+			'request_id' => $request_id,
+			'saved_count' => $saved_count,
+			'conversation_id' => $conversation_id
+		]);
+	}
+
+	private function normalizeQuoteProducts($raw_products): array {
+		if (!is_array($raw_products)) {
+			return [];
+		}
+
+		$products = [];
+
+		foreach ($raw_products as $raw_product) {
+			if (is_string($raw_product)) {
+				$raw_product = ['product_name' => $raw_product];
+			}
+
+			if (!is_array($raw_product)) {
+				continue;
+			}
+
+			$product_name = $this->shortText(trim((string)($raw_product['product_name'] ?? $raw_product['name'] ?? $raw_product['item'] ?? '')), 180);
+			if ($product_name === '') {
+				continue;
+			}
+
+			$qty = $this->shortText(trim((string)($raw_product['qty'] ?? $raw_product['quantity'] ?? '')), 40);
+			$products[] = [
+				'product_name' => $product_name,
+				'brand' => $this->shortText(trim((string)($raw_product['brand'] ?? $raw_product['make'] ?? $raw_product['manufacturer'] ?? '')), 180),
+				'model' => $this->shortText(trim((string)($raw_product['model'] ?? '')), 180),
+				'part_number' => $this->shortText(trim((string)($raw_product['part_number'] ?? $raw_product['part_no'] ?? $raw_product['pn'] ?? '')), 180),
+				'qty' => $qty !== '' ? $qty : 'Not specified',
+				'unit' => $this->shortText(trim((string)($raw_product['unit'] ?? $raw_product['uom'] ?? '')), 40),
+				'details' => $this->shortText(trim((string)($raw_product['details'] ?? $raw_product['description'] ?? $raw_product['specifications'] ?? '')), 4000),
+				'requirements' => $this->shortText(trim((string)($raw_product['requirements'] ?? $raw_product['requested_information'] ?? '')), 8000)
+			];
+
+			if (count($products) >= 50) {
+				break;
+			}
+		}
+
+		return $products;
+	}
+
+	private function generateQuoteRequestId(): string {
+		try {
+			$suffix = strtoupper(bin2hex(random_bytes(3)));
+		} catch (\Throwable $exception) {
+			$suffix = strtoupper(substr(md5(uniqid('', true)), 0, 6));
+		}
+
+		return 'RFQ-' . date('Ymd-His') . '-' . $suffix;
+	}
+
 	private function writeLeadRecord(array $lead, string $conversation_id, array $input): bool {
 		try {
 			if (!$this->createLeadTable()) {
@@ -3436,8 +3589,17 @@ class ControllerExtensionModuleRoko extends Controller {
 				INSERT INTO `" . DB_PREFIX . "roko_lead`
 				SET
 					`conversation_id` = '" . $this->db->escape(substr($conversation_id, 0, 80)) . "',
+					`request_id` = '" . $this->db->escape(substr((string)($lead['request_id'] ?? ''), 0, 48)) . "',
+					`item_index` = '" . max(1, (int)($lead['item_index'] ?? 1)) . "',
 					`product_name` = '" . $this->db->escape(substr((string)($lead['product_name'] ?? ''), 0, 180)) . "',
+					`brand` = '" . $this->db->escape(substr((string)($lead['brand'] ?? ''), 0, 180)) . "',
+					`model` = '" . $this->db->escape(substr((string)($lead['model'] ?? ''), 0, 180)) . "',
+					`part_number` = '" . $this->db->escape(substr((string)($lead['part_number'] ?? ''), 0, 180)) . "',
 					`qty` = '" . $this->db->escape(substr((string)($lead['qty'] ?? ''), 0, 40)) . "',
+					`unit` = '" . $this->db->escape(substr((string)($lead['unit'] ?? ''), 0, 40)) . "',
+					`item_details` = '" . $this->db->escape(substr((string)($lead['details'] ?? ''), 0, 4000)) . "',
+					`requirements` = '" . $this->db->escape(substr((string)($lead['requirements'] ?? ''), 0, 8000)) . "',
+					`source_request` = '" . $this->db->escape(substr((string)($lead['source_request'] ?? ''), 0, 12000)) . "',
 					`name` = '" . $this->db->escape(substr((string)($lead['name'] ?? ''), 0, 180)) . "',
 					`company` = '" . $this->db->escape(substr((string)($lead['company'] ?? ''), 0, 180)) . "',
 					`contact_number` = '" . $this->db->escape(substr((string)($lead['contact_number'] ?? ''), 0, 180)) . "',
@@ -3460,7 +3622,7 @@ class ControllerExtensionModuleRoko extends Controller {
 
 	private function createLeadTable(): bool {
 		if ($this->leadTableExists()) {
-			return true;
+			return $this->ensureLeadTableColumns();
 		}
 
 		$table = DB_PREFIX . 'roko_lead';
@@ -3468,8 +3630,17 @@ class ControllerExtensionModuleRoko extends Controller {
 			CREATE TABLE IF NOT EXISTS `" . $table . "` (
 				`lead_id` int(11) NOT NULL AUTO_INCREMENT,
 				`conversation_id` varchar(80) NOT NULL DEFAULT '',
+				`request_id` varchar(48) NOT NULL DEFAULT '',
+				`item_index` int(11) NOT NULL DEFAULT 1,
 				`product_name` varchar(180) NOT NULL DEFAULT '',
+				`brand` varchar(180) NOT NULL DEFAULT '',
+				`model` varchar(180) NOT NULL DEFAULT '',
+				`part_number` varchar(180) NOT NULL DEFAULT '',
 				`qty` varchar(40) NOT NULL DEFAULT '',
+				`unit` varchar(40) NOT NULL DEFAULT '',
+				`item_details` text NULL,
+				`requirements` text NULL,
+				`source_request` text NULL,
 				`name` varchar(180) NOT NULL DEFAULT '',
 				`company` varchar(180) NOT NULL DEFAULT '',
 				`contact_number` varchar(180) NOT NULL DEFAULT '',
@@ -3483,6 +3654,7 @@ class ControllerExtensionModuleRoko extends Controller {
 				`date_added` datetime NOT NULL,
 				PRIMARY KEY (`lead_id`),
 				KEY `conversation_id` (`conversation_id`),
+				KEY `request_id` (`request_id`),
 				KEY `email` (`email`),
 				KEY `date_added` (`date_added`)
 			)";
@@ -3498,7 +3670,7 @@ class ControllerExtensionModuleRoko extends Controller {
 				$this->db->query($definition . $option);
 
 				if ($this->leadTableExists()) {
-					return true;
+					return $this->ensureLeadTableColumns();
 				}
 			} catch (\Throwable $exception) {
 				$errors[] = $exception->getMessage();
@@ -3507,6 +3679,55 @@ class ControllerExtensionModuleRoko extends Controller {
 
 		$this->log->write('ROKO lead table setup failed for ' . $table . ': ' . implode(' | ', array_unique($errors)));
 		return false;
+	}
+
+	private function ensureLeadTableColumns(): bool {
+		$table = DB_PREFIX . 'roko_lead';
+		$definitions = [
+			'request_id' => "varchar(48) NOT NULL DEFAULT '' AFTER `conversation_id`",
+			'item_index' => "int(11) NOT NULL DEFAULT 1 AFTER `request_id`",
+			'brand' => "varchar(180) NOT NULL DEFAULT '' AFTER `product_name`",
+			'model' => "varchar(180) NOT NULL DEFAULT '' AFTER `brand`",
+			'part_number' => "varchar(180) NOT NULL DEFAULT '' AFTER `model`",
+			'unit' => "varchar(40) NOT NULL DEFAULT '' AFTER `qty`",
+			'item_details' => "text NULL AFTER `unit`",
+			'requirements' => "text NULL AFTER `item_details`",
+			'source_request' => "text NULL AFTER `requirements`"
+		];
+
+		try {
+			$columns_query = $this->db->query("SHOW COLUMNS FROM `" . $table . "`");
+			$columns = [];
+
+			foreach ($columns_query->rows as $row) {
+				$columns[(string)($row['Field'] ?? '')] = true;
+			}
+
+			foreach ($definitions as $column => $definition) {
+				if (!isset($columns[$column])) {
+					$this->db->query("ALTER TABLE `" . $table . "` ADD COLUMN `" . $column . "` " . $definition);
+				}
+			}
+
+			$indexes_query = $this->db->query("SHOW INDEX FROM `" . $table . "`");
+			$has_request_index = false;
+
+			foreach ($indexes_query->rows as $row) {
+				if ((string)($row['Key_name'] ?? '') === 'request_id') {
+					$has_request_index = true;
+					break;
+				}
+			}
+
+			if (!$has_request_index) {
+				$this->db->query("ALTER TABLE `" . $table . "` ADD KEY `request_id` (`request_id`)");
+			}
+
+			return true;
+		} catch (\Throwable $exception) {
+			$this->log->write('ROKO lead table migration failed for ' . $table . ': ' . $exception->getMessage());
+			return false;
+		}
 	}
 
 	private function leadTableExists(): bool {

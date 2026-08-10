@@ -334,25 +334,36 @@
             </form>
             <div class="table-responsive">
               <table class="table table-bordered table-hover">
-                <thead><tr><td>{{ column_date }}</td><td>{{ column_conversation }}</td><td>{{ column_product_name }}</td><td>{{ column_qty }}</td><td>{{ column_name }}</td><td>{{ column_company }}</td><td>{{ column_contact_number }}</td><td>{{ column_email }}</td><td>{{ column_delivery_location }}</td><td>{{ column_page_url }}</td></tr></thead>
+                <thead><tr><td>{{ column_date }}</td><td>{{ column_request_id }}</td><td>{{ column_item }}</td><td>{{ column_product_name }}</td><td>{{ column_product_identity }}</td><td>{{ column_qty }}</td><td>{{ column_item_details }}</td><td>{{ column_requirements }}</td><td>{{ column_name }}</td><td>{{ column_contact }}</td><td>{{ column_delivery_location }}</td><td>{{ column_page_url }}</td></tr></thead>
                 <tbody>
                   {% if leads %}
                     {% for row in leads %}
                       <tr>
                         <td>{{ row.date_added }}</td>
-                        <td><code>{{ row.conversation_id }}</code></td>
+                        <td><code title="{{ column_conversation }}: {{ row.conversation_id }}">{{ row.request_id ?: row.conversation_id }}</code></td>
+                        <td class="text-center">{{ row.item_index }}</td>
                         <td>{{ row.product_name }}</td>
-                        <td>{{ row.qty }}</td>
+                        <td>
+                          {% if row.brand %}<div><strong>{{ column_brand }}:</strong> {{ row.brand }}</div>{% endif %}
+                          {% if row.model %}<div><strong>{{ column_model }}:</strong> {{ row.model }}</div>{% endif %}
+                          {% if row.part_number %}<div><strong>{{ column_part_number }}:</strong> <code>{{ row.part_number }}</code></div>{% endif %}
+                          {% if not row.brand and not row.model and not row.part_number %}-{% endif %}
+                        </td>
+                        <td>{{ row.qty }}{% if row.unit %} {{ row.unit }}{% endif %}</td>
+                        <td style="min-width: 180px; white-space: pre-wrap;">{{ row.item_details ?: '-' }}</td>
+                        <td style="min-width: 220px; white-space: pre-wrap;">{{ row.requirements ?: '-' }}</td>
                         <td>{{ row.name }}</td>
-                        <td>{{ row.company }}</td>
-                        <td>{{ row.contact_number }}</td>
-                        <td>{{ row.email }}</td>
+                        <td>
+                          {% if row.contact_number %}<div>{{ row.contact_number }}</div>{% endif %}
+                          {% if row.email %}<div>{{ row.email }}</div>{% endif %}
+                          {% if row.company %}<small>{{ row.company }}</small>{% endif %}
+                        </td>
                         <td>{{ row.delivery_location }}</td>
                         <td>{% if row.page_url %}<a href="{{ row.page_url }}" target="_blank" rel="noopener" title="{{ row.page_title }}">{{ row.page_url }}</a>{% else %}-{% endif %}</td>
                       </tr>
                     {% endfor %}
                   {% else %}
-                    <tr><td colspan="10" class="text-center">{{ text_no_leads }}</td></tr>
+                    <tr><td colspan="12" class="text-center">{{ text_no_leads }}</td></tr>
                   {% endif %}
                 </tbody>
               </table>

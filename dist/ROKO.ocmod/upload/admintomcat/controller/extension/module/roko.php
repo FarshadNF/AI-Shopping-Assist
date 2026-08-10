@@ -493,7 +493,7 @@ class ControllerExtensionModuleRoko extends Controller {
 
 	private function createLeadTable(): bool {
 		if ($this->leadTableExists()) {
-			return true;
+			return $this->ensureLeadTableColumns();
 		}
 
 		$table = DB_PREFIX . 'roko_lead';
@@ -501,8 +501,17 @@ class ControllerExtensionModuleRoko extends Controller {
 			CREATE TABLE IF NOT EXISTS `" . $table . "` (
 				`lead_id` int(11) NOT NULL AUTO_INCREMENT,
 				`conversation_id` varchar(80) NOT NULL DEFAULT '',
+				`request_id` varchar(48) NOT NULL DEFAULT '',
+				`item_index` int(11) NOT NULL DEFAULT 1,
 				`product_name` varchar(180) NOT NULL DEFAULT '',
+				`brand` varchar(180) NOT NULL DEFAULT '',
+				`model` varchar(180) NOT NULL DEFAULT '',
+				`part_number` varchar(180) NOT NULL DEFAULT '',
 				`qty` varchar(40) NOT NULL DEFAULT '',
+				`unit` varchar(40) NOT NULL DEFAULT '',
+				`item_details` text NULL,
+				`requirements` text NULL,
+				`source_request` text NULL,
 				`name` varchar(180) NOT NULL DEFAULT '',
 				`company` varchar(180) NOT NULL DEFAULT '',
 				`contact_number` varchar(180) NOT NULL DEFAULT '',
@@ -516,6 +525,7 @@ class ControllerExtensionModuleRoko extends Controller {
 				`date_added` datetime NOT NULL,
 				PRIMARY KEY (`lead_id`),
 				KEY `conversation_id` (`conversation_id`),
+				KEY `request_id` (`request_id`),
 				KEY `email` (`email`),
 				KEY `date_added` (`date_added`)
 			)";
@@ -531,7 +541,7 @@ class ControllerExtensionModuleRoko extends Controller {
 				$this->db->query($definition . $option);
 
 				if ($this->leadTableExists()) {
-					return true;
+					return $this->ensureLeadTableColumns();
 				}
 			} catch (\Throwable $exception) {
 				$errors[] = $exception->getMessage();
@@ -540,6 +550,55 @@ class ControllerExtensionModuleRoko extends Controller {
 
 		$this->log->write('ROKO lead table setup failed for ' . $table . ': ' . implode(' | ', array_unique($errors)));
 		return false;
+	}
+
+	private function ensureLeadTableColumns(): bool {
+		$table = DB_PREFIX . 'roko_lead';
+		$definitions = [
+			'request_id' => "varchar(48) NOT NULL DEFAULT '' AFTER `conversation_id`",
+			'item_index' => "int(11) NOT NULL DEFAULT 1 AFTER `request_id`",
+			'brand' => "varchar(180) NOT NULL DEFAULT '' AFTER `product_name`",
+			'model' => "varchar(180) NOT NULL DEFAULT '' AFTER `brand`",
+			'part_number' => "varchar(180) NOT NULL DEFAULT '' AFTER `model`",
+			'unit' => "varchar(40) NOT NULL DEFAULT '' AFTER `qty`",
+			'item_details' => "text NULL AFTER `unit`",
+			'requirements' => "text NULL AFTER `item_details`",
+			'source_request' => "text NULL AFTER `requirements`"
+		];
+
+		try {
+			$columns_query = $this->db->query("SHOW COLUMNS FROM `" . $table . "`");
+			$columns = [];
+
+			foreach ($columns_query->rows as $row) {
+				$columns[(string)($row['Field'] ?? '')] = true;
+			}
+
+			foreach ($definitions as $column => $definition) {
+				if (!isset($columns[$column])) {
+					$this->db->query("ALTER TABLE `" . $table . "` ADD COLUMN `" . $column . "` " . $definition);
+				}
+			}
+
+			$indexes_query = $this->db->query("SHOW INDEX FROM `" . $table . "`");
+			$has_request_index = false;
+
+			foreach ($indexes_query->rows as $row) {
+				if ((string)($row['Key_name'] ?? '') === 'request_id') {
+					$has_request_index = true;
+					break;
+				}
+			}
+
+			if (!$has_request_index) {
+				$this->db->query("ALTER TABLE `" . $table . "` ADD KEY `request_id` (`request_id`)");
+			}
+
+			return true;
+		} catch (\Throwable $exception) {
+			$this->log->write('ROKO lead table migration failed for ' . $table . ': ' . $exception->getMessage());
+			return false;
+		}
 	}
 
 	private function leadTableExists(): bool {
@@ -939,8 +998,16 @@ class ControllerExtensionModuleRoko extends Controller {
 				SELECT
 					`date_added`,
 					`conversation_id`,
+					`request_id`,
+					`item_index`,
 					`product_name`,
+					`brand`,
+					`model`,
+					`part_number`,
 					`qty`,
+					`unit`,
+					`item_details`,
+					`requirements`,
 					`name`,
 					`company`,
 					`contact_number`,
@@ -961,8 +1028,16 @@ class ControllerExtensionModuleRoko extends Controller {
 				$rows[] = [
 					'date_added' => (string)($row['date_added'] ?? ''),
 					'conversation_id' => (string)($row['conversation_id'] ?? ''),
+					'request_id' => (string)($row['request_id'] ?? ''),
+					'item_index' => (int)($row['item_index'] ?? 1),
 					'product_name' => (string)($row['product_name'] ?? ''),
+					'brand' => (string)($row['brand'] ?? ''),
+					'model' => (string)($row['model'] ?? ''),
+					'part_number' => (string)($row['part_number'] ?? ''),
 					'qty' => (string)($row['qty'] ?? ''),
+					'unit' => (string)($row['unit'] ?? ''),
+					'item_details' => (string)($row['item_details'] ?? ''),
+					'requirements' => (string)($row['requirements'] ?? ''),
 					'name' => (string)($row['name'] ?? ''),
 					'company' => (string)($row['company'] ?? ''),
 					'contact_number' => (string)($row['contact_number'] ?? ''),
@@ -993,8 +1068,15 @@ class ControllerExtensionModuleRoko extends Controller {
 		$like = "'%" . $this->db->escape($search) . "%'";
 
 		return " WHERE (`conversation_id` LIKE " . $like
+			. " OR `request_id` LIKE " . $like
 			. " OR `product_name` LIKE " . $like
+			. " OR `brand` LIKE " . $like
+			. " OR `model` LIKE " . $like
+			. " OR `part_number` LIKE " . $like
 			. " OR `qty` LIKE " . $like
+			. " OR `unit` LIKE " . $like
+			. " OR `item_details` LIKE " . $like
+			. " OR `requirements` LIKE " . $like
 			. " OR `name` LIKE " . $like
 			. " OR `company` LIKE " . $like
 			. " OR `contact_number` LIKE " . $like
@@ -1034,8 +1116,17 @@ class ControllerExtensionModuleRoko extends Controller {
 					INSERT INTO `" . DB_PREFIX . "roko_lead`
 					SET
 						`conversation_id` = '" . $this->db->escape(substr((string)($row['conversation_id'] ?? ''), 0, 80)) . "',
+						`request_id` = '',
+						`item_index` = '1',
 						`product_name` = '" . $this->db->escape(substr((string)($lead['product_name'] ?? ''), 0, 180)) . "',
+						`brand` = '',
+						`model` = '',
+						`part_number` = '',
 						`qty` = '" . $this->db->escape(substr((string)($lead['qty'] ?? ''), 0, 40)) . "',
+						`unit` = '',
+						`item_details` = '',
+						`requirements` = '',
+						`source_request` = '',
 						`name` = '" . $this->db->escape(substr((string)($lead['name'] ?? ''), 0, 180)) . "',
 						`company` = '" . $this->db->escape(substr((string)($lead['company'] ?? ''), 0, 180)) . "',
 						`contact_number` = '" . $this->db->escape(substr((string)($lead['contact_number'] ?? ''), 0, 180)) . "',
@@ -1538,8 +1629,17 @@ class ControllerExtensionModuleRoko extends Controller {
 					`lead_id`,
 					`date_added`,
 					`conversation_id`,
+					`request_id`,
+					`item_index`,
 					`product_name`,
+					`brand`,
+					`model`,
+					`part_number`,
 					`qty`,
+					`unit`,
+					`item_details`,
+					`requirements`,
+					`source_request`,
 					`name`,
 					`company`,
 					`contact_number`,
@@ -1565,8 +1665,17 @@ class ControllerExtensionModuleRoko extends Controller {
 			['key' => 'lead_id', 'title' => $this->language->get('column_log_id'), 'type' => 'Number'],
 			['key' => 'date_added', 'title' => $this->language->get('column_date'), 'type' => 'String'],
 			['key' => 'conversation_id', 'title' => $this->language->get('column_conversation'), 'type' => 'String'],
+			['key' => 'request_id', 'title' => $this->language->get('column_request_id'), 'type' => 'String'],
+			['key' => 'item_index', 'title' => $this->language->get('column_item'), 'type' => 'Number'],
 			['key' => 'product_name', 'title' => $this->language->get('column_product_name'), 'type' => 'String'],
+			['key' => 'brand', 'title' => $this->language->get('column_brand'), 'type' => 'String'],
+			['key' => 'model', 'title' => $this->language->get('column_model'), 'type' => 'String'],
+			['key' => 'part_number', 'title' => $this->language->get('column_part_number'), 'type' => 'String'],
 			['key' => 'qty', 'title' => $this->language->get('column_qty'), 'type' => 'String'],
+			['key' => 'unit', 'title' => $this->language->get('column_unit'), 'type' => 'String'],
+			['key' => 'item_details', 'title' => $this->language->get('column_item_details'), 'type' => 'String'],
+			['key' => 'requirements', 'title' => $this->language->get('column_requirements'), 'type' => 'String'],
+			['key' => 'source_request', 'title' => $this->language->get('column_source_request'), 'type' => 'String'],
 			['key' => 'name', 'title' => $this->language->get('column_name'), 'type' => 'String'],
 			['key' => 'company', 'title' => $this->language->get('column_company'), 'type' => 'String'],
 			['key' => 'contact_number', 'title' => $this->language->get('column_contact_number'), 'type' => 'String'],
