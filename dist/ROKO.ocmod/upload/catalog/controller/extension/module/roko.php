@@ -1,6 +1,6 @@
 <?php
 class ControllerExtensionModuleRoko extends Controller {
-	private const VERSION = '3.6.0-multi-rfq';
+	private const VERSION = '3.6.3-card-cta';
 	private const MARKER = '<!-- ROKO_WIDGET -->';
 	private const GEMINI_MAX_OUTPUT_TOKENS = 4096;
 	private const MAX_RESPONSE_PRODUCTS = 3;
@@ -153,7 +153,8 @@ class ControllerExtensionModuleRoko extends Controller {
 			return;
 		}
 
-		$result = $this->askGemini($message, $conversation_id, is_array($input['page_context'] ?? null) ? $input['page_context'] : []);
+		$page_context = is_array($input['page_context'] ?? null) ? $input['page_context'] : [];
+		$result = $this->askGemini($message, $conversation_id, $page_context);
 
 		if ($result['error']) {
 			$this->writeChatLog($conversation_id, 'assistant', 'Gemini error: ' . $result['error']);
@@ -165,7 +166,7 @@ class ControllerExtensionModuleRoko extends Controller {
 			return;
 		}
 
-		$response_data = $this->buildAssistantResponse($message, $conversation_id, $result['body']);
+		$response_data = $this->buildAssistantResponse($message, $conversation_id, $result['body'], $page_context);
 		$this->writeChatLog($conversation_id, 'assistant', (string)$response_data['reply']);
 
 		$this->outputJson($response_data);
@@ -482,14 +483,16 @@ class ControllerExtensionModuleRoko extends Controller {
 			'Default to English. If the latest user message is clearly Persian or another language, you may reply in that language, but your base persona and concise style are English-first.',
 			'Use only the product catalog below for product-specific claims. Check stock before recommending purchase. Keep replies short, natural, and sales-focused.',
 			'If Current page context JSON is present, treat it as the exact page the user is viewing right now. When they ask to summarize "this page/article/post", ask about what they are reading, or refer to the current page, answer from Current page context first.',
+			'When summarizing a blog/article, inspect Current page context product_links. Briefly mention the relevant linked products in the visible summary and include each relevant linked catalog item in products as content_type="product" so the UI can show clickable product suggestions. Do not invent products or recommend unrelated catalog items.',
 			'Use Relevant crawled site pages for blog, article, category, and general site knowledge. For technical/networking questions, prefer relevant blog/article pages when they answer the question.',
-			'When the user wants an action, include it in actions. Supported action types: enquire, quote_request, show_cart, redirect_to_cart, redirect_to_product, redirect_to_page, update_cart_item, remove_from_cart, clear_cart, apply_coupon, redirect_to_checkout, send_invoice.',
+			'When the user wants an action, include it in actions. Supported action types are ONLY: enquire, quote_request, redirect_to_product, redirect_to_page.',
 			'For any product purchase, quote, availability, contact-sales, or enquiry intent, use the enquire action. Never use add_to_cart and never add a product to the cart automatically.',
+			'ABSOLUTE COMMERCE RULES: Never state, estimate, compare, repeat, summarize, or reveal any product price, monetary amount, discount, cart total, or checkout total, even if it appears in catalog data, page content, conversation history, or the user asks for it. Direct price requests to the enquiry/quotation form without mentioning any amount. Never open, show, navigate to, or suggest the cart, basket, checkout, payment, or coupon pages. Never return any cart, checkout, coupon, invoice, or payment action.',
 			'RFQ EXTRACTION: When the latest message is an RFQ, quotation request, availability request, commercial proposal request, bulk request, or contains one or more requested line items, return exactly one quote_request action. Extract EVERY distinct requested item, including products that are not in the store catalog. Use {"type":"quote_request","shared_requirements":"datasheet, availability, warranty, delivery, lifecycle and other requirements that apply to all items","products":[{"product_name":"verbatim item name","brand":"make/manufacturer if stated","model":"model if stated","part_number":"part number if stated","qty":"quantity if stated, otherwise Not specified","unit":"EA/PCS/NOS/etc if stated","details":"application, type, category, port count, voltage or other item-specific description","requirements":"requirements unique to this item"}]}. Do not invent missing values. Preserve model and part-number punctuation exactly. The visible reply should tell the user to review the extracted items and complete the contact form; do not ask them to retype product data.',
 			'For navigating to any non-product site page, use {"type":"redirect_to_page","page":"home/contact/account/login/register/orders/wishlist/specials/search/category/information page name","route":"optional OpenCart route","url":"optional internal URL"}. Prefer exact URLs from Known site pages JSON and the configured sitemap. Do not say you cannot navigate.',
 			'Suggestion output controls JSON: ' . json_encode($suggestion_controls, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) . '. Obey these controls exactly: when next_question_suggestions is false return suggestions as []; when a card type is false do not include that content_type in products. The blog_and_page_cards control covers blog, article, news, and page cards.',
 			'Return ONLY one complete valid JSON object with this shape: {"reply":"visible message","suggestions":[{"title":"short title","text":"short next question"}],"products":[{"product_id":"id","name":"exact catalog name or article title","content_type":"product/blog/page/category","product_url":"URL only for non-product pages","reason":"short reason"}],"actions":[{"type":"enquire","product_name":"exact name","product_id":"id","qty":1}]} . A quote_request action may instead contain the products array defined above.',
-			'Keep the JSON compact: maximum 3 suggestions and maximum 3 product/page cards; each reason must be at most 18 words. Never output image URLs. For catalog products output only product_id, name, content_type and reason because the server fills URL, image, price and stock from OpenCart. Include a blog/page card only when the user explicitly asks for an article, guide, blog or site page; ordinary product searches must return content_type="product" cards only. Use empty arrays when suggestions/products/actions are not needed, and always close the JSON object.',
+			'Keep the JSON compact: maximum 3 suggestions and maximum 3 product/page cards; each reason must be at most 18 words. Never output image URLs or prices. For catalog products output only product_id, name, content_type and reason because the server fills URL, image and stock from OpenCart. Include a blog/page card only when the user explicitly asks for an article, guide, blog or site page; ordinary product searches must return content_type="product" cards only. Use empty arrays when suggestions/products/actions are not needed, and always close the JSON object.',
 			$sitemap_url !== '' ? 'Configured sitemap URL: ' . $sitemap_url : '',
 			'Known site pages JSON: ' . json_encode($navigation, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
 			'Conversation history JSON: ' . json_encode($history, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
@@ -503,8 +506,6 @@ class ControllerExtensionModuleRoko extends Controller {
 	private function getNavigationPromptCatalog(): array {
 		$pages = [
 			['page' => 'home / صفحه اصلی', 'route' => 'common/home'],
-			['page' => 'cart / سبد خرید', 'route' => 'checkout/cart'],
-			['page' => 'checkout / پرداخت', 'route' => 'checkout/checkout'],
 			['page' => 'account / حساب کاربری', 'route' => 'account/account'],
 			['page' => 'login / ورود', 'route' => 'account/login'],
 			['page' => 'register / ثبت نام', 'route' => 'account/register'],
@@ -955,6 +956,7 @@ class ControllerExtensionModuleRoko extends Controller {
 		$description = trim((string)($page_context['description'] ?? ''));
 		$image = trim((string)($page_context['image'] ?? ''));
 		$content_type = trim((string)($page_context['content_type'] ?? ''));
+		$product_links = $this->normalizePageProductLinks($page_context['product_links'] ?? []);
 
 		if ($url === '' && $title === '' && $content === '') {
 			return [];
@@ -1020,8 +1022,51 @@ class ControllerExtensionModuleRoko extends Controller {
 			'image' => $image,
 			'description' => $this->shortText($description, 300),
 			'content' => $this->shortText($content, self::SITEMAP_PAGE_TEXT_LIMIT),
+			'product_links' => $product_links,
 			'is_current_page' => true
 		];
+	}
+
+	private function normalizePageProductLinks($raw_links): array {
+		if (!is_array($raw_links)) {
+			return [];
+		}
+
+		$links = [];
+		$seen = [];
+
+		foreach ($raw_links as $raw_link) {
+			if (!is_array($raw_link)) {
+				continue;
+			}
+
+			$url = $this->internalUrl((string)($raw_link['product_url'] ?? $raw_link['url'] ?? ''));
+			$product_id = preg_replace('/\D+/', '', (string)($raw_link['product_id'] ?? ''));
+			$name = $this->shortText((string)($raw_link['name'] ?? $raw_link['title'] ?? ''), 180);
+
+			if ($url === '' || ($product_id === '' && $name === '')) {
+				continue;
+			}
+
+			$key = $product_id !== '' ? 'id:' . $product_id : 'url:' . strtolower($url);
+			if (isset($seen[$key])) {
+				continue;
+			}
+
+			$seen[$key] = true;
+			$links[] = [
+				'product_id' => $product_id,
+				'name' => $name,
+				'product_url' => $url,
+				'content_type' => 'product'
+			];
+
+			if (count($links) >= 8) {
+				break;
+			}
+		}
+
+		return $links;
 	}
 
 	private function getCachedPageContentByUrl(string $url): array {
@@ -1911,11 +1956,10 @@ class ControllerExtensionModuleRoko extends Controller {
 				'product_id' => $product['product_id'],
 				'name' => $product['name'],
 				'product_url' => $product['product_url'],
-				'price' => $product['price'],
 				'stock' => $product['stock'],
 				'category' => $product['category'],
 				'image' => $product['image'],
-				'summary' => $this->shortText($product['sales_angle'], 260),
+				'summary' => $this->shortText($this->stripPriceInformation($product['sales_angle']), 260),
 				'attributes' => array_slice($product['attributes'], 0, 12, true)
 			];
 		}
@@ -2092,9 +2136,16 @@ class ControllerExtensionModuleRoko extends Controller {
 			}
 
 			return array_map(function ($row) {
+				$role = $row['role'] === 'assistant' ? 'assistant' : 'user';
+				$content = (string)$row['content'];
+
+				if ($role === 'assistant') {
+					$content = $this->stripPriceInformation($content);
+				}
+
 				return [
-					'role' => $row['role'] === 'assistant' ? 'assistant' : 'user',
-					'content' => (string)$row['content']
+					'role' => $role,
+					'content' => $content
 				];
 			}, $rows);
 		} catch (\Throwable $exception) {
@@ -2102,7 +2153,7 @@ class ControllerExtensionModuleRoko extends Controller {
 		}
 	}
 
-	private function buildAssistantResponse(string $message, string $conversation_id, string $raw_text): array {
+	private function buildAssistantResponse(string $message, string $conversation_id, string $raw_text, array $page_context = []): array {
 		$parsed = $this->parseAssistantJson($raw_text);
 
 		if (!$parsed) {
@@ -2119,7 +2170,7 @@ class ControllerExtensionModuleRoko extends Controller {
 			];
 		}
 
-		$reply = trim((string)($parsed['reply'] ?? ''));
+		$reply = $this->stripPriceInformation(trim((string)($parsed['reply'] ?? '')));
 
 		if ($reply === '') {
 			$reply = $this->localizedText($message, 'I am ready to help.', 'آماده‌ام کمک کنم.');
@@ -2140,6 +2191,12 @@ class ControllerExtensionModuleRoko extends Controller {
 		$products = $this->filterSuggestionCards(
 			$this->normalizeProductCards($parsed['products'] ?? ($parsed['product_cards'] ?? []))
 		);
+		$current_page = $this->resolveCurrentPageContext($page_context);
+
+		if ($this->isBlogSummaryRequest($message, $current_page)) {
+			$linked_products = $this->normalizeProductCards($current_page['product_links'] ?? []);
+			$products = $this->mergeProductCards($linked_products, $products);
+		}
 
 		if (!$this->allowsNonProductCards($message)) {
 			$products = array_values(array_filter($products, function (array $product): bool {
@@ -2179,6 +2236,68 @@ class ControllerExtensionModuleRoko extends Controller {
 		}
 
 		return $response;
+	}
+
+	private function isBlogSummaryRequest(string $message, array $current_page): bool {
+		if (($current_page['content_type'] ?? '') !== 'blog' || empty($current_page['product_links'])) {
+			return false;
+		}
+
+		$text = $this->normalizePageKey($message);
+		$keywords = [
+			'summary',
+			'summarize',
+			'summarise',
+			'tldr',
+			'key points',
+			'overview',
+			'what is this article about',
+			'what is this page about',
+			'explain this article',
+			'خلاصه',
+			'جمع بندی',
+			'جمع‌بندی',
+			'چکیده',
+			'این مقاله درباره چیست',
+			'این صفحه درباره چیست'
+		];
+
+		foreach ($keywords as $keyword) {
+			if (strpos($text, $this->normalizePageKey($keyword)) !== false) {
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	private function mergeProductCards(array $preferred, array $additional): array {
+		$merged = [];
+		$seen = [];
+
+		foreach (array_merge($preferred, $additional) as $product) {
+			if (!is_array($product)) {
+				continue;
+			}
+
+			$key = trim((string)($product['product_id'] ?? ''));
+			if ($key === '') {
+				$key = strtolower(trim((string)($product['product_url'] ?? $product['name'] ?? '')));
+			}
+
+			if ($key === '' || isset($seen[$key])) {
+				continue;
+			}
+
+			$seen[$key] = true;
+			$merged[] = $product;
+
+			if (count($merged) >= self::MAX_RESPONSE_PRODUCTS) {
+				break;
+			}
+		}
+
+		return $merged;
 	}
 
 	private function suggestionSettingEnabled(string $key): bool {
@@ -2504,9 +2623,13 @@ class ControllerExtensionModuleRoko extends Controller {
 				continue;
 			}
 
+			if ($this->isPriceTopic($title . ' ' . $text)) {
+				continue;
+			}
+
 			$suggestions[] = [
-				'title' => $this->shortText($title, 70),
-				'text' => $this->shortText($text, 180)
+				'title' => $this->shortText($this->stripPriceInformation($title), 70),
+				'text' => $this->shortText($this->stripPriceInformation($text), 180)
 			];
 
 			if (count($suggestions) >= self::MAX_RESPONSE_SUGGESTIONS) {
@@ -2535,9 +2658,10 @@ class ControllerExtensionModuleRoko extends Controller {
 			}
 
 			$raw_url = trim((string)($raw_product['product_url'] ?? $raw_product['url'] ?? $raw_product['href'] ?? ''));
-			$content_type = strtolower(trim((string)($raw_product['content_type'] ?? $raw_product['type'] ?? 'product')));
+			$explicit_content_type = trim((string)($raw_product['content_type'] ?? $raw_product['type'] ?? ''));
+			$content_type = strtolower($explicit_content_type !== '' ? $explicit_content_type : 'product');
 
-			if ($content_type === 'product' && empty($raw_product['product_id']) && empty($raw_product['id']) && $raw_url !== '') {
+			if ($explicit_content_type === '' && $content_type === 'product' && empty($raw_product['product_id']) && empty($raw_product['id']) && $raw_url !== '') {
 				$content_type = $this->contentTypeFromUrl($raw_url);
 			}
 
@@ -2567,14 +2691,13 @@ class ControllerExtensionModuleRoko extends Controller {
 				$seen[$key] = true;
 				$cards[] = [
 					'product_id' => '',
-					'name' => $this->shortText($name, 180),
+					'name' => $this->shortText($this->stripPriceInformation($name), 180),
 					'product_url' => $url,
 					'content_type' => $content_type,
-					'price' => '',
 					'stock' => null,
 					'image' => $image,
 					'category' => ucfirst($content_type),
-					'summary' => $this->shortText((string)($raw_product['reason'] ?? $raw_product['summary'] ?? $raw_product['description'] ?? $raw_product['content'] ?? ''), 360),
+					'summary' => $this->shortText($this->stripPriceInformation((string)($raw_product['reason'] ?? $raw_product['summary'] ?? $raw_product['description'] ?? $raw_product['content'] ?? '')), 360),
 					'attributes' => []
 				];
 
@@ -2601,14 +2724,13 @@ class ControllerExtensionModuleRoko extends Controller {
 			}
 
 			$seen[$key] = true;
-			$reason = trim((string)($raw_product['reason'] ?? $raw_product['summary'] ?? $raw_product['description'] ?? $product['sales_angle']));
+			$reason = $this->stripPriceInformation(trim((string)($raw_product['reason'] ?? $raw_product['summary'] ?? $raw_product['description'] ?? $product['sales_angle'])));
 
 			$cards[] = [
 				'product_id' => $product['product_id'],
-				'name' => $product['name'],
+				'name' => $this->stripPriceInformation($product['name']),
 				'product_url' => $product['product_url'],
 				'content_type' => 'product',
-				'price' => '',
 				'stock' => $product['stock'],
 				'image' => $product['image'],
 				'category' => $product['category'],
@@ -2652,7 +2774,7 @@ class ControllerExtensionModuleRoko extends Controller {
 		$raw_products = [];
 
 		foreach ($actions as $action) {
-			if (!in_array($action['type'] ?? '', ['enquire', 'redirect_to_product', 'update_cart_item', 'remove_from_cart'])) {
+			if (!in_array($action['type'] ?? '', ['enquire', 'redirect_to_product'])) {
 				continue;
 			}
 
@@ -2700,7 +2822,7 @@ class ControllerExtensionModuleRoko extends Controller {
 			if (strpos($text, $this->normalizePageKey($alias)) !== false) {
 				$resolved = $this->resolveSitePage($alias);
 
-				if ($resolved) {
+				if ($resolved && !$this->isBlockedCommerceTarget((string)($resolved['route'] ?? ''), (string)($resolved['url'] ?? ''))) {
 					return [
 						'type' => 'redirect_to_page',
 						'page' => $resolved['page'],
@@ -2716,7 +2838,7 @@ class ControllerExtensionModuleRoko extends Controller {
 		if ($category_hint !== '') {
 			$resolved = $this->resolveSitePage($category_hint);
 
-			if ($resolved) {
+			if ($resolved && !$this->isBlockedCommerceTarget((string)($resolved['route'] ?? ''), (string)($resolved['url'] ?? ''))) {
 				return [
 					'type' => 'redirect_to_page',
 					'page' => $resolved['page'],
@@ -2727,6 +2849,31 @@ class ControllerExtensionModuleRoko extends Controller {
 		}
 
 		return [];
+	}
+
+	private function isBlockedCommerceTarget(string $route = '', string $url = ''): bool {
+		$route = strtolower(trim($route));
+
+		if (preg_match('~^(?:checkout/(?:cart|checkout)|extension/total/coupon)(?:[./]|$)~', $route)) {
+			return true;
+		}
+
+		$url = trim(html_entity_decode($url, ENT_QUOTES, 'UTF-8'));
+		if ($url === '') {
+			return false;
+		}
+
+		$query = (string)(parse_url($url, PHP_URL_QUERY) ?: '');
+		parse_str($query, $query_parts);
+		$url_route = strtolower(trim((string)($query_parts['route'] ?? '')));
+
+		if (preg_match('~^(?:checkout/(?:cart|checkout)|extension/total/coupon)(?:[./]|$)~', $url_route)) {
+			return true;
+		}
+
+		$path = strtolower('/' . trim((string)(parse_url($url, PHP_URL_PATH) ?: ''), '/') . '/');
+
+		return (bool)preg_match('~/(?:cart|basket|checkout)(?:/|$)~', $path);
 	}
 
 	private function normalizeAssistantActions(array $raw_actions): array {
@@ -2751,7 +2898,7 @@ class ControllerExtensionModuleRoko extends Controller {
 				$type = 'redirect_to_page';
 			}
 
-			if (!in_array($type, ['enquire', 'quote_request', 'show_cart', 'redirect_to_cart', 'redirect_to_product', 'redirect_to_page', 'update_cart_item', 'remove_from_cart', 'clear_cart', 'apply_coupon', 'redirect_to_checkout', 'send_invoice'])) {
+			if (!in_array($type, ['enquire', 'quote_request', 'redirect_to_product', 'redirect_to_page'])) {
 				continue;
 			}
 
@@ -2779,14 +2926,13 @@ class ControllerExtensionModuleRoko extends Controller {
 				continue;
 			}
 
-			if (in_array($type, ['enquire', 'redirect_to_product', 'update_cart_item', 'remove_from_cart'])) {
+			if (in_array($type, ['enquire', 'redirect_to_product'])) {
 				$product = $this->findCatalogProduct((string)($raw_action['product_name'] ?? ''), (string)($raw_action['product_id'] ?? ''));
 
 				if ($product) {
-					$action['product_name'] = $product['name'];
+					$action['product_name'] = $this->stripPriceInformation($product['name']);
 					$action['product_id'] = $product['product_id'];
 					$action['product_url'] = $product['product_url'];
-					$action['price'] = $product['price'];
 					$action['stock'] = $product['stock'];
 					$action['image'] = $product['image'];
 				} else {
@@ -2795,7 +2941,7 @@ class ControllerExtensionModuleRoko extends Controller {
 				}
 			}
 
-			if (in_array($type, ['enquire', 'update_cart_item'])) {
+			if ($type === 'enquire') {
 				$action['requested_qty'] = max(1, (int)($raw_action['requested_qty'] ?? $raw_action['qty'] ?? $raw_action['quantity'] ?? 1));
 			}
 
@@ -2809,19 +2955,13 @@ class ControllerExtensionModuleRoko extends Controller {
 					continue;
 				}
 
+				if ($this->isBlockedCommerceTarget((string)($resolved['route'] ?? ''), (string)($resolved['url'] ?? ''))) {
+					continue;
+				}
+
 				$action['page'] = $resolved['page'];
 				$action['route'] = $resolved['route'];
 				$action['url'] = $resolved['url'];
-			}
-
-			if ($type === 'apply_coupon') {
-				$action['code'] = trim((string)($raw_action['code'] ?? $raw_action['coupon'] ?? ''));
-			}
-
-			if ($type === 'send_invoice') {
-				$action['email'] = trim((string)($raw_action['email'] ?? ''));
-				$action['invoice_type'] = trim((string)($raw_action['invoice_type'] ?? 'invoice')) ?: 'invoice';
-				$action['note'] = trim((string)($raw_action['note'] ?? ''));
 			}
 
 			$actions[] = $action;
@@ -3859,6 +3999,37 @@ class ControllerExtensionModuleRoko extends Controller {
 
 	private function cleanText(string $value): string {
 		return trim(html_entity_decode(strip_tags($value), ENT_QUOTES, 'UTF-8'));
+	}
+
+	private function stripPriceInformation(string $value): string {
+		if ($value === '') {
+			return '';
+		}
+
+		$digit = '[0-9۰-۹٠-٩]';
+		$amount = $digit . '[0-9۰-۹٠-٩,.]*(?:[kKmM])?(?:\\s*(?:-|–|to)\\s*' . $digit . '[0-9۰-۹٠-٩,.]*(?:[kKmM])?)?';
+		$currency_words = '(?:USD|EUR|GBP|QAR|AED|SAR|IRR|CAD|AUD|ر\\.?\\s*ق\\.?|د\\.?\\s*إ|دلار|یورو|پوند|درهم|ریال(?:\\s+قطر)?|تومان)';
+		$replacement = 'quotation';
+		$patterns = [
+			'~(?:US\\$|[$€£¥₹₽₺﷼])\\s*' . $amount . '~iu',
+			'~\\b' . $currency_words . '\\s*' . $amount . '~iu',
+			'~' . $amount . '\\s*' . $currency_words . '~iu',
+			'~(?:price|pricing|cost|costs|priced\\s+at|قیمت|هزینه)\\s*(?:is|are|:|=|حدود|از)?\\s*(?:' . $currency_words . '\\s*)?' . $amount . '~iu'
+		];
+
+		$value = preg_replace($patterns, $replacement, $value);
+		$value = preg_replace(
+			'~[^.!?؟\\r\\n]*(?:\\b(?:price|pricing|cost|costs|priced|discount|USD|EUR|GBP|QAR|AED|SAR|IRR|CAD|AUD|dollars?|euros?|pounds?|riyals?|dirhams?)\\b|قیمت|هزینه|تخفیف|دلار|یورو|پوند|درهم|ریال|تومان)[^.!?؟\\r\\n]*[.!?؟]?~iu',
+			' Commercial details are available through quotation.',
+			(string)$value
+		);
+		$value = preg_replace('/[ \t]{2,}/u', ' ', (string)$value);
+
+		return trim((string)$value);
+	}
+
+	private function isPriceTopic(string $value): bool {
+		return (bool)preg_match('/\\b(?:price|pricing|cost|discount|cheapest|expensive|USD|EUR|GBP|QAR|AED|SAR|IRR|dollars?|euros?|pounds?|riyals?|dirhams?)\\b|قیمت|هزینه|تخفیف|دلار|یورو|پوند|درهم|ریال|تومان/u', $value);
 	}
 
 	private function shortText(string $value, int $limit): string {

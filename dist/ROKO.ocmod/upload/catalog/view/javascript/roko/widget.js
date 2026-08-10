@@ -181,7 +181,13 @@
 
     isBlogPage() {
       const path = String(location.pathname || '').toLowerCase();
-      return /(^|\/)(blog|article|news)(\/|$)/.test(path) || path.includes('rockford-blog');
+      const search = String(location.search || '').toLowerCase();
+      const bodyClass = String(document.body && document.body.className || '').toLowerCase();
+      return /(^|\/)(blog|article|news)(\/|$)/.test(path)
+        || path.includes('rockford-blog')
+        || /(?:route|path)=[^&]*(?:blog|article|news)/.test(search)
+        || /(?:^|\s)(?:blog|article|news|post)(?:-|_|\s|$)/.test(bodyClass)
+        || Boolean(document.querySelector('meta[property="article:published_time"], .post-content, .blog-content, .article-content'));
     }
 
     getPageContentType() {
@@ -219,7 +225,8 @@
         content_type: this.getPageContentType(),
         description: this.extractMetaDescription(),
         image: this.extractPageImage(),
-        content: this.extractPageText()
+        content: this.extractPageText(),
+        product_links: this.extractBlogProductLinks()
       };
     }
 
@@ -237,6 +244,64 @@
 
       const image = document.querySelector('article img, #content img, main img, .post-image img, .product-thumb img');
       return image ? String(image.getAttribute('src') || image.src || '').trim() : '';
+    }
+
+    extractBlogProductLinks() {
+      if (!this.isBlogPage()) return [];
+
+      const root = document.querySelector('article, .post-content, .blog-content, .entry-content, .article-content, #content, main');
+      if (!root) return [];
+
+      const selectors = [
+        'a[href*="product_id="]',
+        'a[href*="route=product/product"]',
+        'a[href*="/product/"]',
+        'a[data-product-id]',
+        '.product-thumb a[href]',
+        '.product-card a[href]',
+        '.product-item a[href]'
+      ];
+      const links = [];
+      const seen = {};
+
+      root.querySelectorAll(selectors.join(',')).forEach((anchor) => {
+        const rawHref = String(anchor.getAttribute('href') || '').trim();
+        if (!rawHref || rawHref.charAt(0) === '#') return;
+
+        let url;
+        try {
+          url = new URL(rawHref, window.location.href);
+        } catch (error) {
+          return;
+        }
+
+        if (url.origin !== window.location.origin) return;
+
+        const productId = String(anchor.dataset.productId || url.searchParams.get('product_id') || '').replace(/[^0-9]/g, '');
+        const image = anchor.querySelector('img');
+        const nameCandidates = [
+          anchor.getAttribute('data-product-name'),
+          anchor.getAttribute('title'),
+          anchor.getAttribute('aria-label'),
+          anchor.textContent,
+          image && image.getAttribute('alt')
+        ];
+        const name = nameCandidates
+          .map((value) => String(value || '').replace(/\s+/g, ' ').trim())
+          .find((value) => value) || '';
+        const key = productId ? 'id:' + productId : 'url:' + url.toString();
+        if (seen[key]) return;
+        seen[key] = true;
+
+        links.push({
+          product_id: productId,
+          name: name.slice(0, 180),
+          product_url: url.toString(),
+          content_type: 'product'
+        });
+      });
+
+      return links.slice(0, 8);
     }
 
     extractPageText() {
@@ -724,7 +789,8 @@
     }
 
     addMessage(role, text, persist, extras) {
-      const cleanedText = this.stripAction(text);
+      const actionStrippedText = this.stripAction(text);
+      const cleanedText = role === 'user' ? actionStrippedText : this.stripPriceInformation(actionStrippedText);
       const messageExtras = extras || {};
       const products = this.normalizeProducts(messageExtras.products);
       const suggestions = this.normalizeSuggestions(messageExtras.suggestions);
@@ -814,7 +880,10 @@
           title: String(suggestion.title || suggestion.label || '').trim(),
           text: String(suggestion.text || suggestion.message || suggestion.prompt || '').trim()
         };
-      }).filter((suggestion) => suggestion && suggestion.text).slice(0, 6);
+      }).filter((suggestion) => suggestion && suggestion.text && !this.isPriceTopic(suggestion.title + ' ' + suggestion.text)).map((suggestion) => ({
+        title: this.stripPriceInformation(suggestion.title),
+        text: this.stripPriceInformation(suggestion.text)
+      })).slice(0, 6);
     }
 
     normalizeProducts(products) {
@@ -825,13 +894,13 @@
         const contentType = String(product.content_type || product.type || (product.product_id || product.id ? 'product' : 'page')).trim().toLowerCase();
         return {
           product_id: String(product.product_id || product.id || ''),
-          name: String(product.name || product.product_name || product.title || '').trim(),
+          name: this.stripPriceInformation(String(product.name || product.product_name || product.title || '').trim()),
           product_url: String(product.product_url || product.url || product.href || '').trim(),
           content_type: contentType,
           stock: rawStock,
           image: String(product.image || '').trim(),
           category: String(product.category || '').trim(),
-          summary: String(product.summary || product.reason || product.description || '').trim(),
+          summary: this.stripPriceInformation(String(product.summary || product.reason || product.description || '').trim()),
           attributes: product.attributes && typeof product.attributes === 'object' ? product.attributes : {}
         };
       }).filter((product) => product && product.name && this.isSuggestionCardEnabled(product.content_type)).slice(0, 4);
@@ -915,8 +984,12 @@
       return type.charAt(0).toUpperCase() + type.slice(1);
     }
 
-    getContentActionLabel() {
-      return 'Learn more';
+    getContentActionLabel(contentType) {
+      const type = String(contentType || 'page').trim().toLowerCase();
+      if (type === 'product') return 'View product';
+      if (type === 'blog' || type === 'article' || type === 'news') return 'Read article';
+      if (type === 'category') return 'Browse category';
+      return 'Open page';
     }
 
     createProductCard(product) {
@@ -982,28 +1055,29 @@
       row.appendChild(main);
       card.appendChild(row);
 
-      if (!isTextLink) {
-        const actions = document.createElement('div');
-        actions.className = 'aisa-product-actions';
+      const actions = document.createElement('div');
+      actions.className = 'aisa-product-actions ' + (isProduct && product.product_id ? 'has-secondary' : 'is-single');
 
-        const learn = document.createElement('button');
-        learn.type = 'button';
-        learn.className = 'aisa-product-action primary';
-        learn.textContent = this.getContentActionLabel();
-        learn.addEventListener('click', () => this.redirectToProduct(product));
-        actions.appendChild(learn);
+      const learn = document.createElement('button');
+      const primaryLabel = this.getContentActionLabel(contentType);
+      learn.type = 'button';
+      learn.className = 'aisa-product-action primary';
+      learn.textContent = primaryLabel;
+      learn.setAttribute('aria-label', primaryLabel + ': ' + product.name);
+      learn.addEventListener('click', () => this.redirectToProduct(product));
+      actions.appendChild(learn);
 
-        if (isProduct && product.product_id) {
-          const enquire = document.createElement('button');
-          enquire.type = 'button';
-          enquire.className = 'aisa-product-action secondary';
-          enquire.textContent = 'Enquire';
-          enquire.addEventListener('click', () => this.startProductEnquiry(product));
-          actions.appendChild(enquire);
-        }
-
-        card.appendChild(actions);
+      if (isProduct && product.product_id) {
+        const enquire = document.createElement('button');
+        enquire.type = 'button';
+        enquire.className = 'aisa-product-action secondary';
+        enquire.textContent = 'Request quote';
+        enquire.setAttribute('aria-label', 'Request quote: ' + product.name);
+        enquire.addEventListener('click', () => this.startProductEnquiry(product));
+        actions.appendChild(enquire);
       }
+
+      card.appendChild(actions);
 
       return card;
     }
@@ -1018,7 +1092,7 @@
       return products.map((product) => {
         if (typeof product === 'string') product = { product_name: product };
         if (!product || typeof product !== 'object') return null;
-        const productName = String(product.product_name || product.name || product.item || '').replace(/\s+/g, ' ').trim();
+        const productName = this.stripPriceInformation(String(product.product_name || product.name || product.item || '').replace(/\s+/g, ' ').trim());
         if (!productName) return null;
         const rawQty = product.qty !== undefined ? product.qty : (product.quantity !== undefined ? product.quantity : product.requested_qty);
         return {
@@ -1028,8 +1102,8 @@
           part_number: String(product.part_number || product.part_no || product.pn || '').trim(),
           qty: String(rawQty === undefined || rawQty === null || rawQty === '' ? 'Not specified' : rawQty).trim(),
           unit: String(product.unit || product.uom || '').trim(),
-          details: String(product.details || product.description || product.specifications || '').trim(),
-          requirements: String(product.requirements || product.requested_information || '').trim()
+          details: this.stripPriceInformation(String(product.details || product.description || product.specifications || '').trim()),
+          requirements: this.stripPriceInformation(String(product.requirements || product.requested_information || '').trim())
         };
       }).filter(Boolean).slice(0, 50);
     }
@@ -1318,6 +1392,22 @@
       return String(text || '').replace(/\[ACTION:\s*(?:ADD_TO_CART|ENQUIRE):[^\]]+\]/gi, '').trim();
     }
 
+    stripPriceInformation(text) {
+      const replacement = 'quotation';
+      return String(text || '')
+        .replace(/(?:US\$|[$€£¥₹₽₺﷼])\s*[0-9۰-۹٠-٩][0-9۰-۹٠-٩,.]*(?:[kKmM])?(?:\s*(?:-|–|to)\s*[0-9۰-۹٠-٩][0-9۰-۹٠-٩,.]*(?:[kKmM])?)?/giu, replacement)
+        .replace(/\b(?:USD|EUR|GBP|QAR|AED|SAR|IRR|CAD|AUD|ر\.?\s*ق\.?|د\.?\s*إ)\s*[0-9۰-۹٠-٩][0-9۰-۹٠-٩,.]*(?:[kKmM])?/giu, replacement)
+        .replace(/[0-9۰-۹٠-٩][0-9۰-۹٠-٩,.]*(?:[kKmM])?(?:\s*(?:-|–|to)\s*[0-9۰-۹٠-٩][0-9۰-۹٠-٩,.]*(?:[kKmM])?)?\s*(?:USD|EUR|GBP|QAR|AED|SAR|IRR|CAD|AUD|ر\.?\s*ق\.?|د\.?\s*إ|دلار|یورو|پوند|درهم|ریال(?:\s+قطر)?|تومان)/giu, replacement)
+        .replace(/(?:price|pricing|cost|costs|priced\s+at|قیمت|هزینه)\s*(?:is|are|:|=|حدود|از)?\s*[0-9۰-۹٠-٩][0-9۰-۹٠-٩,.]*(?:[kKmM])?/giu, replacement)
+        .replace(/[^.!?؟\r\n]*(?:\b(?:price|pricing|cost|costs|priced|discount|USD|EUR|GBP|QAR|AED|SAR|IRR|CAD|AUD|dollars?|euros?|pounds?|riyals?|dirhams?)\b|قیمت|هزینه|تخفیف|دلار|یورو|پوند|درهم|ریال|تومان)[^.!?؟\r\n]*[.!?؟]?/giu, ' Commercial details are available through quotation.')
+        .replace(/[ \t]{2,}/g, ' ')
+        .trim();
+    }
+
+    isPriceTopic(text) {
+      return /\b(?:price|pricing|cost|discount|cheapest|expensive|USD|EUR|GBP|QAR|AED|SAR|IRR|dollars?|euros?|pounds?|riyals?|dirhams?)\b|قیمت|هزینه|تخفیف|دلار|یورو|پوند|درهم|ریال|تومان/iu.test(String(text || ''));
+    }
+
     isRtlMessage(text) {
       const value = String(text || '');
       const rtlCount = (value.match(/[\u0590-\u08ff]/g) || []).length;
@@ -1482,6 +1572,10 @@
       const rawActionType = action.type || (action.product_id ? 'enquire' : '');
       const actionType = rawActionType === 'add_to_cart' ? 'enquire' : rawActionType;
 
+      if (['show_cart', 'redirect_to_cart', 'update_cart_item', 'remove_from_cart', 'clear_cart', 'apply_coupon', 'redirect_to_checkout', 'send_invoice'].includes(actionType)) {
+        return;
+      }
+
       if (actionType === 'enquire' && action.product_id) {
         this.startProductEnquiry(action);
         return;
@@ -1552,7 +1646,7 @@
     }
 
     redirectToRoute(route, actionType = 'redirect_route') {
-      if (!route) return;
+      if (!route || this.isBlockedCommerceDestination(route)) return;
       this.redirectToUrl(this.buildShopUrl(route).toString(), actionType);
     }
 
@@ -1570,7 +1664,7 @@
     }
 
     redirectToUrl(url, actionType = 'redirect') {
-      if (!url) return;
+      if (!url || this.isBlockedCommerceDestination(url)) return;
 
       const sourceUrl = window.location.href;
       const destinationUrl = this.normalizeRedirectUrl(url);
@@ -1616,6 +1710,21 @@
         return new URL(url, this.getShopBaseUrl()).toString();
       } catch (error) {
         return String(url || '');
+      }
+    }
+
+    isBlockedCommerceDestination(target) {
+      const value = String(target || '').trim();
+      if (!value) return false;
+
+      try {
+        const parsed = new URL(value, this.getShopBaseUrl());
+        const route = String(parsed.searchParams.get('route') || '').toLowerCase();
+        if (/^(?:checkout\/(?:cart|checkout)|extension\/total\/coupon)(?:[./]|$)/.test(route)) return true;
+        return /\/(?:cart|basket|checkout)(?:\/|$)/.test('/' + parsed.pathname.toLowerCase().replace(/^\/+|\/+$/g, '') + '/');
+      } catch (error) {
+        const normalized = value.toLowerCase();
+        return /checkout[\\/](?:cart|checkout)|(?:^|[\\/])(cart|basket|checkout)(?:[\\/?#]|$)/.test(normalized);
       }
     }
 

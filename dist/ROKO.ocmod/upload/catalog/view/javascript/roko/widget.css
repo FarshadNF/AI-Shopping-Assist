@@ -3084,3 +3084,131 @@
     clip: rect(0 0 0 0) !important;
   }
 }
+
+/* ROKO 3.6.3: unmistakable, accessible card calls to action. */
+#roko-widget .aisa-product-card.is-text-link {
+  padding: 0 !important;
+  overflow: hidden !important;
+}
+
+#roko-widget .aisa-product-card.is-text-link .aisa-product-main {
+  padding: 16px 16px 13px !important;
+}
+
+#roko-widget .aisa-product-card .aisa-product-actions {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) !important;
+  gap: 8px !important;
+  margin-top: auto !important;
+  padding: 11px 12px 12px !important;
+  border-top: 1px solid #eadde4 !important;
+  background: linear-gradient(180deg, #fffdfd 0%, #fff8fb 100%) !important;
+}
+
+#roko-widget .aisa-product-card.is-product .aisa-product-actions.has-secondary {
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+}
+
+#roko-widget .aisa-product-card .aisa-product-action,
+#roko-widget .aisa-product-card .aisa-product-action.primary,
+#roko-widget .aisa-product-card .aisa-product-action.secondary {
+  position: relative !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 7px !important;
+  width: 100% !important;
+  min-width: 0 !important;
+  min-height: 44px !important;
+  height: auto !important;
+  padding: 10px 11px !important;
+  border: 1px solid transparent !important;
+  border-radius: 12px !important;
+  font-size: 11px !important;
+  font-weight: 800 !important;
+  line-height: 1.15 !important;
+  letter-spacing: 0.01em !important;
+  text-align: center !important;
+  white-space: normal !important;
+  cursor: pointer !important;
+  transform: translateY(0) !important;
+  transition: transform 150ms ease, box-shadow 150ms ease, background 150ms ease, border-color 150ms ease, color 150ms ease !important;
+}
+
+#roko-widget .aisa-product-card .aisa-product-action::after {
+  content: "\2192";
+  flex: 0 0 auto;
+  font-size: 16px;
+  font-weight: 900;
+  line-height: 1;
+  transition: transform 150ms ease;
+}
+
+#roko-widget [dir="rtl"] .aisa-product-action::after {
+  content: "\2190";
+}
+
+#roko-widget .aisa-product-card .aisa-product-action.primary {
+  border-color: #71134f !important;
+  background: linear-gradient(135deg, #71134f 0%, #9c1d60 100%) !important;
+  color: #ffffff !important;
+  box-shadow: 0 5px 12px rgba(113, 19, 79, 0.24) !important;
+}
+
+#roko-widget .aisa-product-card .aisa-product-action.secondary {
+  border-color: #b8799d !important;
+  background: #ffffff !important;
+  color: #71134f !important;
+  box-shadow: 0 3px 9px rgba(74, 16, 57, 0.09) !important;
+}
+
+#roko-widget .aisa-product-card .aisa-product-action.primary:hover {
+  border-color: #58103e !important;
+  background: linear-gradient(135deg, #5d103f 0%, #86174f 100%) !important;
+  color: #ffffff !important;
+  box-shadow: 0 8px 17px rgba(113, 19, 79, 0.31) !important;
+  transform: translateY(-2px) !important;
+}
+
+#roko-widget .aisa-product-card .aisa-product-action.secondary:hover {
+  border-color: #71134f !important;
+  background: #f8e9f1 !important;
+  color: #56103d !important;
+  box-shadow: 0 6px 13px rgba(74, 16, 57, 0.15) !important;
+  transform: translateY(-2px) !important;
+}
+
+#roko-widget .aisa-product-card .aisa-product-action:hover::after {
+  transform: translateX(3px);
+}
+
+#roko-widget [dir="rtl"] .aisa-product-action:hover::after {
+  transform: translateX(-3px);
+}
+
+#roko-widget .aisa-product-card .aisa-product-action:active {
+  box-shadow: 0 2px 5px rgba(74, 16, 57, 0.16) !important;
+  transform: translateY(1px) scale(0.98) !important;
+}
+
+#roko-widget .aisa-product-card .aisa-product-action:focus-visible {
+  outline: 3px solid rgba(156, 29, 96, 0.28) !important;
+  outline-offset: 2px !important;
+}
+
+#roko-widget .aisa-product-card .aisa-product-title-link {
+  cursor: pointer !important;
+}
+
+@media (max-width: 350px) {
+  #roko-widget .aisa-product-card.is-product .aisa-product-actions.has-secondary {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #roko-widget .aisa-product-card .aisa-product-action,
+  #roko-widget .aisa-product-card .aisa-product-action::after {
+    transition: none !important;
+  }
+}
