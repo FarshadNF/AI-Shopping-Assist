@@ -88,8 +88,9 @@
             <div class="aisa-head-main">
               <img class="aisa-avatar" alt="" hidden />
               <div class="aisa-head-copy">
+                <span class="aisa-kicker">SHOPPING VIRTUAL ASSISTANT</span>
                 <div class="aisa-title"></div>
-                <span class="aisa-status">Ready to help</span>
+                <span class="aisa-status">Online and ready</span>
               </div>
             </div>
             <div class="aisa-head-actions">
@@ -112,7 +113,7 @@
           </div>
           <div class="aisa-messages"></div>
           <form class="aisa-form">
-            <input class="aisa-input" type="text" autocomplete="off" placeholder="Ask about products..." required />
+            <input class="aisa-input" type="text" autocomplete="off" placeholder="Ask ROKO about products..." required />
             <button class="aisa-send" type="submit" aria-label="Send message" title="Send message">
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 14-7-4 14-3-6-7-1Z"/><path d="m12 13 7-8"/></svg>
               <span>Send</span>
@@ -859,6 +860,8 @@
         button.type = 'button';
         button.className = suggestion.title ? 'aisa-suggestion-card' : 'aisa-suggestion-chip';
         button.dir = this.isRtlMessage(suggestion.title + ' ' + suggestion.text) ? 'rtl' : 'ltr';
+        button.setAttribute('aria-label', suggestion.text);
+        button.title = suggestion.text;
 
         if (suggestion.title) {
           const title = document.createElement('span');

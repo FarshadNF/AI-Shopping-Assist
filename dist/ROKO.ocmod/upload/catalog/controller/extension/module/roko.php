@@ -1,6 +1,6 @@
 <?php
 class ControllerExtensionModuleRoko extends Controller {
-	private const VERSION = '3.4.3-no-suggestion-prices';
+	private const VERSION = '3.5.0-chatbot-ui';
 	private const MARKER = '<!-- ROKO_WIDGET -->';
 	private const GEMINI_MAX_OUTPUT_TOKENS = 1024;
 	private const MAX_RESPONSE_PRODUCTS = 3;
