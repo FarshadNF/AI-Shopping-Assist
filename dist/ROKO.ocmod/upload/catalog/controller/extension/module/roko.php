@@ -1,6 +1,6 @@
 <?php
 class ControllerExtensionModuleRoko extends Controller {
-	private const VERSION = '3.6.3-card-cta';
+	private const VERSION = '3.6.4-rfq-identity';
 	private const MARKER = '<!-- ROKO_WIDGET -->';
 	private const GEMINI_MAX_OUTPUT_TOKENS = 4096;
 	private const MAX_RESPONSE_PRODUCTS = 3;
@@ -488,7 +488,7 @@ class ControllerExtensionModuleRoko extends Controller {
 			'When the user wants an action, include it in actions. Supported action types are ONLY: enquire, quote_request, redirect_to_product, redirect_to_page.',
 			'For any product purchase, quote, availability, contact-sales, or enquiry intent, use the enquire action. Never use add_to_cart and never add a product to the cart automatically.',
 			'ABSOLUTE COMMERCE RULES: Never state, estimate, compare, repeat, summarize, or reveal any product price, monetary amount, discount, cart total, or checkout total, even if it appears in catalog data, page content, conversation history, or the user asks for it. Direct price requests to the enquiry/quotation form without mentioning any amount. Never open, show, navigate to, or suggest the cart, basket, checkout, payment, or coupon pages. Never return any cart, checkout, coupon, invoice, or payment action.',
-			'RFQ EXTRACTION: When the latest message is an RFQ, quotation request, availability request, commercial proposal request, bulk request, or contains one or more requested line items, return exactly one quote_request action. Extract EVERY distinct requested item, including products that are not in the store catalog. Use {"type":"quote_request","shared_requirements":"datasheet, availability, warranty, delivery, lifecycle and other requirements that apply to all items","products":[{"product_name":"verbatim item name","brand":"make/manufacturer if stated","model":"model if stated","part_number":"part number if stated","qty":"quantity if stated, otherwise Not specified","unit":"EA/PCS/NOS/etc if stated","details":"application, type, category, port count, voltage or other item-specific description","requirements":"requirements unique to this item"}]}. Do not invent missing values. Preserve model and part-number punctuation exactly. The visible reply should tell the user to review the extracted items and complete the contact form; do not ask them to retype product data.',
+			'RFQ EXTRACTION: When the latest message is an RFQ, quotation request, availability request, commercial proposal request, bulk request, or contains one or more requested line items, return exactly one quote_request action. Extract EVERY distinct requested item as a separate products entry, including products that are not in the store catalog. Never combine different item lines into one product. Use {"type":"quote_request","shared_requirements":"datasheet, availability, warranty, delivery, lifecycle and other requirements that apply to all items","products":[{"product_name":"verbatim item name","brand":"make/manufacturer if stated anywhere in the item text","model":"model if stated","part_number":"part number if stated","qty":"quantity if stated, otherwise Not specified","unit":"EA/PCS/NOS/etc if stated","details":"application, type, category, port count, voltage or other item-specific description","requirements":"requirements unique to this item"}]}. Brand position is irrelevant and matching is case-insensitive: both "Beijer JetNet 5210GP-2C Managed Ethernet Switch" and "JetNet 5210GP-2C Managed Beijer Ethernet Switch" have brand "Beijer" and model/part number "5210GP-2C"; "45ML-5401 Remote MOXA I/O Module" has brand "MOXA" and model/part number "45ML-5401". Never leave brand, model, part_number, qty, unit, details, or requirements empty: use "Not specified" only when the value truly is absent. Preserve model and part-number punctuation exactly. The visible reply should tell the user the items were separated and extracted automatically; do not ask them to retype product data.',
 			'For navigating to any non-product site page, use {"type":"redirect_to_page","page":"home/contact/account/login/register/orders/wishlist/specials/search/category/information page name","route":"optional OpenCart route","url":"optional internal URL"}. Prefer exact URLs from Known site pages JSON and the configured sitemap. Do not say you cannot navigate.',
 			'Suggestion output controls JSON: ' . json_encode($suggestion_controls, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) . '. Obey these controls exactly: when next_question_suggestions is false return suggestions as []; when a card type is false do not include that content_type in products. The blog_and_page_cards control covers blog, article, news, and page cards.',
 			'Return ONLY one complete valid JSON object with this shape: {"reply":"visible message","suggestions":[{"title":"short title","text":"short next question"}],"products":[{"product_id":"id","name":"exact catalog name or article title","content_type":"product/blog/page/category","product_url":"URL only for non-product pages","reason":"short reason"}],"actions":[{"type":"enquire","product_name":"exact name","product_id":"id","qty":1}]} . A quote_request action may instead contain the products array defined above.',
@@ -2911,6 +2911,9 @@ class ControllerExtensionModuleRoko extends Controller {
 				if ($shared_requirements !== '') {
 					foreach ($action['products'] as &$quote_product) {
 						$item_requirements = trim((string)($quote_product['requirements'] ?? ''));
+						if (strtolower($item_requirements) === 'not specified') {
+							$item_requirements = '';
+						}
 						$quote_product['requirements'] = $item_requirements !== ''
 							? $item_requirements . ' | Shared: ' . $shared_requirements
 							: $shared_requirements;
@@ -3588,12 +3591,6 @@ class ControllerExtensionModuleRoko extends Controller {
 		if ($name === '') {
 			$missing[] = 'Name';
 		}
-		if ($address === '') {
-			$missing[] = 'Address';
-		}
-		if ($contact_value === '') {
-			$missing[] = 'Contact';
-		}
 		if (!$products) {
 			$missing[] = 'Products';
 		}
@@ -3653,7 +3650,7 @@ class ControllerExtensionModuleRoko extends Controller {
 			return;
 		}
 
-		$reply = 'Thank you. Request ' . $request_id . ' was submitted with ' . $saved_count . ' separate product item(s). Our sales team will contact you shortly.';
+		$reply = 'Thank you. Request ' . $request_id . ' was submitted with ' . $saved_count . ' separate product item(s). Our sales team will review it shortly.';
 		$this->writeChatLog($conversation_id, 'assistant', $reply);
 		$this->outputJson([
 			'status' => 'success',
@@ -3680,21 +3677,41 @@ class ControllerExtensionModuleRoko extends Controller {
 				continue;
 			}
 
-			$product_name = $this->shortText(trim((string)($raw_product['product_name'] ?? $raw_product['name'] ?? $raw_product['item'] ?? '')), 180);
+			$product_name = $this->cleanQuoteIdentityText($this->stripPriceInformation((string)($raw_product['product_name'] ?? $raw_product['name'] ?? $raw_product['item'] ?? '')));
 			if ($product_name === '') {
 				continue;
 			}
 
 			$qty = $this->shortText(trim((string)($raw_product['qty'] ?? $raw_product['quantity'] ?? '')), 40);
+			$brand = $this->cleanQuoteIdentityText((string)($raw_product['brand'] ?? $raw_product['make'] ?? $raw_product['manufacturer'] ?? ''));
+			$model = $this->cleanQuoteIdentityText((string)($raw_product['model'] ?? ''));
+			$part_number = $this->cleanQuoteIdentityText((string)($raw_product['part_number'] ?? $raw_product['part_no'] ?? $raw_product['pn'] ?? ''));
+
+			if ($brand === '') {
+				$brand = $this->inferQuoteBrand($product_name);
+			}
+			if ($model === '') {
+				$model = $this->inferQuoteModel($product_name);
+			}
+			if ($part_number === '') {
+				$part_number = $model;
+			}
+
+			$details = $this->stripPriceInformation(trim((string)($raw_product['details'] ?? $raw_product['description'] ?? $raw_product['specifications'] ?? '')));
+			if ($details === '') {
+				$details = $this->inferQuoteDetails($product_name, $brand, $model);
+			}
+			$requirements = $this->stripPriceInformation(trim((string)($raw_product['requirements'] ?? $raw_product['requested_information'] ?? '')));
+			$unit = $this->shortText(trim((string)($raw_product['unit'] ?? $raw_product['uom'] ?? '')), 40);
 			$products[] = [
 				'product_name' => $product_name,
-				'brand' => $this->shortText(trim((string)($raw_product['brand'] ?? $raw_product['make'] ?? $raw_product['manufacturer'] ?? '')), 180),
-				'model' => $this->shortText(trim((string)($raw_product['model'] ?? '')), 180),
-				'part_number' => $this->shortText(trim((string)($raw_product['part_number'] ?? $raw_product['part_no'] ?? $raw_product['pn'] ?? '')), 180),
+				'brand' => $this->shortText($brand !== '' ? $brand : 'Not specified', 180),
+				'model' => $this->shortText($model !== '' ? $model : 'Not specified', 180),
+				'part_number' => $this->shortText($part_number !== '' ? $part_number : 'Not specified', 180),
 				'qty' => $qty !== '' ? $qty : 'Not specified',
-				'unit' => $this->shortText(trim((string)($raw_product['unit'] ?? $raw_product['uom'] ?? '')), 40),
-				'details' => $this->shortText(trim((string)($raw_product['details'] ?? $raw_product['description'] ?? $raw_product['specifications'] ?? '')), 4000),
-				'requirements' => $this->shortText(trim((string)($raw_product['requirements'] ?? $raw_product['requested_information'] ?? '')), 8000)
+				'unit' => $unit !== '' ? $unit : 'Not specified',
+				'details' => $this->shortText($details !== '' ? $details : 'Not specified', 4000),
+				'requirements' => $this->shortText($requirements !== '' ? $requirements : 'Not specified', 8000)
 			];
 
 			if (count($products) >= 50) {
@@ -3703,6 +3720,122 @@ class ControllerExtensionModuleRoko extends Controller {
 		}
 
 		return $products;
+	}
+
+	private function cleanQuoteIdentityText(string $value): string {
+		$value = preg_replace('/[*_`]+/u', ' ', $value);
+		return trim((string)preg_replace('/\s+/u', ' ', (string)$value));
+	}
+
+	private function quoteBrandAliases(): array {
+		return [
+			'Schneider Electric' => ['schneider electric', 'schneider'],
+			'Rockwell Automation' => ['rockwell automation', 'rockwell'],
+			'Allen-Bradley' => ['allen-bradley', 'allen bradley'],
+			'Phoenix Contact' => ['phoenix contact'],
+			'Mitsubishi Electric' => ['mitsubishi electric', 'mitsubishi'],
+			'Contemporary Controls' => ['contemporary controls'],
+			'ICP DAS' => ['icp das', 'icpdas'],
+			'Hewlett Packard Enterprise' => ['hewlett packard enterprise', 'hpe'],
+			'MOXA' => ['moxa'],
+			'Beijer' => ['beijer electronics', 'beijer'],
+			'Siemens' => ['siemens', 'ruggedcom'],
+			'Advantech' => ['advantech'],
+			'Hirschmann' => ['hirschmann'],
+			'Westermo' => ['westermo'],
+			'Red Lion' => ['red lion', 'n-tron', 'ntron'],
+			'Weidmuller' => ['weidmuller', 'weidmüller'],
+			'Yokogawa' => ['yokogawa'],
+			'Honeywell' => ['honeywell'],
+			'Emerson' => ['emerson'],
+			'Beckhoff' => ['beckhoff'],
+			'WAGO' => ['wago'],
+			'Korenix' => ['korenix', 'jetnet'],
+			'HMS' => ['hms networks', 'hms'],
+			'Ewon' => ['ewon'],
+			'Omron' => ['omron'],
+			'ProSoft' => ['prosoft'],
+			'Antaira' => ['antaira'],
+			'ORing' => ['oring'],
+			'ComNet' => ['comnet'],
+			'Cisco' => ['cisco'],
+			'Belden' => ['belden'],
+			'ABB' => ['abb'],
+			'Delta' => ['delta'],
+			'COMET' => ['comet'],
+			'MGV' => ['mgv']
+		];
+	}
+
+	private function inferQuoteBrand(string $product_name): string {
+		$normalized = ' ' . strtolower((string)preg_replace('/[^a-z0-9]+/i', ' ', $this->cleanQuoteIdentityText($product_name))) . ' ';
+
+		foreach ($this->quoteBrandAliases() as $brand => $aliases) {
+			foreach ($aliases as $alias) {
+				$needle = ' ' . strtolower((string)preg_replace('/[^a-z0-9]+/i', ' ', $alias)) . ' ';
+				if (strpos($normalized, $needle) !== false) {
+					return $brand;
+				}
+			}
+		}
+
+		return '';
+	}
+
+	private function inferQuoteModel(string $product_name): string {
+		$text = $this->cleanQuoteIdentityText($product_name);
+		if (preg_match('/\b(?:model|model\s*(?:no\.?|number)|part\s*(?:no\.?|number)|p\/?n)\s*[:#=-]?\s*([a-z0-9][a-z0-9._\/-]{2,})/iu', $text, $match)) {
+			return $match[1];
+		}
+
+		preg_match_all('/[a-z0-9]+(?:[._\/-][a-z0-9]+)*/iu', $text, $matches);
+		$tokens = $matches[0] ?? [];
+		$generic = '/^(?:item|qty|model|product|managed|industrial|ethernet|switch|converter|server|module|remote|power|supply|unit|port|ports)$/i';
+		$best = '';
+		$best_score = -1;
+
+		foreach ($tokens as $index => $token) {
+			if (preg_match('/^\d+(?:-\d+)?(?:v(?:dc|ac)?|a|w|kw|mw|mb|gb|tb)$/i', $token)) {
+				continue;
+			}
+
+			$has_digit = (bool)preg_match('/\d/', $token);
+			$has_letter = (bool)preg_match('/[a-z]/i', $token);
+			$candidate = $token;
+			$score = strlen($token);
+
+			if ($has_digit && $has_letter) {
+				$score += 35;
+			}
+			if (preg_match('/[-_\/]/', $token)) {
+				$score += 12;
+			}
+			if ($has_digit && !$has_letter && $index > 0 && preg_match('/^[a-z][a-z0-9._\/-]*$/i', $tokens[$index - 1]) && !preg_match($generic, $tokens[$index - 1])) {
+				$candidate = $tokens[$index - 1] . ' ' . $token;
+				$score += 25;
+			}
+
+			if (!$has_digit || preg_match($generic, $candidate)) {
+				continue;
+			}
+			if ($score > $best_score) {
+				$best = $candidate;
+				$best_score = $score;
+			}
+		}
+
+		return $best;
+	}
+
+	private function inferQuoteDetails(string $product_name, string $brand, string $model): string {
+		$details = $this->cleanQuoteIdentityText($product_name);
+		foreach ([$brand, $model] as $value) {
+			if ($value !== '') {
+				$details = preg_replace('/' . preg_quote($value, '/') . '/iu', ' ', $details);
+			}
+		}
+		$details = trim((string)preg_replace('/\s+/u', ' ', $details));
+		return trim($details, "-,:; \t\n\r\0\x0B");
 	}
 
 	private function generateQuoteRequestId(): string {

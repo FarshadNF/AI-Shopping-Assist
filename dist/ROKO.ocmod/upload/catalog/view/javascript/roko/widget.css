@@ -3212,3 +3212,19 @@
     transition: none !important;
   }
 }
+
+/* ROKO 3.6.4: extracted RFQ identity fields are review-only. */
+#roko-widget .aisa-rfq-item .aisa-enquiry-field input[readonly],
+#roko-widget .aisa-rfq-item .aisa-enquiry-field textarea[readonly] {
+  border-color: #e3d6dd !important;
+  background: #f8f4f6 !important;
+  color: #4f3442 !important;
+  cursor: default !important;
+  box-shadow: none !important;
+}
+
+#roko-widget .aisa-rfq-item .aisa-enquiry-field input[readonly]:focus,
+#roko-widget .aisa-rfq-item .aisa-enquiry-field textarea[readonly]:focus {
+  border-color: #c7a8b8 !important;
+  box-shadow: 0 0 0 2px rgba(113, 19, 79, 0.08) !important;
+}

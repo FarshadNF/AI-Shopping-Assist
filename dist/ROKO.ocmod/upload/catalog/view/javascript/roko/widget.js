@@ -1084,7 +1084,109 @@
 
     startProductEnquiry(product) {
       const products = this.normalizeQuoteProducts([product]);
-      if (products.length) this.startQuoteRequest(products, products[0].product_name);
+      if (products.length) this.startProductEnquiryLegacy(products[0]);
+    }
+
+    getQuoteBrandAliases() {
+      return [
+        ['Schneider Electric', ['schneider electric', 'schneider']],
+        ['Rockwell Automation', ['rockwell automation', 'rockwell']],
+        ['Allen-Bradley', ['allen-bradley', 'allen bradley']],
+        ['Phoenix Contact', ['phoenix contact']],
+        ['Mitsubishi Electric', ['mitsubishi electric', 'mitsubishi']],
+        ['Contemporary Controls', ['contemporary controls']],
+        ['ICP DAS', ['icp das', 'icpdas']],
+        ['Hewlett Packard Enterprise', ['hewlett packard enterprise', 'hpe']],
+        ['MOXA', ['moxa']],
+        ['Beijer', ['beijer electronics', 'beijer']],
+        ['Siemens', ['siemens', 'ruggedcom']],
+        ['Advantech', ['advantech']],
+        ['Hirschmann', ['hirschmann']],
+        ['Westermo', ['westermo']],
+        ['Red Lion', ['red lion', 'n-tron', 'ntron']],
+        ['Weidmuller', ['weidmuller', 'weidmüller']],
+        ['Yokogawa', ['yokogawa']],
+        ['Honeywell', ['honeywell']],
+        ['Emerson', ['emerson']],
+        ['Beckhoff', ['beckhoff']],
+        ['WAGO', ['wago']],
+        ['Korenix', ['korenix', 'jetnet']],
+        ['HMS', ['hms networks', 'hms']],
+        ['Ewon', ['ewon']],
+        ['Omron', ['omron']],
+        ['ProSoft', ['prosoft']],
+        ['Antaira', ['antaira']],
+        ['ORing', ['oring']],
+        ['ComNet', ['comnet']],
+        ['Cisco', ['cisco']],
+        ['Belden', ['belden']],
+        ['ABB', ['abb']],
+        ['Delta', ['delta']],
+        ['COMET', ['comet']],
+        ['MGV', ['mgv']]
+      ];
+    }
+
+    normalizeQuoteIdentityText(value) {
+      return String(value || '')
+        .replace(/[*_`]+/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+    }
+
+    inferQuoteBrand(productName) {
+      const normalized = ' ' + this.normalizeQuoteIdentityText(productName).toLowerCase().replace(/[^a-z0-9]+/g, ' ') + ' ';
+      for (const entry of this.getQuoteBrandAliases()) {
+        for (const alias of entry[1]) {
+          const needle = ' ' + alias.toLowerCase().replace(/[^a-z0-9]+/g, ' ') + ' ';
+          if (normalized.includes(needle)) return entry[0];
+        }
+      }
+      return '';
+    }
+
+    inferQuoteModel(productName) {
+      const text = this.normalizeQuoteIdentityText(productName);
+      const explicit = text.match(/\b(?:model|model\s*(?:no\.?|number)|part\s*(?:no\.?|number)|p\/?n)\s*[:#=-]?\s*([a-z0-9][a-z0-9._/-]{2,})/i);
+      if (explicit) return explicit[1];
+
+      const tokens = text.match(/[a-z0-9]+(?:[._/-][a-z0-9]+)*/gi) || [];
+      const generic = /^(?:item|qty|model|product|managed|industrial|ethernet|switch|converter|server|module|remote|power|supply|unit|port|ports)$/i;
+      let best = '';
+      let bestScore = -1;
+
+      tokens.forEach((token, index) => {
+        if (/^\d+(?:-\d+)?(?:v(?:dc|ac)?|a|w|kw|mw|mb|gb|tb)$/i.test(token)) return;
+        const hasDigit = /\d/.test(token);
+        const hasLetter = /[a-z]/i.test(token);
+        let candidate = token;
+        let score = token.length;
+
+        if (hasDigit && hasLetter) score += 35;
+        if (/[-_/]/.test(token)) score += 12;
+
+        if (hasDigit && !hasLetter && index > 0 && /^[a-z][a-z0-9._/-]*$/i.test(tokens[index - 1]) && !generic.test(tokens[index - 1])) {
+          candidate = tokens[index - 1] + ' ' + token;
+          score += 25;
+        }
+
+        if (!hasDigit || generic.test(candidate)) return;
+        if (score > bestScore) {
+          best = candidate;
+          bestScore = score;
+        }
+      });
+
+      return best;
+    }
+
+    inferQuoteDetails(productName, brand, model) {
+      let details = this.normalizeQuoteIdentityText(productName);
+      [brand, model].filter(Boolean).forEach((value) => {
+        const escaped = String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        details = details.replace(new RegExp(escaped, 'ig'), ' ');
+      });
+      return details.replace(/\s+/g, ' ').replace(/^[-,:;\s]+|[-,:;\s]+$/g, '').trim();
     }
 
     normalizeQuoteProducts(products) {
@@ -1092,18 +1194,22 @@
       return products.map((product) => {
         if (typeof product === 'string') product = { product_name: product };
         if (!product || typeof product !== 'object') return null;
-        const productName = this.stripPriceInformation(String(product.product_name || product.name || product.item || '').replace(/\s+/g, ' ').trim());
+        const productName = this.normalizeQuoteIdentityText(this.stripPriceInformation(String(product.product_name || product.name || product.item || '')));
         if (!productName) return null;
         const rawQty = product.qty !== undefined ? product.qty : (product.quantity !== undefined ? product.quantity : product.requested_qty);
+        const brand = this.normalizeQuoteIdentityText(product.brand || product.make || product.manufacturer || '') || this.inferQuoteBrand(productName);
+        const model = this.normalizeQuoteIdentityText(product.model || '') || this.inferQuoteModel(productName);
+        const partNumber = this.normalizeQuoteIdentityText(product.part_number || product.part_no || product.pn || '') || model;
+        const inferredDetails = this.inferQuoteDetails(productName, brand, model);
         return {
           product_name: productName,
-          brand: String(product.brand || product.make || product.manufacturer || '').trim(),
-          model: String(product.model || '').trim(),
-          part_number: String(product.part_number || product.part_no || product.pn || '').trim(),
+          brand: brand || 'Not specified',
+          model: model || 'Not specified',
+          part_number: partNumber || 'Not specified',
           qty: String(rawQty === undefined || rawQty === null || rawQty === '' ? 'Not specified' : rawQty).trim(),
-          unit: String(product.unit || product.uom || '').trim(),
-          details: this.stripPriceInformation(String(product.details || product.description || product.specifications || '').trim()),
-          requirements: this.stripPriceInformation(String(product.requirements || product.requested_information || '').trim())
+          unit: String(product.unit || product.uom || '').trim() || 'Not specified',
+          details: this.stripPriceInformation(String(product.details || product.description || product.specifications || '').trim()) || inferredDetails || 'Not specified',
+          requirements: this.stripPriceInformation(String(product.requirements || product.requested_information || '').trim()) || 'Not specified'
         };
       }).filter(Boolean).slice(0, 50);
     }
@@ -1120,6 +1226,7 @@
       control.name = field.name;
       if (!field.multiline) control.type = field.type || 'text';
       control.required = field.required === true;
+      control.readOnly = field.readonly === true;
       control.value = String(field.value || '');
       control.autocomplete = field.autocomplete || 'off';
       if (field.placeholder) control.placeholder = field.placeholder;
@@ -1155,7 +1262,7 @@
 
       const hint = document.createElement('p');
       hint.className = 'aisa-rfq-hint';
-      hint.textContent = 'Please review the extracted product data, then enter your contact details.';
+      hint.textContent = 'Product details were extracted automatically. Review them and enter only your name to submit.';
       form.appendChild(hint);
 
       const items = document.createElement('div');
@@ -1168,19 +1275,19 @@
         legend.textContent = 'Item ' + (index + 1);
         item.appendChild(legend);
 
-        this.appendQuoteField(item, { name: 'product_name', label: 'Product', value: product.product_name, required: true, wide: true });
+        this.appendQuoteField(item, { name: 'product_name', label: 'Product', value: product.product_name, required: true, readonly: true, wide: true });
 
         const identity = document.createElement('div');
         identity.className = 'aisa-rfq-grid';
-        this.appendQuoteField(identity, { name: 'brand', label: 'Make / Brand', value: product.brand });
-        this.appendQuoteField(identity, { name: 'model', label: 'Model', value: product.model });
-        this.appendQuoteField(identity, { name: 'part_number', label: 'Part number', value: product.part_number });
-        this.appendQuoteField(identity, { name: 'qty', label: 'QTY', value: product.qty, required: true });
-        this.appendQuoteField(identity, { name: 'unit', label: 'Unit', value: product.unit });
+        this.appendQuoteField(identity, { name: 'brand', label: 'Make / Brand', value: product.brand, readonly: true });
+        this.appendQuoteField(identity, { name: 'model', label: 'Model', value: product.model, readonly: true });
+        this.appendQuoteField(identity, { name: 'part_number', label: 'Part number', value: product.part_number, readonly: true });
+        this.appendQuoteField(identity, { name: 'qty', label: 'QTY', value: product.qty, required: true, readonly: true });
+        this.appendQuoteField(identity, { name: 'unit', label: 'Unit', value: product.unit, readonly: true });
         item.appendChild(identity);
 
-        this.appendQuoteField(item, { name: 'details', label: 'Item details / specification', value: product.details, multiline: true, rows: 2, wide: true });
-        this.appendQuoteField(item, { name: 'requirements', label: 'Requested commercial & technical information', value: product.requirements, multiline: true, rows: 3, wide: true });
+        this.appendQuoteField(item, { name: 'details', label: 'Item details / specification', value: product.details, readonly: true, multiline: true, rows: 2, wide: true });
+        this.appendQuoteField(item, { name: 'requirements', label: 'Requested commercial & technical information', value: product.requirements, readonly: true, multiline: true, rows: 3, wide: true });
         items.appendChild(item);
       });
       form.appendChild(items);
@@ -1191,8 +1298,6 @@
       form.appendChild(contactTitle);
 
       this.appendQuoteField(form, { name: 'customer_name', label: 'Name', required: true, autocomplete: 'name', wide: true });
-      this.appendQuoteField(form, { name: 'customer_address', label: 'Address / delivery location', required: true, autocomplete: 'street-address', multiline: true, rows: 2, wide: true });
-      this.appendQuoteField(form, { name: 'customer_contact', label: 'Contact (phone or email)', required: true, autocomplete: 'tel', wide: true });
 
       const submit = document.createElement('button');
       submit.type = 'submit';
@@ -1241,9 +1346,7 @@
         page_context: this.getPageContext(),
         products: products,
         contact: {
-          name: formValue('customer_name'),
-          address: formValue('customer_address'),
-          contact: formValue('customer_contact')
+          name: formValue('customer_name')
         }
       };
 
@@ -1547,7 +1650,9 @@
           }
         });
 
-        if (quoteProducts.length) {
+        if (quoteProducts.length === 1) {
+          this.startProductEnquiryLegacy(quoteProducts[0]);
+        } else if (quoteProducts.length > 1) {
           this.startQuoteRequest(quoteProducts, message);
         }
 
