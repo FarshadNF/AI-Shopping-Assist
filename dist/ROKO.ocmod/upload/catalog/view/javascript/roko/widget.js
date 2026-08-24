@@ -135,7 +135,10 @@
         </div>
         <div class="aisa-launcher">
           <div class="aisa-closed-promo" role="region" aria-label="Ask ROKO">
-            <img class="aisa-promo-character" alt="ROKO" />
+            <div class="aisa-promo-character" aria-hidden="true">
+              <img class="aisa-promo-character-body" alt="" />
+              <img class="aisa-promo-character-hand" alt="" />
+            </div>
             <section class="aisa-promo-card">
               <button type="button" class="aisa-promo-open" aria-label="Open ROKO chat">
                 <span class="aisa-promo-title">Ask <strong>ROKO</strong> <span aria-hidden="true">👋</span></span>
@@ -183,6 +186,8 @@
       this.launcher = this.root.querySelector('.aisa-launcher');
       this.closedPromo = this.root.querySelector('.aisa-closed-promo');
       this.promoCharacter = this.root.querySelector('.aisa-promo-character');
+      this.promoCharacterBody = this.root.querySelector('.aisa-promo-character-body');
+      this.promoCharacterHand = this.root.querySelector('.aisa-promo-character-hand');
       this.promoOpenBtn = this.root.querySelector('.aisa-promo-open');
       this.promoActionBtns = Array.from(this.root.querySelectorAll('.aisa-promo-actions [data-prompt]'));
       this.promoForm = this.root.querySelector('.aisa-promo-form');
@@ -210,7 +215,9 @@
       this.toggleText.textContent = this.config.buttonText || this.defaults.buttonText;
       this.toggleBtn.setAttribute('aria-label', this.config.buttonText || this.defaults.buttonText);
       this.toggleBtn.setAttribute('title', this.config.buttonText || this.defaults.buttonText);
-      this.promoCharacter.src = String(this.config.characterUrl || this.config.avatarUrl || '');
+      const promoCharacterUrl = String(this.config.characterUrl || this.config.avatarUrl || '');
+      this.promoCharacterBody.src = promoCharacterUrl;
+      this.promoCharacterHand.src = promoCharacterUrl;
       this.applyAvatar();
     }
 
