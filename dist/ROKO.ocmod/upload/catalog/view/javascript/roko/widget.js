@@ -25,6 +25,7 @@
         buttonText: 'ROKO',
         avatarUrl: '',
         iconUrl: '',
+        characterUrl: '',
         agentAvatars: {},
         agentProfiles: {
           roko: { name: 'ROKO', role: 'Agent Manager', shortRole: 'Manager' },
@@ -133,6 +134,36 @@
           </form>
         </div>
         <div class="aisa-launcher">
+          <div class="aisa-closed-promo" role="region" aria-label="Ask ROKO">
+            <img class="aisa-promo-character" alt="ROKO" />
+            <section class="aisa-promo-card">
+              <button type="button" class="aisa-promo-open" aria-label="Open ROKO chat">
+                <span class="aisa-promo-title">Ask <strong>ROKO</strong> <span aria-hidden="true">👋</span></span>
+                <span class="aisa-promo-subtitle">How can I help you today?</span>
+              </button>
+              <div class="aisa-promo-actions" aria-label="Popular ROKO actions">
+                <button type="button" data-prompt="Help me find the right product for my needs.">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-4-4"></path></svg>
+                  <span>Find a Product</span>
+                </button>
+                <button type="button" data-prompt="Help me compare two products.">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v18M5 6h14M5 6l-3 7h6L5 6Zm14 0-3 7h6l-3-7ZM2 13c0 2 1.3 3 3 3s3-1 3-3M16 13c0 2 1.3 3 3 3s3-1 3-3"></path></svg>
+                  <span>Compare Products</span>
+                </button>
+                <button type="button" data-prompt="I need technical help choosing a product.">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 14v-3a8 8 0 0 1 16 0v3M4 14H2v5h4v-5H4Zm16 0h2v5h-4v-5h2ZM18 19c0 2-2 2-4 2"></path></svg>
+                  <span>Get Technical Help</span>
+                </button>
+              </div>
+              <form class="aisa-promo-form">
+                <input class="aisa-promo-input" type="text" autocomplete="off" aria-label="Ask ROKO anything" placeholder="Ask me anything..." required />
+                <button type="submit" class="aisa-promo-send" aria-label="Send to ROKO">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 14-7-4 14-3-6-7-1Z"></path><path d="m12 13 7-8"></path></svg>
+                </button>
+              </form>
+              <p class="aisa-promo-note"><span aria-hidden="true">✦</span> <strong>ROKO</strong> is your AI assistant for products, solutions and support.</p>
+            </section>
+          </div>
           <div class="aisa-context-bubble" hidden role="status" aria-live="polite">
             <button type="button" class="aisa-context-bubble-close" aria-label="Dismiss notification">&times;</button>
             <p class="aisa-context-bubble-text"></p>
@@ -150,6 +181,12 @@
     cacheElements() {
       this.panel = this.root.querySelector('.aisa-panel');
       this.launcher = this.root.querySelector('.aisa-launcher');
+      this.closedPromo = this.root.querySelector('.aisa-closed-promo');
+      this.promoCharacter = this.root.querySelector('.aisa-promo-character');
+      this.promoOpenBtn = this.root.querySelector('.aisa-promo-open');
+      this.promoActionBtns = Array.from(this.root.querySelectorAll('.aisa-promo-actions [data-prompt]'));
+      this.promoForm = this.root.querySelector('.aisa-promo-form');
+      this.promoInput = this.root.querySelector('.aisa-promo-input');
       this.contextBubble = this.root.querySelector('.aisa-context-bubble');
       this.contextBubbleText = this.root.querySelector('.aisa-context-bubble-text');
       this.contextBubbleClose = this.root.querySelector('.aisa-context-bubble-close');
@@ -173,6 +210,7 @@
       this.toggleText.textContent = this.config.buttonText || this.defaults.buttonText;
       this.toggleBtn.setAttribute('aria-label', this.config.buttonText || this.defaults.buttonText);
       this.toggleBtn.setAttribute('title', this.config.buttonText || this.defaults.buttonText);
+      this.promoCharacter.src = String(this.config.characterUrl || this.config.avatarUrl || '');
       this.applyAvatar();
     }
 
@@ -471,7 +509,7 @@
     }
 
     initContextBubble() {
-      if (!this.contextBubble || this.config.blogBubbleEnabled === false || !this.isBlogPage() || this.isBlogBubbleDismissed()) {
+      if (this.closedPromo || !this.contextBubble || this.config.blogBubbleEnabled === false || !this.isBlogPage() || this.isBlogBubbleDismissed()) {
         return;
       }
 
@@ -507,6 +545,26 @@
     }
 
     bindEvents() {
+      this.promoOpenBtn.addEventListener('click', () => this.openPanel());
+
+      this.promoActionBtns.forEach((button) => {
+        button.addEventListener('click', async () => {
+          const prompt = String(button.dataset.prompt || '').trim();
+          if (!prompt || this.sendBtn.disabled) return;
+          this.openPanel();
+          await this.submitSuggestion(prompt);
+        });
+      });
+
+      this.promoForm.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const prompt = this.promoInput.value.trim();
+        if (!prompt || this.sendBtn.disabled) return;
+        this.promoInput.value = '';
+        this.openPanel();
+        await this.submitSuggestion(prompt);
+      });
+
       this.toggleBtn.addEventListener('click', () => {
         if (this.panel.hidden) {
           this.openPanel();

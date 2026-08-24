@@ -1,6 +1,6 @@
 <?php
 class ControllerExtensionModuleRoko extends Controller {
-	private const VERSION = '3.7.4-agent-themes';
+	private const VERSION = '3.7.6-closed-mascot';
 	private const MARKER = '<!-- ROKO_WIDGET -->';
 	private const GEMINI_MAX_OUTPUT_TOKENS = 4096;
 	private const MAX_RESPONSE_PRODUCTS = 3;
@@ -85,6 +85,7 @@ class ControllerExtensionModuleRoko extends Controller {
 			'buttonText' => $widget_button,
 			'avatarUrl' => $asset_base . 'roko-profile-v2.png?v=' . self::VERSION,
 			'iconUrl' => $asset_base . 'roko-profile-v2.png?v=' . self::VERSION,
+			'characterUrl' => $asset_base . 'roko-closed-promo-v2.png?v=' . self::VERSION,
 			'agentAvatars' => [
 				'roko' => $asset_base . 'avatars/roko.png?v=' . self::VERSION,
 				'raya' => $asset_base . 'avatars/raya.png?v=' . self::VERSION,
