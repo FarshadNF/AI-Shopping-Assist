@@ -3136,16 +3136,13 @@
 }
 
 #roko-widget .aisa-product-card .aisa-product-action::after {
-  content: "\2192";
-  flex: 0 0 auto;
-  font-size: 16px;
-  font-weight: 900;
-  line-height: 1;
-  transition: transform 150ms ease;
+  content: none !important;
+  display: none !important;
 }
 
 #roko-widget [dir="rtl"] .aisa-product-action::after {
-  content: "\2190";
+  content: none !important;
+  display: none !important;
 }
 
 #roko-widget .aisa-product-card .aisa-product-action.primary {
@@ -4427,4 +4424,36 @@
   #roko-widget .aisa-promo-subtitle {
     max-width: 92px !important;
   }
+}
+
+/* Progressive word-by-word assistant response */
+#roko-widget .aisa-message.bot.is-streaming::after {
+  content: "" !important;
+  display: inline-block !important;
+  width: 2px !important;
+  height: 1em !important;
+  margin-inline-start: 4px !important;
+  border-radius: 2px !important;
+  background: var(--aisa-agent-strong, #71134f) !important;
+  vertical-align: -0.14em !important;
+  animation: aisa-stream-caret 720ms steps(1, end) infinite !important;
+}
+
+@keyframes aisa-stream-caret {
+  0%, 48% { opacity: 1; }
+  49%, 100% { opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #roko-widget .aisa-message.bot.is-streaming::after {
+    animation: none !important;
+  }
+}
+
+/* Remove the encoded arrow marker that can render as stray digits. */
+#roko-widget .aisa-product-card .aisa-product-action::after,
+#roko-widget .aisa-product-card .aisa-product-action:hover::after {
+  content: none !important;
+  display: none !important;
+  transform: none !important;
 }

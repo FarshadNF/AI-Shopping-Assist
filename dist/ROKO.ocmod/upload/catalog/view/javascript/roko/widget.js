@@ -26,6 +26,7 @@
         avatarUrl: '',
         iconUrl: '',
         characterUrl: '',
+        responseWordDelayMs: 45,
         agentAvatars: {},
         agentProfiles: {
           roko: { name: 'ROKO', role: 'Agent Manager', shortRole: 'Manager' },
@@ -1094,6 +1095,69 @@
           suggestions: suggestions
         });
       }
+
+      return item;
+    }
+
+    async addProgressiveBotMessage(text, persist, extras) {
+      const actionStrippedText = this.stripAction(text);
+      const cleanedText = this.stripPriceInformation(actionStrippedText);
+      const messageExtras = extras || {};
+      const products = this.normalizeProducts(messageExtras.products);
+      const suggestions = this.normalizeSuggestions(messageExtras.suggestions);
+      if (!cleanedText && !products.length && !suggestions.length) return null;
+
+      const item = document.createElement('div');
+      item.className = 'aisa-message bot';
+      item.dir = this.isRtlMessage(cleanedText) ? 'rtl' : 'ltr';
+      item.setAttribute('aria-busy', 'true');
+      this.messagesContainer.appendChild(item);
+      this.scrollMessagesToBottom();
+
+      const words = String(cleanedText || '').match(/\S+\s*/g) || [];
+      const reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+      if (!words.length || reduceMotion) {
+        item.textContent = cleanedText;
+      } else {
+        item.classList.add('is-streaming');
+        const configuredDelay = Number(this.config.responseWordDelayMs || this.defaults.responseWordDelayMs || 45);
+        const baseDelay = Math.min(90, Math.max(20, configuredDelay));
+        const wordDelay = Math.max(16, Math.min(baseDelay, Math.floor(14000 / Math.max(1, words.length))));
+
+        for (let index = 0; index < words.length; index += 1) {
+          const word = words[index];
+          item.textContent += word;
+          if (index % 3 === 0 || index === words.length - 1) {
+            this.scrollMessagesToBottom();
+          }
+
+          const trimmedWord = word.trim();
+          let delay = wordDelay;
+          if (/[.!?؟:؛]$/.test(trimmedWord)) {
+            delay = Math.min(180, Math.round(wordDelay * 2.2));
+          } else if (/[,،;]$/.test(trimmedWord)) {
+            delay = Math.min(120, Math.round(wordDelay * 1.5));
+          }
+          await new Promise((resolve) => window.setTimeout(resolve, delay));
+        }
+
+        item.classList.remove('is-streaming');
+      }
+
+      item.removeAttribute('aria-busy');
+      this.renderProductCards(products);
+      this.renderSuggestions(suggestions);
+      this.scrollMessagesToBottom();
+
+      if (persist !== false) {
+        this.rememberChatMessage('bot', cleanedText, {
+          products: products,
+          suggestions: suggestions
+        });
+      }
+
+      return item;
     }
 
     renderStarterSuggestions() {
@@ -1809,7 +1873,7 @@
             this.setActiveConversationId(data.conversation_id);
           }
           if (data.reply) {
-            this.addMessage('bot', data.reply, true, {
+            await this.addProgressiveBotMessage(data.reply, true, {
               suggestions: data.suggestions || [],
               products: data.products || []
             });
@@ -1822,7 +1886,7 @@
           this.setActiveConversationId(data.conversation_id);
         }
 
-        this.addMessage('bot', data.reply, true, {
+        await this.addProgressiveBotMessage(data.reply, true, {
           suggestions: data.suggestions || [],
           products: data.products || []
         });
@@ -1851,7 +1915,7 @@
       } catch (error) {
         console.error('ROKO error:', error);
         this.hideTypingIndicator();
-        this.addMessage('bot', this.localizedConnectionError(message));
+        await this.addProgressiveBotMessage(this.localizedConnectionError(message));
       } finally {
         this.hideTypingIndicator();
         this.setStatus('Ready to help');

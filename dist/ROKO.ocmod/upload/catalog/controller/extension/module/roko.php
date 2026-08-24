@@ -1,6 +1,6 @@
 <?php
 class ControllerExtensionModuleRoko extends Controller {
-	private const VERSION = '4.0.3-inline-css';
+	private const VERSION = '4.1.1-remove-action-marker';
 	private const MARKER = '<!-- ROKO_WIDGET -->';
 	private const GEMINI_MAX_OUTPUT_TOKENS = 4096;
 	private const MAX_RESPONSE_PRODUCTS = 3;
@@ -96,6 +96,7 @@ class ControllerExtensionModuleRoko extends Controller {
 				'lia' => $asset_base . 'avatars/lia.png?v=' . self::VERSION
 			],
 			'agentSwitchDurationMs' => 3000,
+			'responseWordDelayMs' => 45,
 			'redirectDelayMs' => 700
 		];
 
