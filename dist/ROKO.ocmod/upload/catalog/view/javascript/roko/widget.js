@@ -25,6 +25,7 @@
         buttonText: 'ROKO',
         avatarUrl: '',
         iconUrl: '',
+        agentAvatars: {},
         redirectDelayMs: 700,
         maxHistoryMessages: 80,
         maxConversations: 30,
@@ -164,17 +165,30 @@
     }
 
     applyAvatar() {
-      const avatarUrl = String(this.config.avatarUrl || '');
-      const iconUrl = String(this.config.iconUrl || avatarUrl);
+      this.applyAgentAvatar('roko');
+    }
+
+    applyAgentAvatar(agentKey) {
+      const normalizedKey = String(agentKey || 'roko').trim().toLowerCase();
+      const agentAvatars = this.config.agentAvatars && typeof this.config.agentAvatars === 'object'
+        ? this.config.agentAvatars
+        : {};
+      const selectedUrl = String(agentAvatars[normalizedKey] || '');
+      const avatarUrl = selectedUrl || String(this.config.avatarUrl || '');
+      const iconUrl = selectedUrl || String(this.config.iconUrl || avatarUrl);
       if (!avatarUrl && !iconUrl) return;
+
+      this.root.dataset.activeAgent = normalizedKey;
 
       if (avatarUrl) {
         this.avatar.src = avatarUrl;
+        this.avatar.alt = normalizedKey.toUpperCase();
         this.avatar.hidden = false;
       }
 
       if (iconUrl) {
         this.toggleAvatar.src = iconUrl;
+        this.toggleAvatar.alt = normalizedKey.toUpperCase();
         this.toggleAvatar.hidden = false;
       }
     }
@@ -659,6 +673,7 @@
       if (this.sendBtn.disabled || !conversationId) return;
 
       this.setActiveConversationId(conversationId);
+      this.applyAgentAvatar('roko');
       this.messagesContainer.innerHTML = '';
       this.restoreChatHistory();
       this.renderStarterSuggestions();
@@ -1262,6 +1277,7 @@
           body: JSON.stringify(payload)
         });
         const data = await response.json().catch(() => ({}));
+        this.applyAgentAvatar(data.active_agent || 'lia');
 
         if (data.conversation_id) this.setActiveConversationId(data.conversation_id);
         if (!response.ok || data.status !== 'success') {
@@ -1487,6 +1503,7 @@
 
     async askAssistant(message) {
       this.sendBtn.disabled = true;
+      this.applyAgentAvatar('roko');
       this.setStatus('Typing...');
       this.showTypingIndicator();
 
@@ -1511,6 +1528,7 @@
 
         const data = await response.json().catch(() => ({}));
         this.hideTypingIndicator();
+        this.applyAgentAvatar(data.active_agent || 'roko');
 
         if (!response.ok || data.status !== 'success') {
           if (data.conversation_id) {

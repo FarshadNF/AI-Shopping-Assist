@@ -1,6 +1,6 @@
 <?php
 class ControllerExtensionModuleRoko extends Controller {
-	private const VERSION = '3.7.0-agent-prompts';
+	private const VERSION = '3.7.1-agent-avatars';
 	private const MARKER = '<!-- ROKO_WIDGET -->';
 	private const GEMINI_MAX_OUTPUT_TOKENS = 4096;
 	private const MAX_RESPONSE_PRODUCTS = 3;
@@ -24,9 +24,19 @@ class ControllerExtensionModuleRoko extends Controller {
 		'atlas' => 'Atlas | Solution consultant',
 		'lia' => 'Lia | Enquiry coordinator'
 	];
+	private const AGENT_DEFAULT_PROMPTS = [
+		'roko' => 'Orchestrate the active specialists, resolve conflicts between their instructions, and deliver one coherent answer. Remain the only identity speaking to the customer.',
+		'raya' => 'Understand the customer need, qualify the use case, ask only the most useful follow-up question, and guide the conversation toward a suitable next step.',
+		'scout' => 'Search the supplied catalog and recommend only matching catalog products. Explain fit briefly, avoid invented products, and narrow broad requests with a useful question when needed.',
+		'dex' => 'Handle technical specifications, standards, compatibility, installation, and configuration. Use supplied evidence, distinguish confirmed facts from unknowns, and never invent a specification.',
+		'prism' => 'Compare the requested options using decision-relevant criteria, explain meaningful trade-offs, and recommend based on the customer use case rather than declaring a universal winner.',
+		'atlas' => 'Translate project requirements into a practical solution, architecture, or equipment list. Check dependencies and compatibility, identify missing requirements, and keep recommendations grounded in supplied data.',
+		'lia' => 'Handle quotation, availability, delivery, bulk-order, and contact-sales intent. Capture every requested item and requirement, then use the enquiry or quote-request flow without revealing or estimating prices.'
+	];
 	private static $sitemap_pages_cache = [];
 	private static $sitemap_content_cache = [];
 	private static $last_remote_error = '';
+	private $active_agent_key = 'roko';
 
 	public function inject(&$route, &$data, &$output = null): void {
 		if (!is_string($output) || $output === '') {
@@ -75,6 +85,15 @@ class ControllerExtensionModuleRoko extends Controller {
 			'buttonText' => $widget_button,
 			'avatarUrl' => $asset_base . 'roko-profile-v2.png?v=' . self::VERSION,
 			'iconUrl' => $asset_base . 'roko-profile-v2.png?v=' . self::VERSION,
+			'agentAvatars' => [
+				'roko' => $asset_base . 'avatars/roko.png?v=' . self::VERSION,
+				'raya' => $asset_base . 'avatars/raya.png?v=' . self::VERSION,
+				'scout' => $asset_base . 'avatars/scout.png?v=' . self::VERSION,
+				'dex' => $asset_base . 'avatars/dex.png?v=' . self::VERSION,
+				'prism' => $asset_base . 'avatars/prism.png?v=' . self::VERSION,
+				'atlas' => $asset_base . 'avatars/atlas.png?v=' . self::VERSION,
+				'lia' => $asset_base . 'avatars/lia.png?v=' . self::VERSION
+			],
 			'redirectDelayMs' => 700
 		];
 
@@ -158,7 +177,8 @@ class ControllerExtensionModuleRoko extends Controller {
 			$this->outputJson([
 				'status' => $response_status,
 				'reply' => $reply,
-				'conversation_id' => $conversation_id
+				'conversation_id' => $conversation_id,
+				'active_agent' => 'lia'
 			]);
 			return;
 		}
@@ -171,12 +191,14 @@ class ControllerExtensionModuleRoko extends Controller {
 			$this->outputJson([
 				'status' => 'error',
 				'reply' => $this->localizedText($message, 'Assistant service is not configured or unavailable.', 'سرویس دستیار تنظیم نشده یا در دسترس نیست.'),
-				'conversation_id' => $conversation_id
+				'conversation_id' => $conversation_id,
+				'active_agent' => $this->active_agent_key
 			], $result['status'] ?: 502);
 			return;
 		}
 
 		$response_data = $this->buildAssistantResponse($message, $conversation_id, $result['body'], $page_context);
+		$response_data['active_agent'] = $this->active_agent_key;
 		$this->writeChatLog($conversation_id, 'assistant', (string)$response_data['reply']);
 
 		$this->outputJson($response_data);
@@ -480,7 +502,8 @@ class ControllerExtensionModuleRoko extends Controller {
 		$history = $this->getConversationHistory($conversation_id, $message);
 		$sitemap_url = $this->configuredSitemapUrl();
 		$custom_system_prompt = $this->customSystemPrompt();
-		$active_agent_keys = $this->resolveAgentKeys($message);
+		$active_agent_keys = $this->resolveAgentKeys($message, $history);
+		$this->active_agent_key = (string)($active_agent_keys[1] ?? 'roko');
 		$agent_prompt_block = $this->activeAgentPromptBlock($active_agent_keys);
 		$suggestion_controls = [
 			'next_question_suggestions' => $this->suggestionSettingEnabled('module_roko_suggest_next_questions'),
@@ -496,6 +519,7 @@ class ControllerExtensionModuleRoko extends Controller {
 			'Active internal agent route: ' . implode(', ', array_map(static function (string $agent_key): string {
 				return self::AGENT_ROLES[$agent_key] ?? $agent_key;
 			}, $active_agent_keys)) . '.',
+			'The active route is authoritative for this turn. Apply every active specialist instruction, let ROKO combine the result, and do not mention internal routing or specialist names to the customer.',
 			$agent_prompt_block !== '' ? "Active agent-specific prompt(s):\n" . $agent_prompt_block : '',
 			'Default to English. If the latest user message is clearly Persian or another language, you may reply in that language, but your base persona and concise style are English-first.',
 			'Use only the product catalog below for product-specific claims. Check stock before recommending purchase. Keep replies short, natural, and sales-focused.',
@@ -647,15 +671,18 @@ class ControllerExtensionModuleRoko extends Controller {
 		$sections = [];
 
 		foreach ($agent_keys as $agent_key) {
-			if (!isset(self::AGENT_ROLES[$agent_key])) {
+			if (!isset(self::AGENT_ROLES[$agent_key], self::AGENT_DEFAULT_PROMPTS[$agent_key])) {
 				continue;
 			}
 
-			$prompt = $this->agentPrompt($agent_key);
+			$instructions = [self::AGENT_DEFAULT_PROMPTS[$agent_key]];
+			$custom_prompt = $this->agentPrompt($agent_key);
 
-			if ($prompt !== '') {
-				$sections[] = '[' . self::AGENT_ROLES[$agent_key] . "]\n" . $prompt;
+			if ($custom_prompt !== '') {
+				$instructions[] = "Admin-defined instructions:\n" . $custom_prompt;
 			}
+
+			$sections[] = '[' . self::AGENT_ROLES[$agent_key] . "]\n" . implode("\n", $instructions);
 		}
 
 		return implode("\n\n", $sections);
@@ -683,7 +710,7 @@ class ControllerExtensionModuleRoko extends Controller {
 		return substr($value, 0, self::AGENT_PROMPT_LIMIT);
 	}
 
-	private function resolveAgentKeys(string $message): array {
+	private function resolveAgentKeys(string $message, array $history = []): array {
 		$text = trim($message);
 
 		if (function_exists('mb_strtolower')) {
@@ -691,6 +718,71 @@ class ControllerExtensionModuleRoko extends Controller {
 		} else {
 			$text = strtolower($text);
 		}
+
+		$intent_flags = $this->detectAgentIntents($text);
+
+		if (!in_array(true, $intent_flags, true)) {
+			$context_messages = [];
+
+			foreach (array_reverse($history) as $history_item) {
+				if (($history_item['role'] ?? '') !== 'user') {
+					continue;
+				}
+
+				$context_message = trim((string)($history_item['content'] ?? ''));
+
+				if ($context_message !== '') {
+					$context_messages[] = $context_message;
+				}
+
+				if (count($context_messages) >= 3) {
+					break;
+				}
+			}
+
+			if ($context_messages) {
+				$context_text = implode("\n", $context_messages);
+				$context_text = function_exists('mb_strtolower')
+					? mb_strtolower($context_text, 'UTF-8')
+					: strtolower($context_text);
+				$intent_flags = $this->detectAgentIntents($context_text);
+			}
+		}
+
+		$is_enquiry = $intent_flags['enquiry'];
+		$is_comparison = $intent_flags['comparison'];
+		$is_solution = $intent_flags['solution'];
+		$is_technical = $intent_flags['technical'];
+		$is_product_search = $intent_flags['product_search'];
+
+		$primary_agent = 'raya';
+
+		if ($is_comparison) {
+			$primary_agent = 'prism';
+		} elseif ($is_solution) {
+			$primary_agent = 'atlas';
+		} elseif ($is_technical) {
+			$primary_agent = 'dex';
+		} elseif ($is_enquiry) {
+			$primary_agent = 'lia';
+		} elseif ($is_product_search) {
+			$primary_agent = 'scout';
+		}
+
+		$agent_keys = ['roko', $primary_agent];
+
+		if ($is_technical && $primary_agent !== 'dex') {
+			$agent_keys[] = 'dex';
+		}
+
+		if ($is_enquiry && $primary_agent !== 'lia') {
+			$agent_keys[] = 'lia';
+		}
+
+		return array_values(array_unique($agent_keys));
+	}
+
+	private function detectAgentIntents(string $text): array {
 
 		$is_enquiry = $this->agentTextContainsAny($text, [
 			'price', 'quote', 'quotation', 'proforma', 'purchase', 'buy', 'availability', 'in stock',
@@ -715,27 +807,13 @@ class ControllerExtensionModuleRoko extends Controller {
 			'پیدا', 'جستجو', 'جست‌وجو', 'پیشنهاد', 'معرفی کن', 'نیاز دارم', 'چه محصولی', 'کدام محصول'
 		]);
 
-		$primary_agent = 'raya';
-
-		if ($is_enquiry) {
-			$primary_agent = 'lia';
-		} elseif ($is_comparison) {
-			$primary_agent = 'prism';
-		} elseif ($is_solution) {
-			$primary_agent = 'atlas';
-		} elseif ($is_technical) {
-			$primary_agent = 'dex';
-		} elseif ($is_product_search) {
-			$primary_agent = 'scout';
-		}
-
-		$agent_keys = ['roko', $primary_agent];
-
-		if ($is_technical && in_array($primary_agent, ['prism', 'atlas'], true)) {
-			$agent_keys[] = 'dex';
-		}
-
-		return array_values(array_unique($agent_keys));
+		return [
+			'enquiry' => $is_enquiry,
+			'comparison' => $is_comparison,
+			'solution' => $is_solution,
+			'technical' => $is_technical,
+			'product_search' => $is_product_search
+		];
 	}
 
 	private function agentTextContainsAny(string $text, array $phrases): bool {
