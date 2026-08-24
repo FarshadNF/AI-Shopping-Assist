@@ -90,6 +90,46 @@
             </div>
           </div>
 
+          <div class="row mb-4">
+            <label class="col-sm-2 col-form-label">{{ entry_agent_prompts }}</label>
+            <div class="col-sm-10">
+              <div class="card">
+                <div class="card-header d-flex align-items-center gap-2">
+                  <i class="fa-solid fa-users-gear"></i>
+                  <strong>{{ text_agent_prompts }}</strong>
+                </div>
+                <div class="card-body p-0">
+                  <ul class="nav nav-tabs flex-nowrap overflow-auto px-3 pt-3" id="agent-prompt-tabs" role="tablist">
+                    {% for agent in agent_prompts %}
+                      <li class="nav-item" role="presentation">
+                        <button type="button" class="nav-link text-nowrap{% if loop.first %} active{% endif %}" id="agent-tab-{{ agent.key }}" data-bs-toggle="tab" data-bs-target="#agent-pane-{{ agent.key }}" role="tab" aria-controls="agent-pane-{{ agent.key }}" aria-selected="{% if loop.first %}true{% else %}false{% endif %}">
+                          {{ agent.name }}
+                        </button>
+                      </li>
+                    {% endfor %}
+                  </ul>
+
+                  <div class="tab-content p-3" id="agent-prompt-content">
+                    {% for agent in agent_prompts %}
+                      <div class="tab-pane fade{% if loop.first %} show active{% endif %}" id="agent-pane-{{ agent.key }}" role="tabpanel" aria-labelledby="agent-tab-{{ agent.key }}" tabindex="0">
+                        <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
+                          <div>
+                            <strong>{{ agent.name }}</strong>
+                            <span class="badge bg-light text-dark border ms-1">{{ agent.role }}</span>
+                          </div>
+                          <span class="text-muted small">{{ agent.value|length }} / 8000</span>
+                        </div>
+                        <textarea name="{{ agent.setting_key }}" rows="9" maxlength="8000" id="input-prompt-{{ agent.key }}" class="form-control" dir="auto">{{ agent.value }}</textarea>
+                        <div class="form-text">{{ help_agent_prompt }}</div>
+                      </div>
+                    {% endfor %}
+                  </div>
+                </div>
+              </div>
+              <div class="form-text mt-2">{{ help_agent_prompts }}</div>
+            </div>
+          </div>
+
           <div class="row mb-3">
             <label for="input-catalog-token" class="col-sm-2 col-form-label">{{ entry_catalog_token }}</label>
             <div class="col-sm-10">

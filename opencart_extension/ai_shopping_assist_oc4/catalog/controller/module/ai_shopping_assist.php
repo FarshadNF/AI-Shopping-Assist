@@ -6,6 +6,16 @@ class AiShoppingAssist extends \Opencart\System\Engine\Controller {
 	private const MARKER = '<!-- AI_SHOPPING_ASSIST_WIDGET -->';
 	private const DEFAULT_LEAD_WEBHOOK_URL = '';
 	private const DEFAULT_LEAD_WEBHOOK_SECRET = '';
+	private const AGENT_PROMPT_LIMIT = 8000;
+	private const AGENT_ROLES = [
+		'roko' => 'ROKO | Main orchestrator',
+		'raya' => 'Raya | Pre-sales consultant',
+		'scout' => 'Scout | Product finder',
+		'dex' => 'Dex | Technical specialist',
+		'prism' => 'Prism | Comparison specialist',
+		'atlas' => 'Atlas | Solution consultant',
+		'lia' => 'Lia | Enquiry coordinator'
+	];
 
 	public function inject(&$route, &$data, &$output = null): void {
 		if (!is_string($output) || $output === '') {
@@ -398,10 +408,17 @@ class AiShoppingAssist extends \Opencart\System\Engine\Controller {
 		$history = $this->getConversationHistory($conversation_id, $message);
 		$sitemap_url = $this->configuredSitemapUrl();
 		$custom_system_prompt = $this->customSystemPrompt();
+		$active_agent_keys = $this->resolveAgentKeys($message);
+		$agent_prompt_block = $this->activeAgentPromptBlock($active_agent_keys);
 
 		return implode("\n\n", [
 			'You are a B2B pre-sales engineer inside the OpenCart store "' . $brand . '". Your name is "' . $assistant_name . '".',
 			$custom_system_prompt !== '' ? "Store-specific system prompt:\n" . $custom_system_prompt : '',
+			'ROKO is the only customer-facing identity. Specialist agents work internally; follow their active instructions but answer to the customer as ROKO.',
+			'Active internal agent route: ' . implode(', ', array_map(static function (string $agent_key): string {
+				return self::AGENT_ROLES[$agent_key] ?? $agent_key;
+			}, $active_agent_keys)) . '.',
+			$agent_prompt_block !== '' ? "Active agent-specific prompt(s):\n" . $agent_prompt_block : '',
 			'Default to English. If the latest user message is clearly Persian or another language, you may reply in that language, but your base persona and concise style are English-first.',
 			'This is a lead-generation website. Never quote a price, never claim live availability, and never add products to a cart or send users to checkout. Say that price, availability, and delivery time are confirmed by the sales team.',
 			'Use the indexed local knowledge for product families, applications, technical specifications, replacements, and datasheet facts. Recommend only products present in the supplied catalog or knowledge.',
@@ -544,6 +561,111 @@ class AiShoppingAssist extends \Opencart\System\Engine\Controller {
 		}
 
 		return substr($value, 0, 12000);
+	}
+
+	private function activeAgentPromptBlock(array $agent_keys): string {
+		$sections = [];
+
+		foreach ($agent_keys as $agent_key) {
+			if (!isset(self::AGENT_ROLES[$agent_key])) {
+				continue;
+			}
+
+			$prompt = $this->agentPrompt($agent_key);
+
+			if ($prompt !== '') {
+				$sections[] = '[' . self::AGENT_ROLES[$agent_key] . "]\n" . $prompt;
+			}
+		}
+
+		return implode("\n\n", $sections);
+	}
+
+	private function agentPrompt(string $agent_key): string {
+		if (!isset(self::AGENT_ROLES[$agent_key])) {
+			return '';
+		}
+
+		$value = str_replace(
+			["\r\n", "\r"],
+			"\n",
+			trim((string)$this->config->get('module_ai_shopping_assist_prompt_' . $agent_key))
+		);
+
+		if ($value === '') {
+			return '';
+		}
+
+		if (function_exists('mb_substr')) {
+			return mb_substr($value, 0, self::AGENT_PROMPT_LIMIT, 'UTF-8');
+		}
+
+		return substr($value, 0, self::AGENT_PROMPT_LIMIT);
+	}
+
+	private function resolveAgentKeys(string $message): array {
+		$text = trim($message);
+
+		if (function_exists('mb_strtolower')) {
+			$text = mb_strtolower($text, 'UTF-8');
+		} else {
+			$text = strtolower($text);
+		}
+
+		$is_enquiry = $this->agentTextContainsAny($text, [
+			'price', 'quote', 'quotation', 'proforma', 'purchase', 'buy', 'availability', 'in stock',
+			'delivery time', 'lead time', 'contact sales', 'enquiry', 'inquiry', 'bulk order', 'qty',
+			'قیمت', 'استعلام', 'پیش فاکتور', 'پیش‌فاکتور', 'خرید', 'موجودی', 'زمان تحویل', 'تماس فروش', 'تعداد'
+		]);
+		$is_comparison = $this->agentTextContainsAny($text, [
+			'compare', 'comparison', 'difference', 'versus', ' vs ', 'which is better', 'pros and cons',
+			'مقایسه', 'تفاوت', 'فرق', 'کدام بهتر', 'مزایا و معایب'
+		]);
+		$is_solution = $this->agentTextContainsAny($text, [
+			'solution', 'project', 'architecture', 'design a system', 'topology', 'bill of materials', 'bom',
+			'complete setup', 'end to end', 'پروژه', 'راهکار', 'معماری', 'طراحی سیستم', 'توپولوژی', 'لیست تجهیزات', 'پکیج کامل'
+		]);
+		$is_technical = $this->agentTextContainsAny($text, [
+			'technical', 'specification', 'specifications', 'specs', 'datasheet', 'compatible', 'compatibility',
+			'protocol', 'standard', 'voltage', 'power', 'bandwidth', 'port', 'installation', 'configure',
+			'فنی', 'مشخصات', 'دیتاشیت', 'سازگار', 'سازگاری', 'استاندارد', 'ولتاژ', 'توان', 'پورت', 'نصب', 'تنظیمات'
+		]);
+		$is_product_search = $this->agentTextContainsAny($text, [
+			'find', 'search', 'recommend', 'suggest', 'looking for', 'need a', 'which product', 'best product',
+			'پیدا', 'جستجو', 'جست‌وجو', 'پیشنهاد', 'معرفی کن', 'نیاز دارم', 'چه محصولی', 'کدام محصول'
+		]);
+
+		$primary_agent = 'raya';
+
+		if ($is_enquiry) {
+			$primary_agent = 'lia';
+		} elseif ($is_comparison) {
+			$primary_agent = 'prism';
+		} elseif ($is_solution) {
+			$primary_agent = 'atlas';
+		} elseif ($is_technical) {
+			$primary_agent = 'dex';
+		} elseif ($is_product_search) {
+			$primary_agent = 'scout';
+		}
+
+		$agent_keys = ['roko', $primary_agent];
+
+		if ($is_technical && in_array($primary_agent, ['prism', 'atlas'], true)) {
+			$agent_keys[] = 'dex';
+		}
+
+		return array_values(array_unique($agent_keys));
+	}
+
+	private function agentTextContainsAny(string $text, array $phrases): bool {
+		foreach ($phrases as $phrase) {
+			if ($phrase !== '' && strpos($text, $phrase) !== false) {
+				return true;
+			}
+		}
+
+		return false;
 	}
 
 	private function getConfiguredSitemapPages(): array {

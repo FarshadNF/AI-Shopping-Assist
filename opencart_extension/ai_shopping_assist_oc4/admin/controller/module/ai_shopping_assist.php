@@ -7,6 +7,16 @@ class AiShoppingAssist extends \Opencart\System\Engine\Controller {
 	private const EVENT_VIEW = 'ai_shopping_assist_footer_view';
 	private const DEFAULT_LEAD_WEBHOOK_URL = '';
 	private const DEFAULT_LEAD_WEBHOOK_SECRET = '';
+	private const AGENT_PROMPT_LIMIT = 8000;
+	private const AGENT_NAMES = [
+		'roko' => 'ROKO',
+		'raya' => 'Raya',
+		'scout' => 'Scout',
+		'dex' => 'Dex',
+		'prism' => 'Prism',
+		'atlas' => 'Atlas',
+		'lia' => 'Lia'
+	];
 
 	public function index(): void {
 		$this->load->language('extension/ai_shopping_assist/module/ai_shopping_assist');
@@ -60,6 +70,19 @@ class AiShoppingAssist extends \Opencart\System\Engine\Controller {
 		$data['module_ai_shopping_assist_assistant_name'] = $assistant_name;
 		$data['module_ai_shopping_assist_sitemap_url'] = (string)$this->config->get('module_ai_shopping_assist_sitemap_url');
 		$data['module_ai_shopping_assist_system_prompt'] = (string)$this->config->get('module_ai_shopping_assist_system_prompt');
+		$data['agent_prompts'] = [];
+
+		foreach (self::AGENT_NAMES as $agent_key => $agent_name) {
+			$setting_key = 'module_ai_shopping_assist_prompt_' . $agent_key;
+			$data['agent_prompts'][] = [
+				'key' => $agent_key,
+				'name' => $agent_name,
+				'role' => $this->language->get('text_agent_role_' . $agent_key),
+				'setting_key' => $setting_key,
+				'value' => (string)$this->config->get($setting_key)
+			];
+		}
+
 		$data['module_ai_shopping_assist_catalog_token'] = (string)$this->config->get('module_ai_shopping_assist_catalog_token');
 		$data['module_ai_shopping_assist_lead_webhook_url'] = (string)($this->config->get('module_ai_shopping_assist_lead_webhook_url') ?: self::DEFAULT_LEAD_WEBHOOK_URL);
 		$data['module_ai_shopping_assist_lead_webhook_secret'] = (string)($this->config->get('module_ai_shopping_assist_lead_webhook_secret') ?: self::DEFAULT_LEAD_WEBHOOK_SECRET);
@@ -118,6 +141,14 @@ class AiShoppingAssist extends \Opencart\System\Engine\Controller {
 				'module_ai_shopping_assist_widget_title' => trim((string)($this->request->post['module_ai_shopping_assist_widget_title'] ?? 'ROKO')),
 				'module_ai_shopping_assist_widget_button' => trim((string)($this->request->post['module_ai_shopping_assist_widget_button'] ?? 'Ask ROKO'))
 			];
+
+			foreach (self::AGENT_NAMES as $agent_key => $agent_name) {
+				$setting_key = 'module_ai_shopping_assist_prompt_' . $agent_key;
+				$settings[$setting_key] = $this->limitSettingText(
+					(string)($this->request->post[$setting_key] ?? ''),
+					self::AGENT_PROMPT_LIMIT
+				);
+			}
 
 			$this->model_setting_setting->editSetting(self::SETTING_CODE, $settings);
 
@@ -297,7 +328,7 @@ class AiShoppingAssist extends \Opencart\System\Engine\Controller {
 		$this->createLeadTable();
 
 		$this->load->model('setting/setting');
-		$this->model_setting_setting->editSetting(self::SETTING_CODE, [
+		$settings = [
 			'module_ai_shopping_assist_status' => 0,
 			'module_ai_shopping_assist_gemini_api_key' => '',
 			'module_ai_shopping_assist_gemini_model' => 'gemini-2.5-flash',
@@ -313,7 +344,13 @@ class AiShoppingAssist extends \Opencart\System\Engine\Controller {
 			'module_ai_shopping_assist_footer_injection' => 1,
 			'module_ai_shopping_assist_widget_title' => 'ROKO',
 			'module_ai_shopping_assist_widget_button' => 'Ask ROKO'
-		]);
+		];
+
+		foreach (self::AGENT_NAMES as $agent_key => $agent_name) {
+			$settings['module_ai_shopping_assist_prompt_' . $agent_key] = '';
+		}
+
+		$this->model_setting_setting->editSetting(self::SETTING_CODE, $settings);
 
 		$this->load->model('setting/event');
 		$this->model_setting_event->deleteEventByCode(self::EVENT_CONTROLLER);
