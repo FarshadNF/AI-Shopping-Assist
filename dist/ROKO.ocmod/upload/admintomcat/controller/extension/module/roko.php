@@ -3,6 +3,16 @@ class ControllerExtensionModuleRoko extends Controller {
 	private const SETTING_CODE = 'module_roko';
 	private const EVENT_CONTROLLER = 'roko_footer_controller';
 	private const EVENT_VIEW = 'roko_footer_view';
+	private const AGENT_PROMPT_LIMIT = 8000;
+	private const AGENT_NAMES = [
+		'roko' => 'ROKO',
+		'raya' => 'Raya',
+		'scout' => 'Scout',
+		'dex' => 'Dex',
+		'prism' => 'Prism',
+		'atlas' => 'Atlas',
+		'lia' => 'Lia'
+	];
 
 	public function index(): void {
 		$this->load->language('extension/module/roko');
@@ -65,6 +75,19 @@ class ControllerExtensionModuleRoko extends Controller {
 		$data['module_roko_assistant_name'] = $assistant_name;
 		$data['module_roko_sitemap_url'] = (string)$this->config->get('module_roko_sitemap_url');
 		$data['module_roko_system_prompt'] = (string)$this->config->get('module_roko_system_prompt');
+		$data['agent_prompts'] = [];
+
+		foreach (self::AGENT_NAMES as $agent_key => $agent_name) {
+			$setting_key = 'module_roko_prompt_' . $agent_key;
+			$data['agent_prompts'][] = [
+				'key' => $agent_key,
+				'name' => $agent_name,
+				'role' => $this->language->get('text_agent_role_' . $agent_key),
+				'setting_key' => $setting_key,
+				'value' => (string)$this->config->get($setting_key)
+			];
+		}
+
 		$data['module_roko_catalog_token'] = (string)$this->config->get('module_roko_catalog_token');
 		$data['module_roko_footer_injection'] = $this->config->get('module_roko_footer_injection') !== null ? (int)$this->config->get('module_roko_footer_injection') : 1;
 		$data['module_roko_suggest_next_questions'] = $this->config->get('module_roko_suggest_next_questions') !== null ? (int)$this->config->get('module_roko_suggest_next_questions') : 1;
@@ -194,6 +217,14 @@ class ControllerExtensionModuleRoko extends Controller {
 				'module_roko_widget_button' => trim((string)($this->request->post['module_roko_widget_button'] ?? 'Chat')),
 				'module_roko_redirect_utm' => $this->limitSettingText((string)($this->request->post['module_roko_redirect_utm'] ?? ''), 500)
 			];
+
+			foreach (self::AGENT_NAMES as $agent_key => $agent_name) {
+				$setting_key = 'module_roko_prompt_' . $agent_key;
+				$settings[$setting_key] = $this->limitSettingText(
+					(string)($this->request->post[$setting_key] ?? ''),
+					self::AGENT_PROMPT_LIMIT
+				);
+			}
 
 			$this->model_setting_setting->editSetting(self::SETTING_CODE, $settings);
 
@@ -429,7 +460,7 @@ class ControllerExtensionModuleRoko extends Controller {
 		$this->createLogTable();
 
 		$this->load->model('setting/setting');
-		$this->model_setting_setting->editSetting(self::SETTING_CODE, [
+		$settings = [
 			'module_roko_status' => 0,
 			'module_roko_gemini_api_key' => '',
 			'module_roko_gemini_model' => 'gemini-2.5-flash',
@@ -448,7 +479,13 @@ class ControllerExtensionModuleRoko extends Controller {
 			'module_roko_widget_title' => 'ROKO',
 			'module_roko_widget_button' => 'Chat',
 			'module_roko_redirect_utm' => 'utm_source=roko&utm_medium=assistant&utm_campaign=chat'
-		]);
+		];
+
+		foreach (self::AGENT_NAMES as $agent_key => $agent_name) {
+			$settings['module_roko_prompt_' . $agent_key] = '';
+		}
+
+		$this->model_setting_setting->editSetting(self::SETTING_CODE, $settings);
 
 		$this->load->model('setting/event');
 		$this->model_setting_event->deleteEventByCode(self::EVENT_CONTROLLER);
