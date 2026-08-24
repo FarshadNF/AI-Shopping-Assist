@@ -1,6 +1,6 @@
 <?php
 class ControllerExtensionModuleRoko extends Controller {
-	private const VERSION = '3.8.0-micro-widget';
+	private const VERSION = '3.9.0-compact-redesign';
 	private const MARKER = '<!-- ROKO_WIDGET -->';
 	private const GEMINI_MAX_OUTPUT_TOKENS = 4096;
 	private const MAX_RESPONSE_PRODUCTS = 3;
@@ -103,7 +103,7 @@ class ControllerExtensionModuleRoko extends Controller {
 		$version = self::VERSION;
 
 		$block = self::MARKER . "\n"
-			. '<link rel="stylesheet" href="' . $asset_base . 'widget.css?v=' . $version . '">' . "\n"
+			. '<link rel="stylesheet" href="' . $asset_base . 'widget-3.9.0.css?v=' . $version . '">' . "\n"
 			. '<script>window.ROKO_CONFIG = Object.assign({}, window.ROKO_CONFIG || {}, ' . $config_json . ');</script>' . "\n"
 			. '<script src="' . $asset_base . 'widget.js?v=' . $version . '" defer></script>' . "\n";
 

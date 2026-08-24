@@ -141,8 +141,9 @@
             </div>
             <section class="aisa-promo-card">
               <button type="button" class="aisa-promo-open" aria-label="Open ROKO chat">
+                <span class="aisa-promo-kicker"><i aria-hidden="true"></i> AI PRODUCT GUIDE</span>
                 <span class="aisa-promo-title">Ask <strong>ROKO</strong> <span aria-hidden="true">👋</span></span>
-                <span class="aisa-promo-subtitle">How can I help you today?</span>
+                <span class="aisa-promo-subtitle">Find products, compare options, or get technical help.</span>
               </button>
               <div class="aisa-promo-actions" aria-label="Popular ROKO actions">
                 <button type="button" data-prompt="Help me find the right product for my needs.">
