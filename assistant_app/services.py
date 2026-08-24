@@ -1,6 +1,10 @@
 import html
+import hashlib
 import json
+import logging
 import re
+import uuid
+from functools import lru_cache
 from numbers import Number
 from urllib.parse import urljoin
 import requests
@@ -13,6 +17,8 @@ from thefuzz import fuzz
 
 from .models import ChatMessage, Conversation, OpenCartConnectionStatus
 from .utils.ai_agent import ai_agent
+
+logger = logging.getLogger(__name__)
 
 ASSISTANT_ACTION_TOOLS = types.Tool(
     function_declarations=[
@@ -840,10 +846,91 @@ def normalize_catalog_product(item):
         "price": _clean_text(_first_present(item, "price", "special", default="0")),
         "stock": stock,
         "category": category,
+        "brand": _clean_text(_first_present(item, "brand", "manufacturer")),
+        "image": _clean_text(_first_present(item, "image", "image_url")),
+        "full_description": _clean_text(
+            _first_present(item, "full_description", "description")
+        ),
         "attributes": attributes,
         "sales_angle": sales_angle,
+        "datasheet_content": _clean_text(
+            _first_present(item, "datasheet_content", "datasheet_text")
+        ),
         "alternatives": item.get("alternatives", []) if isinstance(item, dict) else [],
     }
+
+
+@lru_cache(maxsize=1)
+def get_vector_store():
+    if not getattr(settings, "AI_ASSISTANT_VECTOR_ENABLED", True):
+        return None
+
+    try:
+        from .utils.vector_handler import RockfordVectorStore
+
+        return RockfordVectorStore()
+    except Exception as exc:
+        logger.warning("Vector Brain is unavailable: %s", exc)
+        return None
+
+
+def get_vector_knowledge(user_message):
+    vector_store = get_vector_store()
+    if vector_store is None:
+        return ""
+
+    return vector_store.query_relevant_knowledge(
+        user_message,
+        n_results=getattr(settings, "AI_ASSISTANT_VECTOR_RESULTS", 4),
+    )
+
+
+def index_catalog_knowledge(products):
+    vector_store = get_vector_store()
+    if vector_store is None:
+        return 0
+
+    payload = []
+    for product in products:
+        attributes = " | ".join(
+            f"{key}: {value}"
+            for key, value in product.get("attributes", {}).items()
+        )
+        content = "\n".join(
+            [
+                f"Product Name: {product.get('name', '')}",
+                f"Brand: {product.get('brand', '')}",
+                f"Product ID: {product.get('product_id', '')}",
+                f"Category: {product.get('category', '')}",
+                f"Price: {product.get('price', '')}",
+                f"Stock: {product.get('stock', 0)}",
+                f"Sales Position: {product.get('sales_angle', '')}",
+                f"Description: {product.get('full_description', '')}",
+                f"Technical Specifications: {attributes}",
+            ]
+        )
+        payload.append(
+            {
+                "source": product.get("product_url", ""),
+                "type": "opencart_product",
+                "content": content,
+            }
+        )
+        if product.get("datasheet_content"):
+            payload.append(
+                {
+                    "source": product.get("product_url", "") + " (Datasheet)",
+                    "type": "datasheet_pdf",
+                    "content": product["datasheet_content"],
+                }
+            )
+
+    return vector_store.inject_knowledge_base(
+        payload,
+        namespace="opencart_catalog",
+        replace_namespace=True,
+    )
+
 
 def replace_catalog(raw_products):
     products = [
@@ -858,11 +945,28 @@ def replace_catalog(raw_products):
         json.dump(products, catalog_file, ensure_ascii=False, indent=4)
     temp_path.replace(catalog_path)
     cache.set("products_catalog", products, timeout=None)
+    try:
+        index_catalog_knowledge(products)
+    except Exception:
+        logger.exception("Could not synchronize the OpenCart catalog to Vector Brain.")
     return products
 
 def get_or_create_conversation(conversation_id=None, session_key=None, api_key=None):
     if conversation_id:
-        conversation, _ = Conversation.objects.get_or_create(public_id=conversation_id)
+        normalized_id = str(conversation_id).strip()
+        try:
+            public_id = uuid.UUID(normalized_id)
+        except (TypeError, ValueError, AttributeError):
+            external_key = f"client:{normalized_id}"
+            if len(external_key) > 80:
+                external_key = "client:" + hashlib.sha256(
+                    normalized_id.encode("utf-8")
+                ).hexdigest()
+            conversation, _ = Conversation.objects.get_or_create(
+                session_key=external_key
+            )
+            return conversation
+        conversation, _ = Conversation.objects.get_or_create(public_id=public_id)
         return conversation
     if session_key:
         conversation, _ = Conversation.objects.get_or_create(session_key=session_key)
@@ -879,9 +983,14 @@ def get_relevant_catalog(user_message, top_k=5):
     
     for product in full_catalog:
         p_name = product.get('name', '')
+        normalized_name = normalize_part_number(p_name)
+        # فیلتر سریع: اگر حداقل یکی از کلمات کلیدی پیام کاربر در اسم محصول یا برعکس نبود، از پردازش Fuzzy رد شو
+        user_words = set(normalized_message.split())
+        product_words = set(normalized_name.split())
+        if not user_words.intersection(product_words) and len(normalized_message) > 3:
+            continue # پرش از پردازش سنگین فازی
         score = fuzz.token_set_ratio(user_message, p_name)
         
-        normalized_name = normalize_part_number(p_name)
         if normalized_name and normalized_name in normalized_message:
             score += 50
             
@@ -896,6 +1005,8 @@ def get_relevant_catalog(user_message, top_k=5):
 def build_system_instruction(user_message):
     relevant_products = get_relevant_catalog(user_message)
     catalog_string = json.dumps(relevant_products, ensure_ascii=False, indent=2) if relevant_products else "درحال حاضر محصول مرتبطی پیدا نشد."
+    vector_knowledge = get_vector_knowledge(user_message)
+    vector_context = vector_knowledge or "No additional Vector Brain context was found."
     
     assistant_name = getattr(settings, 'AI_ASSISTANT_NAME', 'پشتیبان هوشمند')
     store_brand = getattr(settings, 'STORE_BRAND', 'فروشگاه ما')
@@ -927,6 +1038,11 @@ If the user asks to add products and pay in one message, call add_to_cart first,
  
 اطلاعات محصولاتی که الان در سیستم فروشگاه ما موجود است و به درخواست کاربر ربط دارد:
 {catalog_string}
+
+VECTOR BRAIN CONTEXT:
+Use this retrieved technical context for specifications, descriptions, and datasheet details.
+Treat the live catalog above as the authority for current price and stock.
+{vector_context}
  
 قوانین رفتار انسانی و فروشگاهی تو:
 ۱. پاسخ‌ها باید کوتاه، روان و متقاعدکننده باشند.

@@ -16,7 +16,12 @@ def _clean_text(value):
 
 
 class ChatRequestSerializer(serializers.Serializer):
-    conversation_id = serializers.UUIDField(required=False, allow_null=True)
+    conversation_id = serializers.CharField(
+        required=False,
+        allow_null=True,
+        allow_blank=False,
+        max_length=80,
+    )
     message = serializers.CharField(required=True, allow_blank=False, max_length=2000)
     page_context = serializers.DictField(required=False, allow_empty=True)
 

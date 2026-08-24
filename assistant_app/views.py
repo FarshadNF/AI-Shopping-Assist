@@ -40,6 +40,15 @@ def get_session_key(request):
 
 @api_view(["POST"])
 def chat_api(request):
+    expected_token = getattr(settings, "AI_ASSISTANT_CHAT_TOKEN", "")
+    if expected_token:
+        received_token = request.headers.get("X-AI-Assistant-Token", "")
+        if not hmac.compare_digest(received_token, expected_token):
+            return Response(
+                {"status": "error", "reply": "Invalid Brain API token."},
+                status=403,
+            )
+
     serializer = ChatRequestSerializer(data=request.data)
     
     if not serializer.is_valid():
@@ -53,12 +62,12 @@ def chat_api(request):
         )
 
     try:
-        conversation_id = serializer.validated_data.get("conversation_id")
-        session_key = None if conversation_id else get_session_key(request)
+        requested_conversation_id = serializer.validated_data.get("conversation_id")
+        session_key = None if requested_conversation_id else get_session_key(request)
 
         # فیلد api_key از ورودی کلاینت حذف شد تا امنیت حفظ شود. (Critical Vulnerability Fix)
         conversation = get_or_create_conversation(
-            conversation_id=conversation_id,
+            conversation_id=requested_conversation_id,
             session_key=session_key,
         )
         
@@ -83,13 +92,16 @@ def chat_api(request):
     action = next(iter(actions), None)
     cart_action = extract_cart_action(agent_output, user_message)
     reply_text = normalized_reply_text(user_message, agent_output, action)
+    response_conversation_id = (
+        requested_conversation_id or str(conversation.public_id)
+    )
 
     if agent_output.is_error:
         return Response(
             {
                 "status": "error",
                 "reply": reply_text,
-                "conversation_id": str(conversation.public_id),
+                "conversation_id": response_conversation_id,
                 "error_code": agent_output.error_code,
             },
             status=agent_output.status_code or 502,
@@ -98,7 +110,7 @@ def chat_api(request):
     response_data = {
         "status": "success",
         "reply": reply_text,
-        "conversation_id": str(conversation.public_id),
+        "conversation_id": response_conversation_id,
     }
     
     if actions:

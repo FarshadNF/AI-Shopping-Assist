@@ -1,0 +1,414 @@
+{{ header }}{{ column_left }}
+<div id="content">
+  <div class="page-header">
+    <div class="container-fluid">
+      <div class="float-end">
+        <button type="submit" form="form-module" data-bs-toggle="tooltip" title="{{ button_save }}" class="btn btn-primary"><i class="fa-solid fa-save"></i></button>
+        <a href="{{ back }}" data-bs-toggle="tooltip" title="{{ button_back }}" class="btn btn-light"><i class="fa-solid fa-reply"></i></a>
+      </div>
+      <h1>{{ heading_title }}</h1>
+      <ol class="breadcrumb">
+        {% for breadcrumb in breadcrumbs %}
+          <li class="breadcrumb-item"><a href="{{ breadcrumb.href }}">{{ breadcrumb.text }}</a></li>
+        {% endfor %}
+      </ol>
+    </div>
+  </div>
+
+  <div class="container-fluid">
+    <div class="card mb-4">
+      <div class="card-header"><i class="fa-solid fa-robot"></i> {{ text_edit }}</div>
+      <div class="card-body">
+        <form id="form-module" action="{{ save }}" method="post" data-oc-toggle="ajax">
+          <div class="row mb-3">
+            <label class="col-sm-2 col-form-label">{{ entry_status }}</label>
+            <div class="col-sm-10">
+              <div class="form-check form-switch form-switch-lg">
+                <input type="hidden" name="module_ai_shopping_assist_status" value="0"/>
+                <input type="checkbox" name="module_ai_shopping_assist_status" value="1" id="input-status" class="form-check-input"{% if module_ai_shopping_assist_status %} checked{% endif %}/>
+              </div>
+            </div>
+          </div>
+
+          <div class="row mb-3">
+            <label for="input-gemini-api-key" class="col-sm-2 col-form-label">{{ entry_gemini_api_key }}</label>
+            <div class="col-sm-10">
+              <textarea name="module_ai_shopping_assist_gemini_api_key" rows="3" placeholder="KEY_1, KEY_2, KEY_3" id="input-gemini-api-key" class="form-control" autocomplete="off">{{ module_ai_shopping_assist_gemini_api_key }}</textarea>
+              <div class="form-text">{{ help_gemini_api_key }}</div>
+            </div>
+          </div>
+
+          <div class="row mb-3">
+            <label for="input-gemini-model" class="col-sm-2 col-form-label">{{ entry_gemini_model }}</label>
+            <div class="col-sm-10">
+              <input type="text" name="module_ai_shopping_assist_gemini_model" value="{{ module_ai_shopping_assist_gemini_model }}" placeholder="gemini-2.5-flash" id="input-gemini-model" class="form-control"/>
+            </div>
+          </div>
+
+          <div class="row mb-3">
+            <label for="input-gemini-temperature" class="col-sm-2 col-form-label">{{ entry_gemini_temperature }}</label>
+            <div class="col-sm-10">
+              <input type="number" step="0.1" min="0" max="1" name="module_ai_shopping_assist_gemini_temperature" value="{{ module_ai_shopping_assist_gemini_temperature }}" id="input-gemini-temperature" class="form-control"/>
+            </div>
+          </div>
+
+          <div class="row mb-3">
+            <label for="input-catalog-limit" class="col-sm-2 col-form-label">{{ entry_catalog_limit }}</label>
+            <div class="col-sm-10">
+              <input type="number" min="5" max="200" name="module_ai_shopping_assist_catalog_limit" value="{{ module_ai_shopping_assist_catalog_limit }}" id="input-catalog-limit" class="form-control"/>
+              <div class="form-text">{{ help_catalog_limit }}</div>
+            </div>
+          </div>
+
+          <div class="row mb-3">
+            <label for="input-store-brand" class="col-sm-2 col-form-label">{{ entry_store_brand }}</label>
+            <div class="col-sm-10">
+              <input type="text" name="module_ai_shopping_assist_store_brand" value="{{ module_ai_shopping_assist_store_brand }}" id="input-store-brand" class="form-control"/>
+            </div>
+          </div>
+
+          <div class="row mb-3">
+            <label for="input-assistant-name" class="col-sm-2 col-form-label">{{ entry_assistant_name }}</label>
+            <div class="col-sm-10">
+              <input type="text" name="module_ai_shopping_assist_assistant_name" value="{{ module_ai_shopping_assist_assistant_name }}" id="input-assistant-name" class="form-control"/>
+            </div>
+          </div>
+
+          <div class="row mb-3">
+            <label for="input-sitemap-url" class="col-sm-2 col-form-label">{{ entry_sitemap_url }}</label>
+            <div class="col-sm-10">
+              <input type="url" name="module_ai_shopping_assist_sitemap_url" value="{{ module_ai_shopping_assist_sitemap_url }}" placeholder="https://example.com/sitemap.xml" id="input-sitemap-url" class="form-control"/>
+              <div class="form-text">{{ help_sitemap_url }}</div>
+            </div>
+          </div>
+
+          <div class="row mb-3">
+            <label for="input-system-prompt" class="col-sm-2 col-form-label">{{ entry_system_prompt }}</label>
+            <div class="col-sm-10">
+              <textarea name="module_ai_shopping_assist_system_prompt" rows="5" id="input-system-prompt" class="form-control">{{ module_ai_shopping_assist_system_prompt }}</textarea>
+              <div class="form-text">{{ help_system_prompt }}</div>
+            </div>
+          </div>
+
+          <div class="row mb-4">
+            <label class="col-sm-2 col-form-label">{{ entry_agent_prompts }}</label>
+            <div class="col-sm-10">
+              <div class="card">
+                <div class="card-header d-flex align-items-center gap-2">
+                  <i class="fa-solid fa-users-gear"></i>
+                  <strong>{{ text_agent_prompts }}</strong>
+                </div>
+                <div class="card-body p-0">
+                  <ul class="nav nav-tabs flex-nowrap overflow-auto px-3 pt-3" id="agent-prompt-tabs" role="tablist">
+                    {% for agent in agent_prompts %}
+                      <li class="nav-item" role="presentation">
+                        <button type="button" class="nav-link text-nowrap{% if loop.first %} active{% endif %}" id="agent-tab-{{ agent.key }}" data-bs-toggle="tab" data-bs-target="#agent-pane-{{ agent.key }}" role="tab" aria-controls="agent-pane-{{ agent.key }}" aria-selected="{% if loop.first %}true{% else %}false{% endif %}">
+                          {{ agent.name }}
+                        </button>
+                      </li>
+                    {% endfor %}
+                  </ul>
+
+                  <div class="tab-content p-3" id="agent-prompt-content">
+                    {% for agent in agent_prompts %}
+                      <div class="tab-pane fade{% if loop.first %} show active{% endif %}" id="agent-pane-{{ agent.key }}" role="tabpanel" aria-labelledby="agent-tab-{{ agent.key }}" tabindex="0">
+                        <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
+                          <div>
+                            <strong>{{ agent.name }}</strong>
+                            <span class="badge bg-light text-dark border ms-1">{{ agent.role }}</span>
+                          </div>
+                          <span class="text-muted small">{{ agent.value|length }} / 8000</span>
+                        </div>
+                        <textarea name="{{ agent.setting_key }}" rows="9" maxlength="8000" id="input-prompt-{{ agent.key }}" class="form-control" dir="auto">{{ agent.value }}</textarea>
+                        <div class="form-text">{{ help_agent_prompt }}</div>
+                      </div>
+                    {% endfor %}
+                  </div>
+                </div>
+              </div>
+              <div class="form-text mt-2">{{ help_agent_prompts }}</div>
+            </div>
+          </div>
+
+          <div class="row mb-3">
+            <label for="input-catalog-token" class="col-sm-2 col-form-label">{{ entry_catalog_token }}</label>
+            <div class="col-sm-10">
+              <input type="text" name="module_ai_shopping_assist_catalog_token" value="{{ module_ai_shopping_assist_catalog_token }}" id="input-catalog-token" class="form-control"/>
+              <div class="form-text">{{ help_catalog_token }}</div>
+            </div>
+          </div>
+
+          <div class="row mb-3">
+            <label for="input-lead-webhook-url" class="col-sm-2 col-form-label">{{ entry_lead_webhook_url }}</label>
+            <div class="col-sm-10">
+              <input type="url" name="module_ai_shopping_assist_lead_webhook_url" value="{{ module_ai_shopping_assist_lead_webhook_url }}" placeholder="https://script.google.com/macros/s/..." id="input-lead-webhook-url" class="form-control"/>
+              <div class="form-text">{{ help_lead_webhook_url }}</div>
+            </div>
+          </div>
+
+          <div class="row mb-3">
+            <label for="input-lead-webhook-secret" class="col-sm-2 col-form-label">{{ entry_lead_webhook_secret }}</label>
+            <div class="col-sm-10">
+              <input type="text" name="module_ai_shopping_assist_lead_webhook_secret" value="{{ module_ai_shopping_assist_lead_webhook_secret }}" id="input-lead-webhook-secret" class="form-control" autocomplete="off"/>
+              <div class="form-text">{{ help_lead_webhook_secret }}</div>
+            </div>
+          </div>
+
+          <div class="row mb-3">
+            <label class="col-sm-2 col-form-label">{{ entry_footer_injection }}</label>
+            <div class="col-sm-10">
+              <div class="form-check form-switch form-switch-lg">
+                <input type="hidden" name="module_ai_shopping_assist_footer_injection" value="0"/>
+                <input type="checkbox" name="module_ai_shopping_assist_footer_injection" value="1" id="input-footer-injection" class="form-check-input"{% if module_ai_shopping_assist_footer_injection %} checked{% endif %}/>
+              </div>
+            </div>
+          </div>
+
+          <div class="row mb-3">
+            <label for="input-widget-title" class="col-sm-2 col-form-label">{{ entry_widget_title }}</label>
+            <div class="col-sm-10">
+              <input type="text" name="module_ai_shopping_assist_widget_title" value="{{ module_ai_shopping_assist_widget_title }}" id="input-widget-title" class="form-control"/>
+            </div>
+          </div>
+
+          <div class="row mb-3">
+            <label for="input-widget-button" class="col-sm-2 col-form-label">{{ entry_widget_button }}</label>
+            <div class="col-sm-10">
+              <input type="text" name="module_ai_shopping_assist_widget_button" value="{{ module_ai_shopping_assist_widget_button }}" id="input-widget-button" class="form-control"/>
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <div class="card mb-4">
+      <div class="card-header d-flex align-items-center justify-content-between">
+        <span><i class="fa-solid fa-database"></i> {{ text_knowledge }}</span>
+        <span class="badge bg-primary">{{ text_knowledge_count|format(knowledge_count) }}</span>
+      </div>
+      <div class="card-body">
+        <form id="form-knowledge" enctype="multipart/form-data">
+          <div class="row align-items-end">
+            <div class="col-lg-7">
+              <label for="input-knowledge-file" class="form-label">{{ entry_knowledge_file }}</label>
+              <input type="file" name="knowledge_file" accept=".json,application/json" id="input-knowledge-file" class="form-control"/>
+              <div class="form-text">{{ help_knowledge_file }}</div>
+            </div>
+            <div class="col-lg-5 mt-3 mt-lg-0 d-flex gap-2">
+              <button type="button" id="button-rebuild-catalog" data-url="{{ rebuild_catalog_knowledge }}" class="btn btn-success flex-fill">
+                <i class="fa-solid fa-arrows-rotate"></i> {{ button_rebuild_catalog }}
+              </button>
+              <button type="button" id="button-import-knowledge" data-url="{{ import_knowledge }}" class="btn btn-primary flex-fill">
+                <i class="fa-solid fa-file-import"></i> {{ button_import_knowledge }}
+              </button>
+              <button type="button" id="button-clear-knowledge" data-url="{{ clear_knowledge }}" class="btn btn-outline-danger">
+                <i class="fa-solid fa-trash"></i>
+              </button>
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <div class="card mb-4">
+      <div class="card-header">
+        <span><i class="fa-solid fa-user-tag"></i> {{ text_leads }}</span>
+      </div>
+      <div class="table-responsive">
+        <table class="table table-hover mb-0">
+          <thead>
+            <tr>
+              <th>{{ column_date }}</th>
+              <th>{{ column_lead_id }}</th>
+              <th>{{ column_product }}</th>
+              <th>{{ column_qty }}</th>
+              <th>{{ column_name }}</th>
+              <th>{{ column_company }}</th>
+              <th>{{ column_contact }}</th>
+              <th>{{ column_email }}</th>
+              <th>{{ column_delivery }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% if leads %}
+              {% for lead in leads %}
+                <tr>
+                  <td class="text-nowrap">{{ lead.date_added }}</td>
+                  <td class="text-nowrap"><code>{{ lead.lead_id }}</code></td>
+                  <td>{{ lead.product_name }}</td>
+                  <td>{{ lead.qty }}</td>
+                  <td>{{ lead.name }}</td>
+                  <td>{{ lead.company }}</td>
+                  <td>{{ lead.contact_number }}</td>
+                  <td>{{ lead.email }}</td>
+                  <td>{{ lead.delivery_location }}</td>
+                </tr>
+              {% endfor %}
+            {% else %}
+              <tr><td colspan="9" class="text-center text-muted py-4">{{ text_no_leads }}</td></tr>
+            {% endif %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header d-flex align-items-center justify-content-between">
+        <span><i class="fa-solid fa-comments"></i> {{ text_logs }}</span>
+        <div class="d-flex gap-2">
+          <a href="{{ export_logs }}" class="btn btn-sm btn-outline-success"><i class="fa-solid fa-file-excel"></i> {{ text_export_excel }}</a>
+          <button type="button" id="button-clear-logs" data-url="{{ clear_logs }}" class="btn btn-sm btn-outline-danger">{{ text_clear_logs }}</button>
+        </div>
+      </div>
+      <div class="table-responsive">
+        <table class="table table-hover mb-0">
+          <thead>
+            <tr>
+              <th>{{ column_date }}</th>
+              <th>{{ column_conversation }}</th>
+              <th>{{ column_customer }}</th>
+              <th>{{ column_role }}</th>
+              <th>{{ column_content }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% if logs %}
+              {% for log in logs %}
+                <tr>
+                  <td class="text-nowrap">{{ log.date_added }}</td>
+                  <td><code>{{ log.conversation_id }}</code></td>
+                  <td>{{ log.customer_id ? log.customer_id : '-' }}</td>
+                  <td>{{ log.role }}</td>
+                  <td style="max-width: 560px; white-space: normal;">{{ log.content|slice(0, 240) }}{% if log.content|length > 240 %}...{% endif %}</td>
+                </tr>
+              {% endfor %}
+            {% else %}
+              <tr>
+                <td colspan="5" class="text-center text-muted py-4">{{ text_no_logs }}</td>
+              </tr>
+            {% endif %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+function aiShoppingAssistShowMessage(payload) {
+  var message = payload.error || payload.success || '';
+
+  if (!message) {
+    window.location.reload();
+    return;
+  }
+
+  var type = payload.error ? 'danger' : 'success';
+  var alert = document.createElement('div');
+  alert.className = 'alert alert-' + type + ' alert-dismissible';
+  alert.innerHTML = '<i class="fa-solid fa-circle-exclamation"></i> ' + message
+    + '<button type="button" class="btn-close" data-bs-dismiss="alert"></button>';
+  document.querySelector('#content > .container-fluid').prepend(alert);
+
+  if (!payload.error) {
+    window.setTimeout(function () { window.location.reload(); }, 700);
+  }
+}
+
+var aiShoppingAssistImportButton = document.getElementById('button-import-knowledge');
+
+if (aiShoppingAssistImportButton) {
+  aiShoppingAssistImportButton.addEventListener('click', function () {
+    var form = document.getElementById('form-knowledge');
+    var button = this;
+    button.disabled = true;
+
+    fetch(button.dataset.url, {
+      method: 'POST',
+      credentials: 'same-origin',
+      body: new FormData(form)
+    })
+      .then(function (response) { return response.json(); })
+      .then(aiShoppingAssistShowMessage)
+      .catch(function () { aiShoppingAssistShowMessage({ error: '{{ error_knowledge_import|e('js') }}' }); })
+      .finally(function () { button.disabled = false; });
+  });
+}
+
+var aiShoppingAssistRebuildButton = document.getElementById('button-rebuild-catalog');
+
+if (aiShoppingAssistRebuildButton) {
+  aiShoppingAssistRebuildButton.addEventListener('click', function () {
+    var button = this;
+    var start = 0;
+    button.disabled = true;
+    button.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 0%';
+
+    function runBatch() {
+      var body = new URLSearchParams({ start: String(start), limit: '50' });
+
+      return fetch(button.dataset.url, {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: body
+      })
+        .then(function (response) { return response.json(); })
+        .then(function (payload) {
+          if (payload.error) {
+            throw new Error(payload.error);
+          }
+
+          var total = Number(payload.total || 0);
+          start = Number(payload.next || 0);
+          var percent = total > 0 ? Math.min(100, Math.round((start / total) * 100)) : 100;
+          button.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> ' + percent + '%';
+
+          if (!payload.done) {
+            return runBatch();
+          }
+
+          aiShoppingAssistShowMessage(payload);
+        });
+    }
+
+    runBatch()
+      .catch(function (error) {
+        aiShoppingAssistShowMessage({ error: error.message || '{{ error_catalog_index|e('js') }}' });
+      })
+      .finally(function () {
+        button.disabled = false;
+        button.innerHTML = '<i class="fa-solid fa-arrows-rotate"></i> {{ button_rebuild_catalog|e('js') }}';
+      });
+  });
+}
+
+var aiShoppingAssistClearKnowledgeButton = document.getElementById('button-clear-knowledge');
+
+if (aiShoppingAssistClearKnowledgeButton) {
+  aiShoppingAssistClearKnowledgeButton.addEventListener('click', function () {
+    if (!confirm('{{ text_clear_knowledge|e('js') }}?')) {
+      return;
+    }
+
+    fetch(this.dataset.url, { method: 'POST', credentials: 'same-origin' })
+      .then(function (response) { return response.json(); })
+      .then(aiShoppingAssistShowMessage)
+      .catch(function () { aiShoppingAssistShowMessage({ error: '{{ error_knowledge_import|e('js') }}' }); });
+  });
+}
+
+var aiShoppingAssistClearButton = document.getElementById('button-clear-logs');
+
+if (aiShoppingAssistClearButton) {
+  aiShoppingAssistClearButton.addEventListener('click', function () {
+    if (!confirm('{{ text_clear_logs|e('js') }}?')) {
+      return;
+    }
+
+    fetch(this.dataset.url, { method: 'POST', credentials: 'same-origin' })
+      .then(function (response) { return response.json(); })
+      .then(function () { window.location.reload(); });
+  });
+}
+</script>
+{{ footer }}
