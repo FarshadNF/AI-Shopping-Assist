@@ -1162,9 +1162,86 @@
 
     renderStarterSuggestions() {
       if (this.loadChatHistory().length) return;
-      this.addMessage('bot', this.config.welcomeMessage || this.defaults.welcomeMessage, false);
-      this.renderSuggestions(this.config.starterSuggestions || []);
+      const welcome = this.addMessage('bot', this.config.welcomeMessage || this.defaults.welcomeMessage, false);
+      if (welcome) {
+        welcome.classList.add('aisa-welcome-message');
+        this.highlightWelcomeAgentName(welcome);
+      }
+      this.renderStarterActions(this.config.starterSuggestions || []);
       this.scrollMessagesToBottom();
+    }
+
+    highlightWelcomeAgentName(message) {
+      if (!message) return;
+      const text = String(message.textContent || '');
+      const profile = this.getAgentProfile(this.getActiveAgent());
+      const name = String(profile.name || 'ROKO');
+      const index = text.toLocaleLowerCase().indexOf(name.toLocaleLowerCase());
+      if (index < 0) return;
+
+      message.textContent = '';
+      message.appendChild(document.createTextNode(text.slice(0, index)));
+      const emphasizedName = document.createElement('strong');
+      emphasizedName.className = 'aisa-welcome-name';
+      emphasizedName.textContent = text.slice(index, index + name.length);
+      message.appendChild(emphasizedName);
+      message.appendChild(document.createTextNode(text.slice(index + name.length)));
+    }
+
+    getStarterActionIcon(title, index) {
+      const normalizedTitle = String(title || '').toLowerCase();
+      if (normalizedTitle.includes('specification') || index === 0) {
+        return '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3h8l4 4v14H7z"></path><path d="M15 3v5h5M10 12h6M10 16h6"></path></svg>';
+      }
+      if (normalizedTitle.includes('recommend') || index === 1) {
+        return '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 8 4.5v9L12 21l-8-4.5v-9z"></path><path d="m4 7.5 8 4.5 8-4.5M12 12v9"></path></svg>';
+      }
+      if (normalizedTitle.includes('compare') || index === 2) {
+        return '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v18M5 6h14M5 6l-3 7h6L5 6Zm14 0-3 7h6l-3-7ZM2 13c0 2 1.3 3 3 3s3-1 3-3M16 13c0 2 1.3 3 3 3s3-1 3-3"></path></svg>';
+      }
+      return '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 4h2l2.2 10.1a2 2 0 0 0 2 1.6h7.7a2 2 0 0 0 1.9-1.4L21 8H6"></path><circle cx="10" cy="20" r="1"></circle><circle cx="18" cy="20" r="1"></circle></svg>';
+    }
+
+    renderStarterActions(suggestions) {
+      const normalized = this.normalizeSuggestions(suggestions).slice(0, 4);
+      if (!normalized.length) return;
+
+      const wrap = document.createElement('div');
+      wrap.className = 'aisa-starter-actions';
+      wrap.setAttribute('aria-label', 'Popular ROKO actions');
+
+      normalized.forEach((suggestion, index) => {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'aisa-starter-action';
+        button.dir = this.isRtlMessage(suggestion.title + ' ' + suggestion.text) ? 'rtl' : 'ltr';
+        button.setAttribute('aria-label', suggestion.text);
+        button.title = suggestion.text;
+
+        const icon = document.createElement('span');
+        icon.className = 'aisa-starter-icon';
+        icon.innerHTML = this.getStarterActionIcon(suggestion.title, index);
+
+        const label = document.createElement('span');
+        label.className = 'aisa-starter-label';
+        label.textContent = suggestion.title || suggestion.text;
+
+        const arrow = document.createElement('span');
+        arrow.className = 'aisa-starter-arrow';
+        arrow.setAttribute('aria-hidden', 'true');
+        arrow.innerHTML = '<svg viewBox="0 0 24 24"><path d="m9 5 7 7-7 7"></path></svg>';
+
+        button.appendChild(icon);
+        button.appendChild(label);
+        button.appendChild(arrow);
+        button.addEventListener('click', () => {
+          wrap.remove();
+          this.submitSuggestion(suggestion.text);
+        });
+        wrap.appendChild(button);
+      });
+
+      this.messagesContainer.appendChild(wrap);
     }
 
     loadChatHistory() {
