@@ -4258,3 +4258,173 @@
     font-size: 12px !important;
   }
 }
+
+/* ROKO 4.0 minimal pill launcher */
+#roko-widget:not(.is-open) {
+  width: min(400px, calc(100vw - 24px)) !important;
+}
+
+#roko-widget .aisa-closed-promo {
+  min-height: 118px !important;
+}
+
+#roko-widget .aisa-promo-character {
+  left: 0 !important;
+  top: auto !important;
+  bottom: 0 !important;
+  width: 118px !important;
+  height: 122px !important;
+  z-index: 4 !important;
+  filter: drop-shadow(0 9px 15px rgba(126, 54, 166, 0.23)) !important;
+  object-fit: contain !important;
+  object-position: left bottom !important;
+}
+
+#roko-widget .aisa-promo-card {
+  width: calc(100% - 78px) !important;
+  min-height: 76px !important;
+  margin: 23px 0 0 78px !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 999px !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+#roko-widget .aisa-promo-card::before {
+  display: none !important;
+}
+
+#roko-widget .aisa-promo-open {
+  display: flex !important;
+  align-items: center !important;
+  width: 100% !important;
+  height: 76px !important;
+  padding: 0 54px 0 54px !important;
+  overflow: hidden !important;
+  border: 1px solid rgba(119, 64, 148, 0.08) !important;
+  border-radius: 999px !important;
+  background: rgba(255, 255, 255, 0.98) !important;
+  box-shadow: 0 14px 34px rgba(121, 56, 154, 0.15), 0 4px 12px rgba(121, 56, 154, 0.08) !important;
+  text-align: left !important;
+  transition: transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease !important;
+}
+
+#roko-widget .aisa-promo-open:hover {
+  border-color: rgba(132, 65, 170, 0.2) !important;
+  box-shadow: 0 17px 38px rgba(121, 56, 154, 0.19), 0 5px 14px rgba(121, 56, 154, 0.09) !important;
+  transform: translateY(-2px) !important;
+}
+
+#roko-widget .aisa-promo-open::after {
+  content: "" !important;
+  position: absolute !important;
+  right: 25px !important;
+  top: 50% !important;
+  width: 11px !important;
+  height: 11px !important;
+  border-top: 3px solid #8539ad !important;
+  border-right: 3px solid #8539ad !important;
+  transform: translateY(-50%) rotate(45deg) !important;
+  transition: right 180ms ease !important;
+}
+
+#roko-widget .aisa-promo-open:hover::after {
+  right: 21px !important;
+}
+
+#roko-widget .aisa-promo-kicker,
+#roko-widget .aisa-promo-actions,
+#roko-widget .aisa-promo-form,
+#roko-widget .aisa-promo-note {
+  display: none !important;
+}
+
+#roko-widget .aisa-promo-title {
+  display: inline-flex !important;
+  align-items: center !important;
+  flex: 0 0 auto !important;
+  margin: 0 !important;
+  color: #262128 !important;
+  font-size: 19px !important;
+  font-weight: 800 !important;
+  line-height: 1 !important;
+  letter-spacing: -0.02em !important;
+  white-space: nowrap !important;
+}
+
+#roko-widget .aisa-promo-title strong {
+  margin-left: 5px !important;
+}
+
+#roko-widget .aisa-promo-title > span[aria-hidden="true"] {
+  display: none !important;
+}
+
+#roko-widget .aisa-promo-subtitle {
+  display: inline-block !important;
+  min-width: 0 !important;
+  margin: 0 0 0 16px !important;
+  padding-left: 16px !important;
+  overflow: hidden !important;
+  border-left: 1px solid #d9d2dc !important;
+  color: #9a949d !important;
+  font-size: 14px !important;
+  font-weight: 500 !important;
+  line-height: 22px !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+}
+
+@media (max-width: 640px) {
+  #roko-widget:not(.is-open) {
+    width: min(370px, calc(100vw - 16px)) !important;
+  }
+
+  #roko-widget .aisa-closed-promo {
+    min-height: 104px !important;
+  }
+
+  #roko-widget .aisa-promo-character {
+    left: 0 !important;
+    top: auto !important;
+    bottom: 0 !important;
+    width: 98px !important;
+    height: 104px !important;
+  }
+
+  #roko-widget .aisa-promo-card {
+    width: calc(100% - 64px) !important;
+    min-height: 68px !important;
+    margin: 18px 0 0 64px !important;
+  }
+
+  #roko-widget .aisa-promo-open {
+    min-height: 0 !important;
+    height: 68px !important;
+    padding: 0 42px 0 44px !important;
+  }
+
+  #roko-widget .aisa-promo-open::after {
+    right: 19px !important;
+    width: 9px !important;
+    height: 9px !important;
+    border-width: 2px !important;
+  }
+
+  #roko-widget .aisa-promo-title {
+    font-size: 17px !important;
+  }
+
+  #roko-widget .aisa-promo-subtitle {
+    margin-left: 11px !important;
+    padding-left: 11px !important;
+    font-size: 12px !important;
+  }
+}
+
+@media (max-width: 360px) {
+  #roko-widget .aisa-promo-subtitle {
+    max-width: 92px !important;
+  }
+}

@@ -1,6 +1,6 @@
 <?php
 class ControllerExtensionModuleRoko extends Controller {
-	private const VERSION = '3.9.0-compact-redesign';
+	private const VERSION = '4.0.3-inline-css';
 	private const MARKER = '<!-- ROKO_WIDGET -->';
 	private const GEMINI_MAX_OUTPUT_TOKENS = 4096;
 	private const MAX_RESPONSE_PRODUCTS = 3;
@@ -101,9 +101,17 @@ class ControllerExtensionModuleRoko extends Controller {
 
 		$config_json = json_encode($config, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
 		$version = self::VERSION;
+		$css_file = DIR_APPLICATION . 'view/javascript/roko/widget.css';
+		$widget_css = is_readable($css_file) ? file_get_contents($css_file) : '';
+
+		if (!is_string($widget_css) || trim($widget_css) === '') {
+			$widget_css = '#roko-widget{display:none!important}';
+		}
+
+		$widget_css = str_ireplace('</style', '<\/style', $widget_css);
 
 		$block = self::MARKER . "\n"
-			. '<link rel="stylesheet" href="' . $asset_base . 'widget-3.9.0.css?v=' . $version . '">' . "\n"
+			. '<style id="roko-widget-styles">' . $widget_css . '</style>' . "\n"
 			. '<script>window.ROKO_CONFIG = Object.assign({}, window.ROKO_CONFIG || {}, ' . $config_json . ');</script>' . "\n"
 			. '<script src="' . $asset_base . 'widget.js?v=' . $version . '" defer></script>' . "\n";
 
