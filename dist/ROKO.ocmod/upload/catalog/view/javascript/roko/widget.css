@@ -3214,7 +3214,6 @@
 }
 
 /* ROKO agent hand-off and approval flow */
-#roko-widget .aisa-agent-transition,
 #roko-widget .aisa-agent-switch-card {
   box-sizing: border-box !important;
   width: min(92%, 360px) !important;
@@ -3227,26 +3226,23 @@
   animation: aisa-agent-card-in 180ms ease-out both !important;
 }
 
-#roko-widget .aisa-agent-transition {
-  padding: 12px 14px !important;
-}
-
-#roko-widget .aisa-agent-transition-heading {
+#roko-widget .aisa-agent-switch-progress-heading {
   display: flex !important;
   align-items: center !important;
   justify-content: space-between !important;
   gap: 10px !important;
-  margin-bottom: 9px !important;
+  margin-bottom: 7px !important;
 }
 
-#roko-widget .aisa-agent-transition-title {
+#roko-widget .aisa-agent-switch-progress-heading > span:first-child {
   min-width: 0 !important;
-  font-size: 12px !important;
+  color: #6f3a59 !important;
+  font-size: 10px !important;
   font-weight: 750 !important;
   line-height: 1.45 !important;
 }
 
-#roko-widget .aisa-agent-transition-timer {
+#roko-widget .aisa-agent-switch-progress-timer {
   flex: 0 0 auto !important;
   padding: 3px 7px !important;
   border-radius: 999px !important;
@@ -3256,7 +3252,11 @@
   font-weight: 800 !important;
 }
 
-#roko-widget .aisa-agent-transition-track {
+#roko-widget .aisa-agent-switch-progress {
+  margin: 0 0 12px !important;
+}
+
+#roko-widget .aisa-agent-switch-progress-track {
   width: 100% !important;
   height: 7px !important;
   overflow: hidden !important;
@@ -3264,7 +3264,7 @@
   background: #ead8e2 !important;
 }
 
-#roko-widget .aisa-agent-transition-fill {
+#roko-widget .aisa-agent-switch-progress-fill {
   display: block !important;
   width: 100% !important;
   height: 100% !important;
@@ -3276,11 +3276,12 @@
   transition: transform var(--aisa-agent-switch-duration, 3000ms) linear !important;
 }
 
-#roko-widget [dir="rtl"].aisa-agent-transition .aisa-agent-transition-fill {
+#roko-widget .aisa-agent-switch-card[dir="rtl"] .aisa-agent-switch-progress-fill {
   transform-origin: right center !important;
 }
 
-#roko-widget .aisa-agent-transition.is-running .aisa-agent-transition-fill {
+#roko-widget .aisa-agent-switch-card.is-counting .aisa-agent-switch-progress-fill,
+#roko-widget .aisa-agent-switch-card.is-ready .aisa-agent-switch-progress-fill {
   transform: scaleX(1) !important;
 }
 
@@ -3389,7 +3390,6 @@
 }
 
 @media (max-width: 420px) {
-  #roko-widget .aisa-agent-transition,
   #roko-widget .aisa-agent-switch-card {
     width: 96% !important;
   }
@@ -3397,4 +3397,214 @@
   #roko-widget .aisa-agent-switch-actions button {
     flex: 1 1 130px !important;
   }
+}
+
+/* Per-agent identity and chat-room themes */
+#roko-widget {
+  --aisa-agent-accent: #71134f;
+  --aisa-agent-strong: #4a1039;
+  --aisa-agent-soft: #fff0f5;
+  --aisa-agent-header-start: #fffdfd;
+  --aisa-agent-header-end: #fff3f8;
+  --aisa-agent-room: #fbf8fa;
+  --aisa-agent-user: #f3bccb;
+  --aisa-agent-bot: #f0e6dd;
+  --aisa-agent-border: #e3cbd7;
+  --aisa-agent-avatar: #f7deea;
+  --aisa-agent-shadow: rgba(89, 24, 65, 0.2);
+}
+
+#roko-widget[data-active-agent="raya"] {
+  --aisa-agent-accent: #c43e67;
+  --aisa-agent-strong: #842542;
+  --aisa-agent-soft: #fff0f4;
+  --aisa-agent-header-start: #fffafb;
+  --aisa-agent-header-end: #ffeef3;
+  --aisa-agent-room: #fff8fa;
+  --aisa-agent-user: #f5b5c7;
+  --aisa-agent-bot: #f7e9e5;
+  --aisa-agent-border: #edc4d0;
+  --aisa-agent-avatar: #f9dbe4;
+  --aisa-agent-shadow: rgba(157, 42, 80, 0.2);
+}
+
+#roko-widget[data-active-agent="scout"] {
+  --aisa-agent-accent: #16856f;
+  --aisa-agent-strong: #0e5d4e;
+  --aisa-agent-soft: #eaf9f5;
+  --aisa-agent-header-start: #fbfffd;
+  --aisa-agent-header-end: #eaf9f3;
+  --aisa-agent-room: #f6fcfa;
+  --aisa-agent-user: #b9e8dc;
+  --aisa-agent-bot: #e9f3ef;
+  --aisa-agent-border: #bfe1d8;
+  --aisa-agent-avatar: #d9f2eb;
+  --aisa-agent-shadow: rgba(19, 110, 91, 0.19);
+}
+
+#roko-widget[data-active-agent="dex"] {
+  --aisa-agent-accent: #1769aa;
+  --aisa-agent-strong: #0d4777;
+  --aisa-agent-soft: #eaf5ff;
+  --aisa-agent-header-start: #fbfdff;
+  --aisa-agent-header-end: #e8f4ff;
+  --aisa-agent-room: #f5faff;
+  --aisa-agent-user: #b9daf2;
+  --aisa-agent-bot: #e8f0f6;
+  --aisa-agent-border: #bdd8ed;
+  --aisa-agent-avatar: #d9ebf8;
+  --aisa-agent-shadow: rgba(18, 92, 151, 0.2);
+}
+
+#roko-widget[data-active-agent="prism"] {
+  --aisa-agent-accent: #7046c7;
+  --aisa-agent-strong: #4b2c91;
+  --aisa-agent-soft: #f3efff;
+  --aisa-agent-header-start: #fdfcff;
+  --aisa-agent-header-end: #f0eaff;
+  --aisa-agent-room: #faf8ff;
+  --aisa-agent-user: #dacafb;
+  --aisa-agent-bot: #eee9f5;
+  --aisa-agent-border: #d7c9ef;
+  --aisa-agent-avatar: #e8defa;
+  --aisa-agent-shadow: rgba(92, 57, 169, 0.2);
+}
+
+#roko-widget[data-active-agent="atlas"] {
+  --aisa-agent-accent: #52647d;
+  --aisa-agent-strong: #344154;
+  --aisa-agent-soft: #edf2f7;
+  --aisa-agent-header-start: #fcfdff;
+  --aisa-agent-header-end: #edf2f7;
+  --aisa-agent-room: #f7f9fb;
+  --aisa-agent-user: #c9d5e3;
+  --aisa-agent-bot: #e9edf1;
+  --aisa-agent-border: #cbd5df;
+  --aisa-agent-avatar: #e0e7ee;
+  --aisa-agent-shadow: rgba(55, 72, 94, 0.2);
+}
+
+#roko-widget[data-active-agent="lia"] {
+  --aisa-agent-accent: #b66a08;
+  --aisa-agent-strong: #784504;
+  --aisa-agent-soft: #fff6e6;
+  --aisa-agent-header-start: #fffdf8;
+  --aisa-agent-header-end: #fff3d8;
+  --aisa-agent-room: #fffbf4;
+  --aisa-agent-user: #f3d39e;
+  --aisa-agent-bot: #f4ecdf;
+  --aisa-agent-border: #ead3ab;
+  --aisa-agent-avatar: #f7e7c9;
+  --aisa-agent-shadow: rgba(150, 86, 5, 0.2);
+}
+
+#roko-widget .aisa-panel {
+  border-color: var(--aisa-agent-border) !important;
+  box-shadow: 0 30px 80px var(--aisa-agent-shadow), 0 8px 24px rgba(49, 23, 40, 0.08) !important;
+  transition: border-color 280ms ease, box-shadow 280ms ease !important;
+}
+
+#roko-widget .aisa-head {
+  border-bottom-color: var(--aisa-agent-border) !important;
+  background: radial-gradient(circle at 8% 10%, var(--aisa-agent-soft), transparent 34%), linear-gradient(135deg, var(--aisa-agent-header-start) 0%, var(--aisa-agent-header-end) 100%) !important;
+  transition: background 280ms ease, border-color 280ms ease !important;
+}
+
+#roko-widget .aisa-messages {
+  background: linear-gradient(180deg, var(--aisa-agent-room) 0%, #ffffff 100%) !important;
+  transition: background 280ms ease !important;
+}
+
+#roko-widget .aisa-title {
+  color: var(--aisa-agent-strong) !important;
+  transition: color 220ms ease !important;
+}
+
+#roko-widget .aisa-kicker {
+  background: var(--aisa-agent-soft) !important;
+  color: var(--aisa-agent-accent) !important;
+  transition: color 220ms ease, background 220ms ease !important;
+}
+
+#roko-widget .aisa-avatar,
+#roko-widget .aisa-toggle-avatar {
+  border-color: var(--aisa-agent-border) !important;
+  background: radial-gradient(circle at 50% 32%, #ffffff 0%, var(--aisa-agent-avatar) 100%) !important;
+  box-shadow: 0 8px 20px var(--aisa-agent-shadow) !important;
+  transition: border-color 220ms ease, background 220ms ease, box-shadow 220ms ease !important;
+}
+
+#roko-widget .aisa-message.user {
+  background: var(--aisa-agent-user) !important;
+  color: #2f2530 !important;
+  transition: background 220ms ease !important;
+}
+
+#roko-widget .aisa-message.bot,
+#roko-widget .aisa-message.bot.aisa-typing {
+  background: var(--aisa-agent-bot) !important;
+  color: #342b31 !important;
+  transition: background 220ms ease !important;
+}
+
+#roko-widget .aisa-message.bot::before,
+#roko-widget .aisa-message.bot.aisa-typing::before {
+  border-color: var(--aisa-agent-border) !important;
+  background-color: var(--aisa-agent-avatar) !important;
+  background-image: var(--aisa-agent-avatar-url) !important;
+}
+
+#roko-widget .aisa-suggestion-card,
+#roko-widget .aisa-suggestion-chip {
+  border-color: var(--aisa-agent-accent) !important;
+  color: var(--aisa-agent-strong) !important;
+}
+
+#roko-widget .aisa-suggestion-card:hover,
+#roko-widget .aisa-suggestion-chip:hover {
+  background: var(--aisa-agent-soft) !important;
+}
+
+#roko-widget .aisa-form {
+  border-top-color: var(--aisa-agent-border) !important;
+}
+
+#roko-widget .aisa-input {
+  border-color: var(--aisa-agent-border) !important;
+}
+
+#roko-widget .aisa-input:focus {
+  border-color: var(--aisa-agent-accent) !important;
+  box-shadow: 0 0 0 4px var(--aisa-agent-soft) !important;
+}
+
+#roko-widget .aisa-send,
+#roko-widget .aisa-enquiry-submit,
+#roko-widget .aisa-agent-switch-approve {
+  background: linear-gradient(145deg, var(--aisa-agent-accent), var(--aisa-agent-strong)) !important;
+  box-shadow: 0 7px 16px var(--aisa-agent-shadow) !important;
+}
+
+#roko-widget .aisa-toggle {
+  border-color: var(--aisa-agent-border) !important;
+  background: radial-gradient(circle at 22% 15%, var(--aisa-agent-soft), transparent 36%), linear-gradient(135deg, #ffffff 0%, var(--aisa-agent-header-end) 100%) !important;
+  box-shadow: 0 16px 42px var(--aisa-agent-shadow) !important;
+}
+
+#roko-widget .aisa-toggle-text {
+  color: var(--aisa-agent-strong) !important;
+}
+
+#roko-widget .aisa-toggle-text::after {
+  content: attr(data-role) !important;
+  color: var(--aisa-agent-accent) !important;
+}
+
+#roko-widget .aisa-agent-switch-card {
+  border-color: var(--aisa-agent-border) !important;
+  background: linear-gradient(145deg, #ffffff 0%, var(--aisa-agent-soft) 100%) !important;
+}
+
+#roko-widget .aisa-agent-switch-progress-fill {
+  background: linear-gradient(90deg, var(--aisa-agent-strong) 0%, var(--aisa-agent-accent) 65%, var(--aisa-agent-user) 100%) !important;
 }

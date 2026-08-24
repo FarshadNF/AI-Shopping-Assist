@@ -26,6 +26,15 @@
         avatarUrl: '',
         iconUrl: '',
         agentAvatars: {},
+        agentProfiles: {
+          roko: { name: 'ROKO', role: 'Agent Manager', shortRole: 'Manager' },
+          raya: { name: 'Raya', role: 'Pre-sales Consultant', shortRole: 'Pre-sales' },
+          scout: { name: 'Scout', role: 'Product Finder', shortRole: 'Product finder' },
+          dex: { name: 'Dex', role: 'Technical Specialist', shortRole: 'Technical' },
+          prism: { name: 'Prism', role: 'Comparison Specialist', shortRole: 'Comparison' },
+          atlas: { name: 'Atlas', role: 'Solution Consultant', shortRole: 'Solutions' },
+          lia: { name: 'Lia', role: 'Enquiry Coordinator', shortRole: 'Enquiries' }
+        },
         agentSwitchDurationMs: 3000,
         redirectDelayMs: 700,
         maxHistoryMessages: 80,
@@ -155,6 +164,7 @@
       this.input = this.root.querySelector('.aisa-input');
       this.sendBtn = this.root.querySelector('.aisa-send');
       this.statusLabel = this.root.querySelector('.aisa-status');
+      this.kicker = this.root.querySelector('.aisa-kicker');
       this.title = this.root.querySelector('.aisa-title');
       this.avatar = this.root.querySelector('.aisa-avatar');
       this.toggleAvatar = this.root.querySelector('.aisa-toggle-avatar');
@@ -202,27 +212,60 @@
       return normalizedKey;
     }
 
+    getAgentProfile(agentKey) {
+      const normalizedKey = this.normalizeAgentKey(agentKey);
+      const profiles = this.config.agentProfiles && typeof this.config.agentProfiles === 'object'
+        ? this.config.agentProfiles
+        : {};
+      const configured = profiles[normalizedKey] && typeof profiles[normalizedKey] === 'object'
+        ? profiles[normalizedKey]
+        : {};
+      const fallbackName = normalizedKey === 'roko'
+        ? String(this.config.title || this.defaults.title || 'ROKO')
+        : normalizedKey.charAt(0).toUpperCase() + normalizedKey.slice(1);
+
+      return {
+        name: String(configured.name || fallbackName),
+        role: String(configured.role || 'Specialist Agent'),
+        shortRole: String(configured.shortRole || configured.role || 'Specialist')
+      };
+    }
+
     applyAgentAvatar(agentKey) {
-      const normalizedKey = String(agentKey || 'roko').trim().toLowerCase();
+      const normalizedKey = this.normalizeAgentKey(agentKey);
       const agentAvatars = this.config.agentAvatars && typeof this.config.agentAvatars === 'object'
         ? this.config.agentAvatars
         : {};
+      const profile = this.getAgentProfile(normalizedKey);
       const selectedUrl = String(agentAvatars[normalizedKey] || '');
       const avatarUrl = selectedUrl || String(this.config.avatarUrl || '');
       const iconUrl = selectedUrl || String(this.config.iconUrl || avatarUrl);
-      if (!avatarUrl && !iconUrl) return;
 
       this.root.dataset.activeAgent = normalizedKey;
+      this.root.dataset.agentRole = profile.shortRole;
+      this.title.textContent = profile.name;
+      this.kicker.textContent = profile.role.toUpperCase();
+      this.toggleText.textContent = 'Ask ' + profile.name;
+      this.toggleText.dataset.role = profile.shortRole;
+      this.toggleBtn.setAttribute('aria-label', 'Chat with ' + profile.name);
+      this.toggleBtn.setAttribute('title', 'Chat with ' + profile.name);
+      this.input.placeholder = 'Ask ' + profile.name + ' about products...';
+
+      if (selectedUrl) {
+        this.root.style.setProperty('--aisa-agent-avatar-url', 'url("' + selectedUrl.replace(/"/g, '%22') + '")');
+      }
+
+      if (!avatarUrl && !iconUrl) return;
 
       if (avatarUrl) {
         this.avatar.src = avatarUrl;
-        this.avatar.alt = normalizedKey.toUpperCase();
+        this.avatar.alt = profile.name;
         this.avatar.hidden = false;
       }
 
       if (iconUrl) {
         this.toggleAvatar.src = iconUrl;
-        this.toggleAvatar.alt = normalizedKey.toUpperCase();
+        this.toggleAvatar.alt = profile.name;
         this.toggleAvatar.hidden = false;
       }
     }
@@ -842,52 +885,6 @@
       return Number.isFinite(configured) ? Math.max(3000, configured) : 3000;
     }
 
-    async showAgentTransition(label, durationMs) {
-      const duration = this.getAgentSwitchDuration(durationMs);
-      this.hideTypingIndicator();
-
-      const transition = document.createElement('div');
-      transition.className = 'aisa-agent-transition';
-      transition.setAttribute('role', 'status');
-      transition.setAttribute('aria-live', 'polite');
-      transition.style.setProperty('--aisa-agent-switch-duration', duration + 'ms');
-
-      const heading = document.createElement('div');
-      heading.className = 'aisa-agent-transition-heading';
-
-      const title = document.createElement('span');
-      title.className = 'aisa-agent-transition-title';
-      title.textContent = String(label || 'ROKO is preparing the right specialist...');
-
-      const timer = document.createElement('span');
-      timer.className = 'aisa-agent-transition-timer';
-      timer.textContent = Math.ceil(duration / 1000) + 's';
-
-      heading.appendChild(title);
-      heading.appendChild(timer);
-
-      const track = document.createElement('div');
-      track.className = 'aisa-agent-transition-track';
-      const fill = document.createElement('span');
-      fill.className = 'aisa-agent-transition-fill';
-      track.appendChild(fill);
-
-      transition.appendChild(heading);
-      transition.appendChild(track);
-      this.messagesContainer.appendChild(transition);
-      this.scrollMessagesToBottom();
-
-      window.requestAnimationFrame(() => {
-        window.requestAnimationFrame(() => transition.classList.add('is-running'));
-      });
-
-      await new Promise((resolve) => window.setTimeout(resolve, duration));
-
-      if (transition.parentNode) {
-        transition.parentNode.removeChild(transition);
-      }
-    }
-
     async handleAgentSwitchRequired(data, message) {
       const rtl = this.isRtlMessage(message);
       const currentAgent = this.normalizeAgentKey(data.current_agent || this.getActiveAgent());
@@ -897,16 +894,13 @@
       const duration = this.getAgentSwitchDuration(data.switch_duration_ms);
 
       this.applyAgentAvatar('roko');
-      this.setStatus(rtl ? 'ROKO در حال بررسی درخواست است...' : 'ROKO is checking the best specialist...');
-      await this.showAgentTransition(
-        rtl ? 'ROKO در حال بررسی ایجنت مناسب است' : 'ROKO is checking the right specialist',
-        duration
-      );
+      this.setStatus(rtl ? 'ROKO پیشنهاد تغییر ایجنت دارد' : 'ROKO suggests an agent switch');
 
       return new Promise((resolve) => {
         const card = document.createElement('section');
         card.className = 'aisa-agent-switch-card';
         card.dir = rtl ? 'rtl' : 'ltr';
+        card.style.setProperty('--aisa-agent-switch-duration', duration + 'ms');
 
         const heading = document.createElement('div');
         heading.className = 'aisa-agent-switch-heading';
@@ -931,6 +925,27 @@
           ? `این درخواست برای ${recommendedName} مناسب‌تر است. می‌خواهید ایجنت را عوض کنم؟`
           : `${recommendedName} is a better fit for this request. Would you like me to switch agents?`));
 
+        const progress = document.createElement('div');
+        progress.className = 'aisa-agent-switch-progress';
+
+        const progressHeading = document.createElement('div');
+        progressHeading.className = 'aisa-agent-switch-progress-heading';
+        const progressLabel = document.createElement('span');
+        progressLabel.textContent = rtl ? 'ROKO در حال مدیریت انتقال است' : 'ROKO is managing the hand-off';
+        const progressTimer = document.createElement('span');
+        progressTimer.className = 'aisa-agent-switch-progress-timer';
+        progressTimer.textContent = Math.ceil(duration / 1000) + 's';
+        progressHeading.appendChild(progressLabel);
+        progressHeading.appendChild(progressTimer);
+
+        const progressTrack = document.createElement('div');
+        progressTrack.className = 'aisa-agent-switch-progress-track';
+        const progressFill = document.createElement('span');
+        progressFill.className = 'aisa-agent-switch-progress-fill';
+        progressTrack.appendChild(progressFill);
+        progress.appendChild(progressHeading);
+        progress.appendChild(progressTrack);
+
         const actions = document.createElement('div');
         actions.className = 'aisa-agent-switch-actions';
 
@@ -949,14 +964,16 @@
           keep.disabled = true;
         };
 
+        const completionTimer = window.setTimeout(() => {
+          card.classList.add('is-ready');
+          progressTimer.textContent = rtl ? 'آماده' : 'Ready';
+        }, duration);
+
         approve.addEventListener('click', async () => {
+          window.clearTimeout(completionTimer);
           lockActions();
           card.classList.add('is-resolved');
           this.setStatus(rtl ? `در حال انتقال به ${recommendedName}...` : `Switching to ${recommendedName}...`);
-          await this.showAgentTransition(
-            rtl ? `در حال تغییر ایجنت به ${recommendedName}` : `Switching agent to ${recommendedName}`,
-            duration
-          );
           this.setActiveAgent(recommendedAgent);
           card.remove();
           await this.askAssistant(message, { switchDecision: 'approve' });
@@ -964,6 +981,7 @@
         });
 
         keep.addEventListener('click', async () => {
+          window.clearTimeout(completionTimer);
           lockActions();
           this.setActiveAgent(currentAgent);
           card.remove();
@@ -975,8 +993,12 @@
         actions.appendChild(keep);
         card.appendChild(heading);
         card.appendChild(copy);
+        card.appendChild(progress);
         card.appendChild(actions);
         this.messagesContainer.appendChild(card);
+        window.requestAnimationFrame(() => {
+          window.requestAnimationFrame(() => card.classList.add('is-counting'));
+        });
         this.setStatus(rtl ? 'منتظر تأیید شما' : 'Waiting for your approval');
         this.scrollMessagesToBottom();
       });
