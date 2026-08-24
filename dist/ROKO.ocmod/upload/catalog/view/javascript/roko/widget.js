@@ -26,6 +26,7 @@
         avatarUrl: '',
         iconUrl: '',
         agentAvatars: {},
+        agentSwitchDurationMs: 3000,
         redirectDelayMs: 700,
         maxHistoryMessages: 80,
         maxConversations: 30,
@@ -63,6 +64,7 @@
         chatHistory: this.storagePrefix + ':chat-history',
         legacyMigrated: this.storagePrefix + ':legacy-history-migrated',
         cartSnapshot: this.storagePrefix + ':cart-snapshot',
+        agentPrefix: this.storagePrefix + ':agent:',
         blogBubbleDismissed: this.storagePrefix + ':blog-bubble-dismissed'
       };
       this.currentConversationId = this.initializeConversations();
@@ -165,7 +167,39 @@
     }
 
     applyAvatar() {
-      this.applyAgentAvatar('roko');
+      this.applyAgentAvatar(this.getActiveAgent());
+    }
+
+    normalizeAgentKey(agentKey) {
+      const normalizedKey = String(agentKey || 'roko').trim().toLowerCase();
+      const agentAvatars = this.config.agentAvatars && typeof this.config.agentAvatars === 'object'
+        ? this.config.agentAvatars
+        : {};
+      return Object.prototype.hasOwnProperty.call(agentAvatars, normalizedKey) ? normalizedKey : 'roko';
+    }
+
+    getAgentStorageKey(conversationId) {
+      return this.keys.agentPrefix + String(conversationId || this.getActiveConversationId() || 'default');
+    }
+
+    getActiveAgent() {
+      try {
+        return this.normalizeAgentKey(localStorage.getItem(this.getAgentStorageKey()) || 'roko');
+      } catch (error) {
+        return 'roko';
+      }
+    }
+
+    setActiveAgent(agentKey) {
+      const normalizedKey = this.normalizeAgentKey(agentKey);
+
+      try {
+        localStorage.setItem(this.getAgentStorageKey(), normalizedKey);
+      } catch (error) {
+      }
+
+      this.applyAgentAvatar(normalizedKey);
+      return normalizedKey;
     }
 
     applyAgentAvatar(agentKey) {
@@ -673,7 +707,7 @@
       if (this.sendBtn.disabled || !conversationId) return;
 
       this.setActiveConversationId(conversationId);
-      this.applyAgentAvatar('roko');
+      this.applyAgentAvatar(this.getActiveAgent());
       this.messagesContainer.innerHTML = '';
       this.restoreChatHistory();
       this.renderStarterSuggestions();
@@ -801,6 +835,151 @@
         this.typingIndicator.parentNode.removeChild(this.typingIndicator);
       }
       this.typingIndicator = null;
+    }
+
+    getAgentSwitchDuration(value) {
+      const configured = Number(value || this.config.agentSwitchDurationMs || 3000);
+      return Number.isFinite(configured) ? Math.max(3000, configured) : 3000;
+    }
+
+    async showAgentTransition(label, durationMs) {
+      const duration = this.getAgentSwitchDuration(durationMs);
+      this.hideTypingIndicator();
+
+      const transition = document.createElement('div');
+      transition.className = 'aisa-agent-transition';
+      transition.setAttribute('role', 'status');
+      transition.setAttribute('aria-live', 'polite');
+      transition.style.setProperty('--aisa-agent-switch-duration', duration + 'ms');
+
+      const heading = document.createElement('div');
+      heading.className = 'aisa-agent-transition-heading';
+
+      const title = document.createElement('span');
+      title.className = 'aisa-agent-transition-title';
+      title.textContent = String(label || 'ROKO is preparing the right specialist...');
+
+      const timer = document.createElement('span');
+      timer.className = 'aisa-agent-transition-timer';
+      timer.textContent = Math.ceil(duration / 1000) + 's';
+
+      heading.appendChild(title);
+      heading.appendChild(timer);
+
+      const track = document.createElement('div');
+      track.className = 'aisa-agent-transition-track';
+      const fill = document.createElement('span');
+      fill.className = 'aisa-agent-transition-fill';
+      track.appendChild(fill);
+
+      transition.appendChild(heading);
+      transition.appendChild(track);
+      this.messagesContainer.appendChild(transition);
+      this.scrollMessagesToBottom();
+
+      window.requestAnimationFrame(() => {
+        window.requestAnimationFrame(() => transition.classList.add('is-running'));
+      });
+
+      await new Promise((resolve) => window.setTimeout(resolve, duration));
+
+      if (transition.parentNode) {
+        transition.parentNode.removeChild(transition);
+      }
+    }
+
+    async handleAgentSwitchRequired(data, message) {
+      const rtl = this.isRtlMessage(message);
+      const currentAgent = this.normalizeAgentKey(data.current_agent || this.getActiveAgent());
+      const recommendedAgent = this.normalizeAgentKey(data.recommended_agent || 'roko');
+      const currentName = String(data.current_agent_name || currentAgent.toUpperCase());
+      const recommendedName = String(data.recommended_agent_name || recommendedAgent.toUpperCase());
+      const duration = this.getAgentSwitchDuration(data.switch_duration_ms);
+
+      this.applyAgentAvatar('roko');
+      this.setStatus(rtl ? 'ROKO در حال بررسی درخواست است...' : 'ROKO is checking the best specialist...');
+      await this.showAgentTransition(
+        rtl ? 'ROKO در حال بررسی ایجنت مناسب است' : 'ROKO is checking the right specialist',
+        duration
+      );
+
+      return new Promise((resolve) => {
+        const card = document.createElement('section');
+        card.className = 'aisa-agent-switch-card';
+        card.dir = rtl ? 'rtl' : 'ltr';
+
+        const heading = document.createElement('div');
+        heading.className = 'aisa-agent-switch-heading';
+
+        const avatar = document.createElement('img');
+        avatar.className = 'aisa-agent-switch-avatar';
+        avatar.src = String((this.config.agentAvatars || {}).roko || this.config.avatarUrl || '');
+        avatar.alt = 'ROKO';
+
+        const headingCopy = document.createElement('div');
+        const headingTitle = document.createElement('strong');
+        headingTitle.textContent = 'ROKO';
+        const headingMeta = document.createElement('span');
+        headingMeta.textContent = rtl ? 'پیشنهاد تغییر متخصص' : 'Specialist switch suggestion';
+        headingCopy.appendChild(headingTitle);
+        headingCopy.appendChild(headingMeta);
+        heading.appendChild(avatar);
+        heading.appendChild(headingCopy);
+
+        const copy = document.createElement('p');
+        copy.textContent = String(data.reply || (rtl
+          ? `این درخواست برای ${recommendedName} مناسب‌تر است. می‌خواهید ایجنت را عوض کنم؟`
+          : `${recommendedName} is a better fit for this request. Would you like me to switch agents?`));
+
+        const actions = document.createElement('div');
+        actions.className = 'aisa-agent-switch-actions';
+
+        const approve = document.createElement('button');
+        approve.type = 'button';
+        approve.className = 'aisa-agent-switch-approve';
+        approve.textContent = rtl ? `تغییر به ${recommendedName}` : `Switch to ${recommendedName}`;
+
+        const keep = document.createElement('button');
+        keep.type = 'button';
+        keep.className = 'aisa-agent-switch-keep';
+        keep.textContent = rtl ? `ادامه با ${currentName}` : `Keep ${currentName}`;
+
+        const lockActions = () => {
+          approve.disabled = true;
+          keep.disabled = true;
+        };
+
+        approve.addEventListener('click', async () => {
+          lockActions();
+          card.classList.add('is-resolved');
+          this.setStatus(rtl ? `در حال انتقال به ${recommendedName}...` : `Switching to ${recommendedName}...`);
+          await this.showAgentTransition(
+            rtl ? `در حال تغییر ایجنت به ${recommendedName}` : `Switching agent to ${recommendedName}`,
+            duration
+          );
+          this.setActiveAgent(recommendedAgent);
+          card.remove();
+          await this.askAssistant(message, { switchDecision: 'approve' });
+          resolve();
+        });
+
+        keep.addEventListener('click', async () => {
+          lockActions();
+          this.setActiveAgent(currentAgent);
+          card.remove();
+          await this.askAssistant(message, { switchDecision: 'keep' });
+          resolve();
+        });
+
+        actions.appendChild(approve);
+        actions.appendChild(keep);
+        card.appendChild(heading);
+        card.appendChild(copy);
+        card.appendChild(actions);
+        this.messagesContainer.appendChild(card);
+        this.setStatus(rtl ? 'منتظر تأیید شما' : 'Waiting for your approval');
+        this.scrollMessagesToBottom();
+      });
     }
 
     addMessage(role, text, persist, extras) {
@@ -1277,7 +1456,7 @@
           body: JSON.stringify(payload)
         });
         const data = await response.json().catch(() => ({}));
-        this.applyAgentAvatar(data.active_agent || 'lia');
+        this.setActiveAgent(data.active_agent || 'lia');
 
         if (data.conversation_id) this.setActiveConversationId(data.conversation_id);
         if (!response.ok || data.status !== 'success') {
@@ -1501,16 +1680,18 @@
       return 'I need to open the basket page to complete that.';
     }
 
-    async askAssistant(message) {
+    async askAssistant(message, options) {
+      const requestOptions = options || {};
       this.sendBtn.disabled = true;
-      this.applyAgentAvatar('roko');
       this.setStatus('Typing...');
       this.showTypingIndicator();
 
       try {
         const body = {
           message: message,
-          page_context: this.getPageContext()
+          page_context: this.getPageContext(),
+          active_agent: this.getActiveAgent(),
+          agent_switch_decision: String(requestOptions.switchDecision || '')
         };
         const conversationId = this.getActiveConversationId();
         if (conversationId) {
@@ -1528,7 +1709,18 @@
 
         const data = await response.json().catch(() => ({}));
         this.hideTypingIndicator();
-        this.applyAgentAvatar(data.active_agent || 'roko');
+
+        if (data.status === 'agent_switch_required') {
+          if (data.conversation_id) {
+            this.setActiveConversationId(data.conversation_id);
+          }
+          await this.handleAgentSwitchRequired(data, message);
+          return;
+        }
+
+        if (data.active_agent) {
+          this.setActiveAgent(data.active_agent);
+        }
 
         if (!response.ok || data.status !== 'success') {
           if (data.conversation_id) {

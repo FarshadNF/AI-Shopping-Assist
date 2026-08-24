@@ -1,6 +1,6 @@
 <?php
 class ControllerExtensionModuleRoko extends Controller {
-	private const VERSION = '3.7.1-agent-avatars';
+	private const VERSION = '3.7.2-agent-switch';
 	private const MARKER = '<!-- ROKO_WIDGET -->';
 	private const GEMINI_MAX_OUTPUT_TOKENS = 4096;
 	private const MAX_RESPONSE_PRODUCTS = 3;
@@ -94,6 +94,7 @@ class ControllerExtensionModuleRoko extends Controller {
 				'atlas' => $asset_base . 'avatars/atlas.png?v=' . self::VERSION,
 				'lia' => $asset_base . 'avatars/lia.png?v=' . self::VERSION
 			],
+			'agentSwitchDurationMs' => 3000,
 			'redirectDelayMs' => 700
 		];
 
@@ -140,6 +141,54 @@ class ControllerExtensionModuleRoko extends Controller {
 		}
 
 		$conversation_id = (string)($input['conversation_id'] ?? $this->getLocalConversationId());
+		$history = $this->getConversationHistory($conversation_id, $message);
+		$recommended_agent_keys = $this->resolveAgentKeys($message, $history);
+		$recommended_agent_key = (string)($recommended_agent_keys[1] ?? 'raya');
+		$current_agent_key = $this->normalizeAgentKey((string)($input['active_agent'] ?? 'roko'));
+		$switch_decision = strtolower(trim((string)($input['agent_switch_decision'] ?? '')));
+		$has_explicit_agent_intent = $this->messageHasExplicitAgentIntent($message);
+
+		if (
+			$has_explicit_agent_intent
+			&& $recommended_agent_key !== $current_agent_key
+			&& !in_array($switch_decision, ['approve', 'keep'], true)
+		) {
+			$current_agent_name = $this->agentDisplayName($current_agent_key);
+			$recommended_agent_name = $this->agentDisplayName($recommended_agent_key);
+			$reply = $current_agent_key === 'roko'
+				? $this->localizedText(
+					$message,
+					'This request is best handled by ' . $recommended_agent_name . '. Would you like me to switch you to this specialist?',
+					'این درخواست در تخصص ' . $recommended_agent_name . ' است. می‌خواهید شما را به این ایجنت منتقل کنم؟'
+				)
+				: $this->localizedText(
+					$message,
+					'This request is outside ' . $current_agent_name . '\'s main specialty. ' . $recommended_agent_name . ' is a better fit. Would you like me to switch agents?',
+					'این درخواست در تخصص اصلی ' . $current_agent_name . ' نیست و ' . $recommended_agent_name . ' انتخاب مناسب‌تری است. می‌خواهید ایجنت را عوض کنم؟'
+				);
+
+			$this->outputJson([
+				'status' => 'agent_switch_required',
+				'reply' => $reply,
+				'conversation_id' => $conversation_id,
+				'current_agent' => $current_agent_key,
+				'current_agent_name' => $current_agent_name,
+				'recommended_agent' => $recommended_agent_key,
+				'recommended_agent_name' => $recommended_agent_name,
+				'switch_duration_ms' => 3000
+			]);
+			return;
+		}
+
+		if ($switch_decision === 'approve' && $recommended_agent_key !== $current_agent_key) {
+			$active_agent_keys = $recommended_agent_keys;
+		} elseif ($recommended_agent_key === $current_agent_key) {
+			$active_agent_keys = $recommended_agent_keys;
+		} else {
+			$active_agent_keys = $current_agent_key === 'roko' ? ['roko'] : ['roko', $current_agent_key];
+		}
+
+		$this->active_agent_key = (string)($active_agent_keys[1] ?? 'roko');
 		$this->writeChatLog($conversation_id, 'user', $message);
 
 		$lead = $this->parseBulkLeadSubmission($message);
@@ -178,13 +227,13 @@ class ControllerExtensionModuleRoko extends Controller {
 				'status' => $response_status,
 				'reply' => $reply,
 				'conversation_id' => $conversation_id,
-				'active_agent' => 'lia'
+				'active_agent' => $this->active_agent_key
 			]);
 			return;
 		}
 
 		$page_context = is_array($input['page_context'] ?? null) ? $input['page_context'] : [];
-		$result = $this->askGemini($message, $conversation_id, $page_context);
+		$result = $this->askGemini($message, $conversation_id, $page_context, $active_agent_keys);
 
 		if ($result['error']) {
 			$this->writeChatLog($conversation_id, 'assistant', 'Gemini error: ' . $result['error']);
@@ -393,7 +442,7 @@ class ControllerExtensionModuleRoko extends Controller {
 		$this->outputJson(['status' => 'success']);
 	}
 
-	private function askGemini(string $message, string $conversation_id, array $page_context = []): array {
+	private function askGemini(string $message, string $conversation_id, array $page_context = [], array $active_agent_keys = []): array {
 		$api_keys = $this->getGeminiApiKeys();
 
 		if (!$api_keys) {
@@ -423,7 +472,7 @@ class ControllerExtensionModuleRoko extends Controller {
 				[
 					'role' => 'user',
 					'parts' => [
-						['text' => $this->buildGeminiPrompt($message, $conversation_id, $page_context)]
+						['text' => $this->buildGeminiPrompt($message, $conversation_id, $page_context, $active_agent_keys)]
 					]
 				]
 			],
@@ -492,7 +541,7 @@ class ControllerExtensionModuleRoko extends Controller {
 		return $normalized;
 	}
 
-	private function buildGeminiPrompt(string $message, string $conversation_id, array $page_context = []): string {
+	private function buildGeminiPrompt(string $message, string $conversation_id, array $page_context = [], array $active_agent_keys = []): string {
 		$brand = (string)($this->config->get('module_roko_store_brand') ?: $this->config->get('config_name'));
 		$assistant_name = (string)($this->config->get('module_roko_assistant_name') ?: 'ROKO');
 		$current_page = $this->resolveCurrentPageContext($page_context);
@@ -502,7 +551,9 @@ class ControllerExtensionModuleRoko extends Controller {
 		$history = $this->getConversationHistory($conversation_id, $message);
 		$sitemap_url = $this->configuredSitemapUrl();
 		$custom_system_prompt = $this->customSystemPrompt();
-		$active_agent_keys = $this->resolveAgentKeys($message, $history);
+		if (!$active_agent_keys) {
+			$active_agent_keys = $this->resolveAgentKeys($message, $history);
+		}
 		$this->active_agent_key = (string)($active_agent_keys[1] ?? 'roko');
 		$agent_prompt_block = $this->activeAgentPromptBlock($active_agent_keys);
 		$suggestion_controls = [
@@ -708,6 +759,28 @@ class ControllerExtensionModuleRoko extends Controller {
 		}
 
 		return substr($value, 0, self::AGENT_PROMPT_LIMIT);
+	}
+
+	private function normalizeAgentKey(string $agent_key): string {
+		$agent_key = strtolower(trim($agent_key));
+
+		return isset(self::AGENT_ROLES[$agent_key]) ? $agent_key : 'roko';
+	}
+
+	private function agentDisplayName(string $agent_key): string {
+		$agent_key = $this->normalizeAgentKey($agent_key);
+		$parts = explode(' | ', self::AGENT_ROLES[$agent_key], 2);
+
+		return (string)($parts[0] ?? 'ROKO');
+	}
+
+	private function messageHasExplicitAgentIntent(string $message): bool {
+		$text = trim($message);
+		$text = function_exists('mb_strtolower')
+			? mb_strtolower($text, 'UTF-8')
+			: strtolower($text);
+
+		return in_array(true, $this->detectAgentIntents($text), true);
 	}
 
 	private function resolveAgentKeys(string $message, array $history = []): array {
