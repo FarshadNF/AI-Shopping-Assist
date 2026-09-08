@@ -1,0 +1,472 @@
+{{ header }}{{ column_left }}
+<div id="content">
+  <div class="page-header">
+    <div class="container-fluid">
+      <div class="pull-right">
+        <button type="button" id="button-save" data-toggle="tooltip" title="Save" class="btn btn-primary"><i class="fa fa-save"></i></button>
+        <a href="{{ back }}" data-toggle="tooltip" title="Back" class="btn btn-default"><i class="fa fa-reply"></i></a>
+      </div>
+      <h1>{{ heading_title }}</h1>
+      <ul class="breadcrumb">
+        {% for breadcrumb in breadcrumbs %}
+          <li><a href="{{ breadcrumb.href }}">{{ breadcrumb.text }}</a></li>
+        {% endfor %}
+      </ul>
+    </div>
+  </div>
+
+  <div class="container-fluid">
+    <div id="roko-alert"></div>
+    {% if error_warning %}
+      <div class="alert alert-danger alert-dismissible"><i class="fa fa-exclamation-circle"></i> {{ error_warning }}<button type="button" class="close" data-dismiss="alert">&times;</button></div>
+    {% endif %}
+    {% if success %}
+      <div class="alert alert-success alert-dismissible"><i class="fa fa-check-circle"></i> {{ success }}<button type="button" class="close" data-dismiss="alert">&times;</button></div>
+    {% endif %}
+    <div class="panel panel-default">
+      <div class="panel-heading"><h3 class="panel-title"><i class="fa fa-comments"></i> {{ text_edit }}</h3></div>
+      <div class="panel-body">
+        <form id="form-module" action="{{ save }}" method="post" class="form-horizontal">
+          <div class="form-group">
+            <label class="col-sm-2 control-label" for="input-status">{{ entry_status }}</label>
+            <div class="col-sm-10">
+              <select name="module_roko_status" id="input-status" class="form-control">
+                <option value="1"{% if module_roko_status %} selected="selected"{% endif %}>{{ text_enabled }}</option>
+                <option value="0"{% if not module_roko_status %} selected="selected"{% endif %}>{{ text_disabled }}</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="col-sm-2 control-label" for="input-gemini-api-key"><span data-toggle="tooltip" title="{{ help_gemini_api_key }}">{{ entry_gemini_api_key }}</span></label>
+            <div class="col-sm-10">
+              <textarea name="module_roko_gemini_api_key" rows="3" placeholder="KEY_1, KEY_2, KEY_3" id="input-gemini-api-key" class="form-control" autocomplete="off">{{ module_roko_gemini_api_key }}</textarea>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="col-sm-2 control-label" for="input-gemini-model">{{ entry_gemini_model }}</label>
+            <div class="col-sm-10"><input type="text" name="module_roko_gemini_model" value="{{ module_roko_gemini_model }}" placeholder="gemini-2.5-flash" id="input-gemini-model" class="form-control"/></div>
+          </div>
+
+          <div class="form-group">
+            <label class="col-sm-2 control-label" for="input-gemini-temperature">{{ entry_gemini_temperature }}</label>
+            <div class="col-sm-10"><input type="number" step="0.1" min="0" max="1" name="module_roko_gemini_temperature" value="{{ module_roko_gemini_temperature }}" id="input-gemini-temperature" class="form-control"/></div>
+          </div>
+
+          <div class="form-group">
+            <label class="col-sm-2 control-label" for="input-catalog-limit"><span data-toggle="tooltip" title="{{ help_catalog_limit }}">{{ entry_catalog_limit }}</span></label>
+            <div class="col-sm-10"><input type="number" min="5" max="200" name="module_roko_catalog_limit" value="{{ module_roko_catalog_limit }}" id="input-catalog-limit" class="form-control"/></div>
+          </div>
+
+          <div class="form-group">
+            <label class="col-sm-2 control-label" for="input-store-brand">{{ entry_store_brand }}</label>
+            <div class="col-sm-10"><input type="text" name="module_roko_store_brand" value="{{ module_roko_store_brand }}" id="input-store-brand" class="form-control"/></div>
+          </div>
+
+          <div class="form-group">
+            <label class="col-sm-2 control-label" for="input-assistant-name">{{ entry_assistant_name }}</label>
+            <div class="col-sm-10"><input type="text" name="module_roko_assistant_name" value="{{ module_roko_assistant_name }}" id="input-assistant-name" class="form-control"/></div>
+          </div>
+
+          <div class="form-group">
+            <label class="col-sm-2 control-label" for="input-sitemap-url"><span data-toggle="tooltip" title="{{ help_sitemap_url }}">{{ entry_sitemap_url }}</span></label>
+            <div class="col-sm-10"><input type="url" name="module_roko_sitemap_url" value="{{ module_roko_sitemap_url }}" placeholder="https://example.com/sitemap.xml" id="input-sitemap-url" class="form-control"/></div>
+          </div>
+
+          <div class="form-group">
+            <label class="col-sm-2 control-label" for="input-system-prompt"><span data-toggle="tooltip" title="{{ help_system_prompt }}">{{ entry_system_prompt }}</span></label>
+            <div class="col-sm-10"><textarea name="module_roko_system_prompt" rows="5" id="input-system-prompt" class="form-control">{{ module_roko_system_prompt }}</textarea></div>
+          </div>
+
+          <div class="form-group">
+            <label class="col-sm-2 control-label" for="input-catalog-token"><span data-toggle="tooltip" title="{{ help_catalog_token }}">{{ entry_catalog_token }}</span></label>
+            <div class="col-sm-10"><input type="text" name="module_roko_catalog_token" value="{{ module_roko_catalog_token }}" id="input-catalog-token" class="form-control"/></div>
+          </div>
+
+          <div class="form-group">
+            <label class="col-sm-2 control-label" for="input-footer-injection">{{ entry_footer_injection }}</label>
+            <div class="col-sm-10">
+              <select name="module_roko_footer_injection" id="input-footer-injection" class="form-control">
+                <option value="1"{% if module_roko_footer_injection %} selected="selected"{% endif %}>{{ text_enabled }}</option>
+                <option value="0"{% if not module_roko_footer_injection %} selected="selected"{% endif %}>{{ text_disabled }}</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="col-sm-2 control-label" for="input-widget-title">{{ entry_widget_title }}</label>
+            <div class="col-sm-10"><input type="text" name="module_roko_widget_title" value="{{ module_roko_widget_title }}" id="input-widget-title" class="form-control"/></div>
+          </div>
+
+          <div class="form-group">
+            <label class="col-sm-2 control-label" for="input-widget-button">{{ entry_widget_button }}</label>
+            <div class="col-sm-10"><input type="text" name="module_roko_widget_button" value="{{ module_roko_widget_button }}" id="input-widget-button" class="form-control"/></div>
+          </div>
+
+          <div class="form-group">
+            <label class="col-sm-2 control-label" for="input-redirect-utm"><span data-toggle="tooltip" title="{{ help_redirect_utm }}">{{ entry_redirect_utm }}</span></label>
+            <div class="col-sm-10"><input type="text" name="module_roko_redirect_utm" value="{{ module_roko_redirect_utm }}" id="input-redirect-utm" class="form-control" placeholder="utm_source=roko&utm_medium=assistant&utm_campaign=chat"/></div>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <div class="panel panel-default">
+      <div class="panel-heading">
+        <h3 class="panel-title"><i class="fa fa-database"></i> ROKO data</h3>
+      </div>
+      <div class="panel-body">
+        <ul class="nav nav-tabs">
+          <li class="{% if active_tab == 'logs' %}active{% endif %}"><a href="#tab-roko-logs" data-toggle="tab"><i class="fa fa-list"></i> {{ text_logs }}</a></li>
+          <li class="{% if active_tab == 'indexed-pages' %}active{% endif %}"><a href="#tab-roko-indexed-pages" data-toggle="tab"><i class="fa fa-sitemap"></i> {{ text_indexed_pages }} <span class="badge">{{ sitemap_pages_total }}</span></a></li>
+          <li class="{% if active_tab == 'redirects' %}active{% endif %}"><a href="#tab-roko-redirects" data-toggle="tab"><i class="fa fa-location-arrow"></i> {{ text_redirect_logs }} <span class="badge">{{ redirect_logs_total }}</span></a></li>
+          <li class="{% if active_tab == 'leads' %}active{% endif %}"><a href="#tab-roko-leads" data-toggle="tab"><i class="fa fa-user-plus"></i> {{ text_leads }} <span class="badge">{{ leads_total }}</span></a></li>
+        </ul>
+
+        <div class="tab-content">
+          <div class="tab-pane {% if active_tab == 'logs' %}active{% endif %}" id="tab-roko-logs">
+            <div class="clearfix" style="margin: 0 0 10px;">
+              <div class="pull-right">
+                <a href="{{ export_logs }}" class="btn btn-success btn-xs"><i class="fa fa-file-excel-o"></i> {{ text_export_excel }}</a>
+                <button type="button" id="button-clear-logs" data-url="{{ clear_logs }}" class="btn btn-danger btn-xs">{{ text_clear_logs }}</button>
+              </div>
+            </div>
+            <div class="table-responsive">
+              <table class="table table-bordered table-hover">
+                <thead><tr><td>{{ column_date }}</td><td>{{ column_conversation }}</td><td>{{ column_customer }}</td><td>{{ column_role }}</td><td>{{ column_content }}</td></tr></thead>
+                <tbody>
+                  {% if logs %}
+                    {% for log in logs %}
+                      <tr><td>{{ log.date_added }}</td><td><code>{{ log.conversation_id }}</code></td><td>{{ log.customer_id ? log.customer_id : '-' }}</td><td>{{ log.role }}</td><td>{{ log.content|slice(0, 240) }}{% if log.content|length > 240 %}...{% endif %}</td></tr>
+                    {% endfor %}
+                  {% else %}
+                    <tr><td colspan="5" class="text-center">{{ text_no_logs }}</td></tr>
+                  {% endif %}
+                </tbody>
+              </table>
+            </div>
+            <div class="text-right">{{ logs_pagination }}</div>
+          </div>
+
+          <div class="tab-pane {% if active_tab == 'indexed-pages' %}active{% endif %}" id="tab-roko-indexed-pages">
+            <div class="clearfix" style="margin: 0 0 10px;">
+              <div class="pull-left" style="padding-top: 6px;"><strong>{{ text_cache_status }}:</strong> {{ sitemap_cache_status }}</div>
+              {% if warm_sitemap_url %}
+                <div class="pull-right">
+                  <button type="button" id="button-warm-sitemap-all" class="btn btn-success btn-xs"><i class="fa fa-play-circle"></i> {{ text_warm_sitemap_all }}</button>
+                  <a href="{{ warm_sitemap_url }}" target="_blank" rel="noopener" class="btn btn-primary btn-xs"><i class="fa fa-refresh"></i> {{ text_warm_sitemap }}</a>
+                </div>
+              {% endif %}
+            </div>
+            <div id="warm-sitemap-progress" class="alert alert-info" style="display:none; margin: 0 0 10px;"></div>
+            <div class="well well-sm">
+              <form action="{{ upload_sitemap }}" method="post" enctype="multipart/form-data" class="form-inline">
+                <div class="form-group">
+                  <label for="input-sitemap-file">{{ text_upload_sitemap }}</label>
+                  <input type="file" name="sitemap_file" id="input-sitemap-file" accept=".xml,.gz,.xml.gz" class="form-control">
+                </div>
+                <button type="submit" class="btn btn-default btn-sm"><i class="fa fa-upload"></i> {{ button_upload_sitemap }}</button>
+                <span class="help-block">{{ help_upload_sitemap }}</span>
+                <div><strong>{{ text_uploaded_sitemap }}:</strong> {{ uploaded_sitemap_status }}</div>
+                <pre style="margin: 8px 0 0; max-height: 180px; overflow: auto; white-space: pre-wrap;">{{ uploaded_sitemap_diagnostics }}</pre>
+              </form>
+            </div>
+            <form action="index.php" method="get" class="form-inline" style="margin: 0 0 10px;">
+              <input type="hidden" name="route" value="extension/module/roko"/>
+              <input type="hidden" name="user_token" value="{{ user_token }}"/>
+              <input type="hidden" name="tab" value="indexed-pages"/>
+              <div class="form-group" style="margin-right: 8px;">
+                <input type="text" name="sitemap_search" value="{{ sitemap_search }}" class="form-control input-sm" placeholder="{{ text_search }}"/>
+              </div>
+              <div class="form-group" style="margin-right: 8px;">
+                <select name="sitemap_type" class="form-control input-sm">
+                  <option value="">{{ text_filter_all_types }}</option>
+                  {% for type in sitemap_types %}
+                    <option value="{{ type }}"{% if sitemap_type == type %} selected="selected"{% endif %}>{{ type }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+              <button type="submit" class="btn btn-default btn-sm"><i class="fa fa-filter"></i> {{ button_filter }}</button>
+              {% if sitemap_search or sitemap_type %}
+                <a href="{{ module_url }}&amp;tab=indexed-pages" class="btn btn-link btn-sm">{{ button_clear_filter }}</a>
+              {% endif %}
+            </form>
+            <div class="table-responsive">
+              <table class="table table-bordered table-hover">
+                <thead><tr><td>{{ column_cached_at }}</td><td>{{ column_type }}</td><td>{{ column_title }}</td><td>{{ column_url }}</td><td>{{ column_summary }}</td></tr></thead>
+                <tbody>
+                  {% if sitemap_pages %}
+                    {% for page in sitemap_pages %}
+                      <tr>
+                        <td>{{ page.fetched_at }}</td>
+                        <td><span class="label label-info">{{ page.content_type }}</span></td>
+                        <td>{{ page.title }}</td>
+                        <td><a href="{{ page.url }}" target="_blank" rel="noopener">{{ page.url }}</a></td>
+                        <td>{{ page.summary }}</td>
+                      </tr>
+                    {% endfor %}
+                  {% else %}
+                    <tr><td colspan="5" class="text-center">{{ text_no_indexed_pages }}</td></tr>
+                  {% endif %}
+                </tbody>
+              </table>
+            </div>
+            <div class="text-right">{{ sitemap_pages_pagination }}</div>
+          </div>
+
+          <div class="tab-pane {% if active_tab == 'redirects' %}active{% endif %}" id="tab-roko-redirects">
+            <div class="clearfix" style="margin: 0 0 10px;">
+              <div class="pull-right">
+                <a href="{{ export_redirect_logs }}" class="btn btn-success btn-xs"><i class="fa fa-file-excel-o"></i> {{ text_export_excel }}</a>
+                <button type="button" id="button-clear-redirect-logs" data-url="{{ clear_redirect_logs }}" class="btn btn-danger btn-xs">{{ text_clear_redirect_logs }}</button>
+              </div>
+            </div>
+            <form action="index.php" method="get" class="form-inline" style="margin: 0 0 10px;">
+              <input type="hidden" name="route" value="extension/module/roko"/>
+              <input type="hidden" name="user_token" value="{{ user_token }}"/>
+              <input type="hidden" name="tab" value="redirects"/>
+              <div class="form-group" style="margin-right: 8px;">
+                <input type="text" name="redirect_search" value="{{ redirect_search }}" class="form-control input-sm" placeholder="{{ text_search }}"/>
+              </div>
+              <div class="form-group" style="margin-right: 8px;">
+                <select name="redirect_action" class="form-control input-sm">
+                  <option value="">{{ text_filter_all_actions }}</option>
+                  {% for action in redirect_actions %}
+                    <option value="{{ action }}"{% if redirect_action == action %} selected="selected"{% endif %}>{{ action }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+              <button type="submit" class="btn btn-default btn-sm"><i class="fa fa-filter"></i> {{ button_filter }}</button>
+              {% if redirect_search or redirect_action %}
+                <a href="{{ module_url }}&amp;tab=redirects" class="btn btn-link btn-sm">{{ button_clear_filter }}</a>
+              {% endif %}
+            </form>
+            <div class="table-responsive">
+              <table class="table table-bordered table-hover">
+                <thead><tr><td>{{ column_date }}</td><td>{{ column_conversation }}</td><td>{{ column_action_type }}</td><td>{{ column_source_url }}</td><td>{{ column_destination_url }}</td><td>{{ column_destination_url_utm }}</td><td>{{ column_utm_payload }}</td></tr></thead>
+                <tbody>
+                  {% if redirect_logs %}
+                    {% for row in redirect_logs %}
+                      <tr>
+                        <td>{{ row.date_added }}</td>
+                        <td><code>{{ row.conversation_id }}</code></td>
+                        <td>{{ row.action_type }}</td>
+                        <td><a href="{{ row.source_url }}" target="_blank" rel="noopener">{{ row.source_url }}</a></td>
+                        <td><a href="{{ row.destination_url }}" target="_blank" rel="noopener">{{ row.destination_url }}</a></td>
+                        <td><a href="{{ row.destination_url_utm }}" target="_blank" rel="noopener">{{ row.destination_url_utm }}</a></td>
+                        <td><code>{{ row.utm_payload }}</code></td>
+                      </tr>
+                    {% endfor %}
+                  {% else %}
+                    <tr><td colspan="7" class="text-center">{{ text_no_redirect_logs }}</td></tr>
+                  {% endif %}
+                </tbody>
+              </table>
+            </div>
+            <div class="text-right">{{ redirect_logs_pagination }}</div>
+          </div>
+
+          <div class="tab-pane {% if active_tab == 'leads' %}active{% endif %}" id="tab-roko-leads">
+            <div class="clearfix" style="margin: 0 0 10px;">
+              <div class="pull-right">
+                <button type="button" id="button-repair-lead-storage" data-url="{{ repair_lead_storage }}" class="btn btn-primary btn-xs"><i class="fa fa-database"></i> {{ text_repair_lead_storage }}</button>
+                <a href="{{ export_leads }}" class="btn btn-success btn-xs"><i class="fa fa-file-excel-o"></i> {{ text_export_excel }}</a>
+                <button type="button" id="button-clear-leads" data-url="{{ clear_leads }}" class="btn btn-danger btn-xs">{{ text_clear_leads }}</button>
+              </div>
+            </div>
+            <form action="index.php" method="get" class="form-inline" style="margin: 0 0 10px;">
+              <input type="hidden" name="route" value="extension/module/roko"/>
+              <input type="hidden" name="user_token" value="{{ user_token }}"/>
+              <input type="hidden" name="tab" value="leads"/>
+              <div class="form-group" style="margin-right: 8px;">
+                <input type="text" name="lead_search" value="{{ lead_search }}" class="form-control input-sm" placeholder="{{ text_search }}"/>
+              </div>
+              <button type="submit" class="btn btn-default btn-sm"><i class="fa fa-filter"></i> {{ button_filter }}</button>
+              {% if lead_search %}
+                <a href="{{ module_url }}&amp;tab=leads" class="btn btn-link btn-sm">{{ button_clear_filter }}</a>
+              {% endif %}
+            </form>
+            <div class="table-responsive">
+              <table class="table table-bordered table-hover">
+                <thead><tr><td>{{ column_date }}</td><td>{{ column_conversation }}</td><td>{{ column_product_name }}</td><td>{{ column_qty }}</td><td>{{ column_name }}</td><td>{{ column_company }}</td><td>{{ column_contact_number }}</td><td>{{ column_email }}</td><td>{{ column_delivery_location }}</td><td>{{ column_page_url }}</td></tr></thead>
+                <tbody>
+                  {% if leads %}
+                    {% for row in leads %}
+                      <tr>
+                        <td>{{ row.date_added }}</td>
+                        <td><code>{{ row.conversation_id }}</code></td>
+                        <td>{{ row.product_name }}</td>
+                        <td>{{ row.qty }}</td>
+                        <td>{{ row.name }}</td>
+                        <td>{{ row.company }}</td>
+                        <td>{{ row.contact_number }}</td>
+                        <td>{{ row.email }}</td>
+                        <td>{{ row.delivery_location }}</td>
+                        <td>{% if row.page_url %}<a href="{{ row.page_url }}" target="_blank" rel="noopener" title="{{ row.page_title }}">{{ row.page_url }}</a>{% else %}-{% endif %}</td>
+                      </tr>
+                    {% endfor %}
+                  {% else %}
+                    <tr><td colspan="10" class="text-center">{{ text_no_leads }}</td></tr>
+                  {% endif %}
+                </tbody>
+              </table>
+            </div>
+            <div class="text-right">{{ leads_pagination }}</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<script type="text/javascript"><!--
+function rokoAlert(type, message) {
+  $('#roko-alert').html('<div class="alert alert-' + type + ' alert-dismissible"><i class="fa fa-' + (type === 'danger' ? 'exclamation-circle' : 'check-circle') + '"></i> ' + message + '<button type="button" class="close" data-dismiss="alert">&times;</button></div>');
+}
+
+$('#button-save').on('click', function () {
+  $.ajax({
+    url: $('#form-module').attr('action'),
+    type: 'post',
+    dataType: 'json',
+    data: $('#form-module').serialize(),
+    beforeSend: function () { $('#button-save').button('loading'); },
+    complete: function () { $('#button-save').button('reset'); },
+    success: function (json) {
+      if (json.error) {
+        rokoAlert('danger', json.error);
+      } else {
+        rokoAlert('success', json.success || 'Saved.');
+      }
+    },
+    error: function (xhr) { rokoAlert('danger', xhr.responseText || 'Save failed.'); }
+  });
+});
+
+$('#button-clear-logs').on('click', function () {
+  if (!confirm('{{ text_clear_logs|e('js') }}?')) return;
+
+  $.ajax({
+    url: $(this).data('url'),
+    type: 'post',
+    dataType: 'json',
+    success: function () { location.reload(); }
+  });
+});
+
+$('#button-clear-redirect-logs').on('click', function () {
+  if (!confirm('{{ text_clear_redirect_logs|e('js') }}?')) return;
+
+  $.ajax({
+    url: $(this).data('url'),
+    type: 'post',
+    dataType: 'json',
+    success: function () { location.reload(); }
+  });
+});
+
+$('#button-clear-leads').on('click', function () {
+  if (!confirm('{{ text_clear_leads|e('js') }}?')) return;
+
+  $.ajax({
+    url: $(this).data('url'),
+    type: 'post',
+    dataType: 'json',
+    success: function () { location.reload(); }
+  });
+});
+
+$('#button-repair-lead-storage').on('click', function () {
+  var $button = $(this);
+
+  $.ajax({
+    url: $button.data('url'),
+    type: 'post',
+    dataType: 'json',
+    beforeSend: function () { $button.prop('disabled', true); },
+    complete: function () { $button.prop('disabled', false); },
+    success: function (json) {
+      if (json.error) {
+        rokoAlert('danger', json.error);
+      } else {
+        rokoAlert('success', json.success || 'Lead storage is ready.');
+      }
+    },
+    error: function (xhr) {
+      rokoAlert('danger', xhr.responseText || 'Lead storage repair failed.');
+    }
+  });
+});
+
+$('#button-warm-sitemap-all').on('click', function () {
+  var $button = $(this);
+  var $progress = $('#warm-sitemap-progress');
+  var baseUrl = '{{ warm_sitemap_url|default('')|e('js') }}';
+
+  if (!baseUrl) return;
+
+  var runIndex = 0;
+  var totalCrawled = 0;
+
+  function buildUrl(refreshFlag) {
+    var separator = baseUrl.indexOf('?') !== -1 ? '&' : '?';
+    return baseUrl + separator + '_ts=' + Date.now() + '&limit=80&refresh=' + (refreshFlag ? '1' : '0');
+  }
+
+  function setProgress(message, type) {
+    $progress
+      .removeClass('alert-info alert-success alert-danger')
+      .addClass(type || 'alert-info')
+      .text(message)
+      .show();
+  }
+
+  function runBatch() {
+    var isFirst = runIndex === 0;
+    $.ajax({
+      url: buildUrl(isFirst),
+      type: 'get',
+      dataType: 'json',
+      timeout: 90000,
+      success: function (json) {
+        if (!json || json.success === false) {
+          setProgress('{{ text_warm_sitemap_failed|e('js') }} ' + ((json && (json.error || json.fetch_error)) || ''), 'alert-danger');
+          $button.prop('disabled', false);
+          return;
+        }
+
+        runIndex += 1;
+        totalCrawled += Number(json.crawled_pages || 0);
+        var remaining = Number(json.remaining_pages || 0);
+        var total = Number(json.total_pages || 0);
+        var cached = Number(json.cached_pages || 0);
+
+        setProgress('{{ text_warm_sitemap_progress|e('js') }} ' + cached + '/' + total + ' | ' + '{{ text_warm_sitemap_remaining|e('js') }} ' + remaining + ' | ' + '{{ text_warm_sitemap_batches|e('js') }} ' + runIndex);
+
+        if (remaining > 0 && Number(json.crawled_pages || 0) > 0) {
+          setTimeout(runBatch, 500);
+          return;
+        }
+
+        if (remaining > 0 && Number(json.crawled_pages || 0) === 0) {
+          setProgress('{{ text_warm_sitemap_stalled|e('js') }} ' + remaining, 'alert-danger');
+          $button.prop('disabled', false);
+          return;
+        }
+
+        setProgress('{{ text_warm_sitemap_done|e('js') }} ' + totalCrawled + ' / ' + total, 'alert-success');
+        setTimeout(function () { location.reload(); }, 1200);
+      },
+      error: function () {
+        setProgress('{{ text_warm_sitemap_timeout|e('js') }}', 'alert-danger');
+        $button.prop('disabled', false);
+      }
+    });
+  }
+
+  $button.prop('disabled', true);
+  setProgress('{{ text_warm_sitemap_starting|e('js') }}');
+  runBatch();
+});
+//--></script>
+{{ footer }}

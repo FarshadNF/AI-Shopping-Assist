@@ -75,6 +75,62 @@
           </div>
 
           <div class="row mb-3">
+            <label for="input-sitemap-url" class="col-sm-2 col-form-label">{{ entry_sitemap_url }}</label>
+            <div class="col-sm-10">
+              <input type="url" name="module_ai_shopping_assist_sitemap_url" value="{{ module_ai_shopping_assist_sitemap_url }}" placeholder="https://example.com/sitemap.xml" id="input-sitemap-url" class="form-control"/>
+              <div class="form-text">{{ help_sitemap_url }}</div>
+            </div>
+          </div>
+
+          <div class="row mb-3">
+            <label for="input-system-prompt" class="col-sm-2 col-form-label">{{ entry_system_prompt }}</label>
+            <div class="col-sm-10">
+              <textarea name="module_ai_shopping_assist_system_prompt" rows="5" id="input-system-prompt" class="form-control">{{ module_ai_shopping_assist_system_prompt }}</textarea>
+              <div class="form-text">{{ help_system_prompt }}</div>
+            </div>
+          </div>
+
+          <div class="row mb-4">
+            <label class="col-sm-2 col-form-label">{{ entry_agent_prompts }}</label>
+            <div class="col-sm-10">
+              <div class="card">
+                <div class="card-header d-flex align-items-center gap-2">
+                  <i class="fa-solid fa-users-gear"></i>
+                  <strong>{{ text_agent_prompts }}</strong>
+                </div>
+                <div class="card-body p-0">
+                  <ul class="nav nav-tabs flex-nowrap overflow-auto px-3 pt-3" id="agent-prompt-tabs" role="tablist">
+                    {% for agent in agent_prompts %}
+                      <li class="nav-item" role="presentation">
+                        <button type="button" class="nav-link text-nowrap{% if loop.first %} active{% endif %}" id="agent-tab-{{ agent.key }}" data-bs-toggle="tab" data-bs-target="#agent-pane-{{ agent.key }}" role="tab" aria-controls="agent-pane-{{ agent.key }}" aria-selected="{% if loop.first %}true{% else %}false{% endif %}">
+                          {{ agent.name }}
+                        </button>
+                      </li>
+                    {% endfor %}
+                  </ul>
+
+                  <div class="tab-content p-3" id="agent-prompt-content">
+                    {% for agent in agent_prompts %}
+                      <div class="tab-pane fade{% if loop.first %} show active{% endif %}" id="agent-pane-{{ agent.key }}" role="tabpanel" aria-labelledby="agent-tab-{{ agent.key }}" tabindex="0">
+                        <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
+                          <div>
+                            <strong>{{ agent.name }}</strong>
+                            <span class="badge bg-light text-dark border ms-1">{{ agent.role }}</span>
+                          </div>
+                          <span class="text-muted small">{{ agent.value|length }} / 8000</span>
+                        </div>
+                        <textarea name="{{ agent.setting_key }}" rows="9" maxlength="8000" id="input-prompt-{{ agent.key }}" class="form-control" dir="auto">{{ agent.value }}</textarea>
+                        <div class="form-text">{{ help_agent_prompt }}</div>
+                      </div>
+                    {% endfor %}
+                  </div>
+                </div>
+              </div>
+              <div class="form-text mt-2">{{ help_agent_prompts }}</div>
+            </div>
+          </div>
+
+          <div class="row mb-3">
             <label for="input-catalog-token" class="col-sm-2 col-form-label">{{ entry_catalog_token }}</label>
             <div class="col-sm-10">
               <input type="text" name="module_ai_shopping_assist_catalog_token" value="{{ module_ai_shopping_assist_catalog_token }}" id="input-catalog-token" class="form-control"/>
@@ -133,12 +189,15 @@
       <div class="card-body">
         <form id="form-knowledge" enctype="multipart/form-data">
           <div class="row align-items-end">
-            <div class="col-lg-9">
+            <div class="col-lg-7">
               <label for="input-knowledge-file" class="form-label">{{ entry_knowledge_file }}</label>
               <input type="file" name="knowledge_file" accept=".json,application/json" id="input-knowledge-file" class="form-control"/>
               <div class="form-text">{{ help_knowledge_file }}</div>
             </div>
-            <div class="col-lg-3 mt-3 mt-lg-0 d-flex gap-2">
+            <div class="col-lg-5 mt-3 mt-lg-0 d-flex gap-2">
+              <button type="button" id="button-rebuild-catalog" data-url="{{ rebuild_catalog_knowledge }}" class="btn btn-success flex-fill">
+                <i class="fa-solid fa-arrows-rotate"></i> {{ button_rebuild_catalog }}
+              </button>
               <button type="button" id="button-import-knowledge" data-url="{{ import_knowledge }}" class="btn btn-primary flex-fill">
                 <i class="fa-solid fa-file-import"></i> {{ button_import_knowledge }}
               </button>
@@ -148,6 +207,48 @@
             </div>
           </div>
         </form>
+      </div>
+    </div>
+
+    <div class="card mb-4">
+      <div class="card-header">
+        <span><i class="fa-solid fa-user-tag"></i> {{ text_leads }}</span>
+      </div>
+      <div class="table-responsive">
+        <table class="table table-hover mb-0">
+          <thead>
+            <tr>
+              <th>{{ column_date }}</th>
+              <th>{{ column_lead_id }}</th>
+              <th>{{ column_product }}</th>
+              <th>{{ column_qty }}</th>
+              <th>{{ column_name }}</th>
+              <th>{{ column_company }}</th>
+              <th>{{ column_contact }}</th>
+              <th>{{ column_email }}</th>
+              <th>{{ column_delivery }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% if leads %}
+              {% for lead in leads %}
+                <tr>
+                  <td class="text-nowrap">{{ lead.date_added }}</td>
+                  <td class="text-nowrap"><code>{{ lead.lead_id }}</code></td>
+                  <td>{{ lead.product_name }}</td>
+                  <td>{{ lead.qty }}</td>
+                  <td>{{ lead.name }}</td>
+                  <td>{{ lead.company }}</td>
+                  <td>{{ lead.contact_number }}</td>
+                  <td>{{ lead.email }}</td>
+                  <td>{{ lead.delivery_location }}</td>
+                </tr>
+              {% endfor %}
+            {% else %}
+              <tr><td colspan="9" class="text-center text-muted py-4">{{ text_no_leads }}</td></tr>
+            {% endif %}
+          </tbody>
+        </table>
       </div>
     </div>
 
@@ -230,6 +331,54 @@ if (aiShoppingAssistImportButton) {
       .then(aiShoppingAssistShowMessage)
       .catch(function () { aiShoppingAssistShowMessage({ error: '{{ error_knowledge_import|e('js') }}' }); })
       .finally(function () { button.disabled = false; });
+  });
+}
+
+var aiShoppingAssistRebuildButton = document.getElementById('button-rebuild-catalog');
+
+if (aiShoppingAssistRebuildButton) {
+  aiShoppingAssistRebuildButton.addEventListener('click', function () {
+    var button = this;
+    var start = 0;
+    button.disabled = true;
+    button.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 0%';
+
+    function runBatch() {
+      var body = new URLSearchParams({ start: String(start), limit: '50' });
+
+      return fetch(button.dataset.url, {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: body
+      })
+        .then(function (response) { return response.json(); })
+        .then(function (payload) {
+          if (payload.error) {
+            throw new Error(payload.error);
+          }
+
+          var total = Number(payload.total || 0);
+          start = Number(payload.next || 0);
+          var percent = total > 0 ? Math.min(100, Math.round((start / total) * 100)) : 100;
+          button.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> ' + percent + '%';
+
+          if (!payload.done) {
+            return runBatch();
+          }
+
+          aiShoppingAssistShowMessage(payload);
+        });
+    }
+
+    runBatch()
+      .catch(function (error) {
+        aiShoppingAssistShowMessage({ error: error.message || '{{ error_catalog_index|e('js') }}' });
+      })
+      .finally(function () {
+        button.disabled = false;
+        button.innerHTML = '<i class="fa-solid fa-arrows-rotate"></i> {{ button_rebuild_catalog|e('js') }}';
+      });
   });
 }
 

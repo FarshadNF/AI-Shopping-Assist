@@ -14,30 +14,31 @@
         checkoutRoute: 'index.php?route=checkout/checkout',
         couponRoute: 'index.php?route=extension/opencart/total/coupon.save',
         invoiceRoute: 'index.php?route=extension/ai_shopping_assist/module/ai_shopping_assist.sendInvoice',
-        title: 'MANU',
-        buttonText: 'Ask MANU',
+        leadOnly: true,
+        title: 'ROKO',
+        buttonText: 'Ask ROKO',
         avatarUrl: '',
         iconUrl: '',
         redirectDelayMs: 700,
         maxHistoryMessages: 80,
         maxConversations: 30,
-        welcomeMessage: "Hi, I'm MANU. Tell me what you need and I'll help you find the right product.",
+        welcomeMessage: "Hi, I'm ROKO, your pre-sales product expert. Tell me your application or model number and I'll help you find the right solution.",
         starterSuggestions: [
           {
-            title: 'Product Specifications',
-            text: 'What are the specifications of your best-selling product?'
+            title: 'Choose by application',
+            text: 'Help me choose a product for my industrial application'
           },
           {
-            title: 'Product Recommendation',
-            text: 'Can you recommend a product for my needs?'
+            title: 'Explore brands',
+            text: 'What brands do you offer and what is each brand designed for?'
           },
           {
-            title: 'Compare Products',
-            text: 'Can you compare two popular products?'
+            title: 'Find a model',
+            text: 'I have a model number and need its specifications'
           },
           {
-            title: 'Accessory Suggestion',
-            text: 'Can you recommend a useful accessory?'
+            title: 'Request a quote',
+            text: 'I would like to submit a product enquiry'
           }
         ]
       };
@@ -77,7 +78,7 @@
                 <img class="aisa-avatar" alt="" hidden />
               </span>
               <div class="aisa-identity">
-                <span class="aisa-kicker">LIVE SALES CONSOLE</span>
+                <span class="aisa-kicker">YOUR PRODUCT EXPERT</span>
                 <div class="aisa-title"></div>
                 <span class="aisa-status"><i></i><span>Online and ready</span></span>
               </div>
@@ -104,8 +105,8 @@
           <div class="aisa-messages"></div>
           <form class="aisa-form">
             <div class="aisa-input-wrap">
-              <textarea class="aisa-input" rows="1" autocomplete="off" placeholder="Ask MANU..." required></textarea>
-              <span class="aisa-input-hint" aria-hidden="true"></span>
+              <textarea class="aisa-input" rows="1" autocomplete="off" placeholder="Ask ROKO about products..." required></textarea>
+              <span class="aisa-input-hint">Shift + Enter for a new line</span>
             </div>
             <button class="aisa-send" type="submit" aria-label="Send message">
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m4 4 16 8-16 8 3-8-3-8Zm3 8h13"/></svg>
@@ -117,8 +118,8 @@
             <img class="aisa-toggle-avatar" alt="" hidden />
           </span>
           <span class="aisa-toggle-copy">
-            <strong>MANU</strong>
-            <small>Live product desk</small>
+            <strong>ROKO</strong>
+            <small>Product assistant</small>
           </span>
           <span class="aisa-toggle-arrow" aria-hidden="true">
             <svg viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></svg>
@@ -723,14 +724,6 @@
       title.textContent = product.name;
       body.appendChild(title);
 
-      const meta = document.createElement('div');
-      meta.className = 'aisa-product-meta';
-      const metaParts = [];
-      if (product.price) metaParts.push(product.price);
-      if (Number.isFinite(product.stock)) metaParts.push(product.stock > 0 ? `In stock: ${product.stock}` : 'Out of stock');
-      meta.textContent = metaParts.join(' • ');
-      if (meta.textContent) body.appendChild(meta);
-
       if (product.summary) {
         const summary = document.createElement('p');
         summary.className = 'aisa-product-summary';
@@ -777,25 +770,94 @@
       learn.addEventListener('click', () => this.redirectToProduct(product));
       actions.appendChild(learn);
 
-      if (product.product_id && product.stock !== 0) {
-        const add = document.createElement('button');
-        add.type = 'button';
-        add.className = 'aisa-product-action';
-        add.textContent = 'Add to cart';
-        add.addEventListener('click', async () => {
-          const added = await this.addToCart(product.product_id, 1);
-          if (added) {
-            this.rememberCartItem(Object.assign({}, product, { product_name: product.name }), 1);
-            this.addMessage('bot', `Added ${product.name} to your cart.`);
-          }
-        });
-        actions.appendChild(add);
-      }
+      const enquire = document.createElement('button');
+      enquire.type = 'button';
+      enquire.className = 'aisa-product-action';
+      enquire.textContent = 'Enquire';
+      enquire.addEventListener('click', () => this.openEnquiryForm(product));
+      actions.appendChild(enquire);
 
       body.appendChild(actions);
       card.appendChild(body);
 
       return card;
+    }
+
+    openEnquiryForm(product) {
+      const existing = this.messagesContainer.querySelector('.aisa-enquiry-form');
+      if (existing) existing.remove();
+
+      const selectedProduct = product || {};
+      const form = document.createElement('form');
+      form.className = 'aisa-enquiry-form';
+
+      const heading = document.createElement('strong');
+      heading.textContent = 'Request a quotation';
+      form.appendChild(heading);
+
+      const fields = [
+        ['product_name', 'Product name', selectedProduct.name || selectedProduct.product_name || '', true, 'text'],
+        ['qty', 'Quantity', String(selectedProduct.requested_qty || 1), true, 'number'],
+        ['name', 'Your name', '', true, 'text'],
+        ['company', 'Company', '', true, 'text'],
+        ['contact_number', 'Contact number', '', true, 'tel'],
+        ['email', 'Email', '', true, 'email'],
+        ['delivery_location', 'Delivery location', '', true, 'text']
+      ];
+
+      fields.forEach(([name, labelText, value, required, type]) => {
+        const label = document.createElement('label');
+        label.textContent = labelText;
+        const input = document.createElement('input');
+        input.name = name;
+        input.type = type;
+        input.value = value;
+        input.required = required;
+        input.autocomplete = name === 'email' ? 'email' : (name === 'contact_number' ? 'tel' : 'on');
+        if (name === 'qty') input.min = '1';
+        label.appendChild(input);
+        form.appendChild(label);
+      });
+
+      const actions = document.createElement('div');
+      actions.className = 'aisa-enquiry-actions';
+      const cancel = document.createElement('button');
+      cancel.type = 'button';
+      cancel.textContent = 'Cancel';
+      cancel.addEventListener('click', () => form.remove());
+      const submit = document.createElement('button');
+      submit.type = 'submit';
+      submit.className = 'primary';
+      submit.textContent = 'Send enquiry';
+      actions.appendChild(cancel);
+      actions.appendChild(submit);
+      form.appendChild(actions);
+
+      form.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        if (!form.reportValidity()) return;
+
+        const values = Object.fromEntries(new FormData(form).entries());
+        const payload = [
+          `Product Name: ${values.product_name || ''}`,
+          `QTY: ${values.qty || ''}`,
+          `Name: ${values.name || ''}`,
+          `Company: ${values.company || ''}`,
+          `Contact Number: ${values.contact_number || ''}`,
+          `Email: ${values.email || ''}`,
+          `Delivery Location: ${values.delivery_location || ''}`
+        ].join('\n');
+
+        submit.disabled = true;
+        this.addMessage('user', `Enquiry for ${values.product_name || 'a product'} — QTY ${values.qty || 1}`);
+        form.remove();
+        await this.askAssistant(payload);
+      });
+
+      this.messagesContainer.appendChild(form);
+      this.scrollMessagesToBottom();
+      const firstEmpty = form.querySelector('input[value=""]');
+      if (firstEmpty) firstEmpty.focus();
     }
 
     scrollMessagesToBottom() {
@@ -894,7 +956,7 @@
 
     async askAssistant(message) {
       this.sendBtn.disabled = true;
-      this.setStatus('MANU is thinking');
+      this.setStatus('ROKO is thinking');
 
       try {
         const body = {
@@ -956,7 +1018,18 @@
     }
 
     async handleAction(action, message, data) {
-      const actionType = action.type || (action.product_id ? 'add_to_cart' : '');
+      let actionType = action.type || (action.product_id ? 'request_enquiry' : '');
+      if (this.config.leadOnly && [
+        'add_to_cart', 'show_cart', 'redirect_to_cart', 'update_cart_item',
+        'remove_from_cart', 'clear_cart', 'apply_coupon', 'redirect_to_checkout', 'send_invoice'
+      ].includes(actionType)) {
+        actionType = 'request_enquiry';
+      }
+
+      if (actionType === 'request_enquiry') {
+        this.openEnquiryForm(action);
+        return;
+      }
 
       if (actionType === 'add_to_cart' && action.product_id) {
         const quantity = this.getRequestedQuantity(action);

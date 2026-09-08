@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ROKO Responsive Test</title>
+  <link rel="stylesheet" href="./ROKO.ocmod/upload/catalog/view/javascript/roko/widget.css">
+  <style>
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: #f1f4f8;
+      font-family: Arial, sans-serif;
+    }
+  </style>
+</head>
+<body>
+  <main style="padding: 24px;">
+    <h1>ROKO test page</h1>
+  </main>
+  <script>
+    window.ROKO_CONFIG = {
+      title: 'ROKO',
+      buttonText: 'Chat',
+      avatarUrl: '',
+      iconUrl: '',
+      welcomeMessage: 'Responsive test message.',
+      starterSuggestions: [
+        { title: 'Product Recommendation', text: 'Can you recommend a product for a compact workspace?' },
+        { title: 'Compare Products', text: 'Can you compare two popular products?' }
+      ]
+    };
+  </script>
+  <script src="./ROKO.ocmod/upload/catalog/view/javascript/roko/widget.js"></script>
+  <script>
+    window.addEventListener('load', function () {
+      setTimeout(function () {
+        document.querySelector('.aisa-toggle').click();
+        setTimeout(function () {
+          var panel = document.querySelector('.aisa-panel').getBoundingClientRect();
+          var head = document.querySelector('.aisa-head').getBoundingClientRect();
+          var form = document.querySelector('.aisa-form').getBoundingClientRect();
+          var metrics = {
+            viewport: { width: window.innerWidth, height: window.innerHeight },
+            panel: { top: panel.top, left: panel.left, right: panel.right, bottom: panel.bottom, width: panel.width, height: panel.height },
+            headHeight: head.height,
+            formHeight: form.height,
+            overflows: panel.top < 0 || panel.left < 0 || panel.right > window.innerWidth || panel.bottom > window.innerHeight || panel.height > window.innerHeight
+          };
+          var pre = document.createElement('pre');
+          pre.id = 'metrics';
+          pre.textContent = JSON.stringify(metrics);
+          document.body.appendChild(pre);
+        }, 350);
+      }, 50);
+    });
+  </script>
+</body>
+</html>

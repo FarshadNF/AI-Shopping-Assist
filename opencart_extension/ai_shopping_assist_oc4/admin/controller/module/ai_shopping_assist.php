@@ -5,8 +5,18 @@ class AiShoppingAssist extends \Opencart\System\Engine\Controller {
 	private const SETTING_CODE = 'module_ai_shopping_assist';
 	private const EVENT_CONTROLLER = 'ai_shopping_assist_footer_controller';
 	private const EVENT_VIEW = 'ai_shopping_assist_footer_view';
-	private const DEFAULT_LEAD_WEBHOOK_URL = 'https://script.google.com/macros/s/AKfycbwV1zaw6C3iKdWVaK-gN8hyAzvW8_RygWTp9Q2ggjYUWcAftM2c7ipOIM5l6UowTsCS/exec';
-	private const DEFAULT_LEAD_WEBHOOK_SECRET = 'f8c9d2a7e1b4c6f9a3d8e7b2c5f1a9d4';
+	private const DEFAULT_LEAD_WEBHOOK_URL = '';
+	private const DEFAULT_LEAD_WEBHOOK_SECRET = '';
+	private const AGENT_PROMPT_LIMIT = 8000;
+	private const AGENT_NAMES = [
+		'roko' => 'ROKO',
+		'raya' => 'Raya',
+		'scout' => 'Scout',
+		'dex' => 'Dex',
+		'prism' => 'Prism',
+		'atlas' => 'Atlas',
+		'lia' => 'Lia'
+	];
 
 	public function index(): void {
 		$this->load->language('extension/ai_shopping_assist/module/ai_shopping_assist');
@@ -31,6 +41,7 @@ class AiShoppingAssist extends \Opencart\System\Engine\Controller {
 		$data['clear_logs'] = $this->url->link('extension/ai_shopping_assist/module/ai_shopping_assist.clearLogs', 'user_token=' . $this->session->data['user_token']);
 		$data['export_logs'] = $this->url->link('extension/ai_shopping_assist/module/ai_shopping_assist.exportLogs', 'user_token=' . $this->session->data['user_token']);
 		$data['import_knowledge'] = $this->url->link('extension/ai_shopping_assist/module/ai_shopping_assist.importKnowledge', 'user_token=' . $this->session->data['user_token']);
+		$data['rebuild_catalog_knowledge'] = $this->url->link('extension/ai_shopping_assist/module/ai_shopping_assist.rebuildCatalogKnowledge', 'user_token=' . $this->session->data['user_token']);
 		$data['clear_knowledge'] = $this->url->link('extension/ai_shopping_assist/module/ai_shopping_assist.clearKnowledge', 'user_token=' . $this->session->data['user_token']);
 		$data['back'] = $this->url->link('marketplace/extension', 'user_token=' . $this->session->data['user_token'] . '&type=module');
 
@@ -38,25 +49,40 @@ class AiShoppingAssist extends \Opencart\System\Engine\Controller {
 		$data['module_ai_shopping_assist_gemini_api_key'] = (string)$this->config->get('module_ai_shopping_assist_gemini_api_key');
 		$data['module_ai_shopping_assist_gemini_model'] = (string)($this->config->get('module_ai_shopping_assist_gemini_model') ?: 'gemini-2.5-flash');
 		$data['module_ai_shopping_assist_gemini_temperature'] = (string)($this->config->get('module_ai_shopping_assist_gemini_temperature') ?: '0.3');
-		$data['module_ai_shopping_assist_catalog_limit'] = (int)($this->config->get('module_ai_shopping_assist_catalog_limit') ?: 80);
+		$data['module_ai_shopping_assist_catalog_limit'] = (int)($this->config->get('module_ai_shopping_assist_catalog_limit') ?: 12);
 		$data['module_ai_shopping_assist_store_brand'] = (string)($this->config->get('module_ai_shopping_assist_store_brand') ?: $this->config->get('config_name'));
 		$assistant_name = (string)$this->config->get('module_ai_shopping_assist_assistant_name');
 		$widget_title = (string)$this->config->get('module_ai_shopping_assist_widget_title');
 		$widget_button = (string)$this->config->get('module_ai_shopping_assist_widget_button');
 
-		if ($assistant_name === '' || $assistant_name === 'پشتیبان هوشمند' || $assistant_name === 'Rockford Assistant' || $assistant_name === 'ROKO') {
-			$assistant_name = 'MANU';
+		if ($assistant_name === '' || $assistant_name === 'پشتیبان هوشمند' || $assistant_name === 'Rockford Assistant') {
+			$assistant_name = 'ROKO';
 		}
 
-		if ($widget_title === '' || $widget_title === 'دستیار هوشمند خرید' || $widget_title === 'Rockford Assistant' || $widget_title === 'ROKO') {
-			$widget_title = 'MANU';
+		if ($widget_title === '' || $widget_title === 'دستیار هوشمند خرید' || $widget_title === 'Rockford Assistant') {
+			$widget_title = 'ROKO';
 		}
 
-		if ($widget_button === '' || $widget_button === 'دستیار خرید' || $widget_button === 'Chat' || $widget_button === 'Ask ROKO') {
-			$widget_button = 'Ask MANU';
+		if ($widget_button === '' || $widget_button === 'دستیار خرید' || $widget_button === 'Chat') {
+			$widget_button = 'Ask ROKO';
 		}
 
 		$data['module_ai_shopping_assist_assistant_name'] = $assistant_name;
+		$data['module_ai_shopping_assist_sitemap_url'] = (string)$this->config->get('module_ai_shopping_assist_sitemap_url');
+		$data['module_ai_shopping_assist_system_prompt'] = (string)$this->config->get('module_ai_shopping_assist_system_prompt');
+		$data['agent_prompts'] = [];
+
+		foreach (self::AGENT_NAMES as $agent_key => $agent_name) {
+			$setting_key = 'module_ai_shopping_assist_prompt_' . $agent_key;
+			$data['agent_prompts'][] = [
+				'key' => $agent_key,
+				'name' => $agent_name,
+				'role' => $this->language->get('text_agent_role_' . $agent_key),
+				'setting_key' => $setting_key,
+				'value' => (string)$this->config->get($setting_key)
+			];
+		}
+
 		$data['module_ai_shopping_assist_catalog_token'] = (string)$this->config->get('module_ai_shopping_assist_catalog_token');
 		$data['module_ai_shopping_assist_lead_webhook_url'] = (string)($this->config->get('module_ai_shopping_assist_lead_webhook_url') ?: self::DEFAULT_LEAD_WEBHOOK_URL);
 		$data['module_ai_shopping_assist_lead_webhook_secret'] = (string)($this->config->get('module_ai_shopping_assist_lead_webhook_secret') ?: self::DEFAULT_LEAD_WEBHOOK_SECRET);
@@ -64,6 +90,7 @@ class AiShoppingAssist extends \Opencart\System\Engine\Controller {
 		$data['module_ai_shopping_assist_widget_title'] = $widget_title;
 		$data['module_ai_shopping_assist_widget_button'] = $widget_button;
 		$data['knowledge_count'] = $this->getKnowledgeCount();
+		$data['leads'] = $this->getRecentLeads();
 		$data['logs'] = $this->getRecentLogs();
 
 		$data['header'] = $this->load->controller('common/header');
@@ -94,7 +121,7 @@ class AiShoppingAssist extends \Opencart\System\Engine\Controller {
 
 			$temperature = (float)($this->request->post['module_ai_shopping_assist_gemini_temperature'] ?? 0.3);
 			$temperature = min(1, max(0, $temperature));
-			$catalog_limit = (int)($this->request->post['module_ai_shopping_assist_catalog_limit'] ?? 80);
+			$catalog_limit = (int)($this->request->post['module_ai_shopping_assist_catalog_limit'] ?? 12);
 			$catalog_limit = min(200, max(5, $catalog_limit));
 
 			$settings = [
@@ -104,14 +131,24 @@ class AiShoppingAssist extends \Opencart\System\Engine\Controller {
 				'module_ai_shopping_assist_gemini_temperature' => (string)$temperature,
 				'module_ai_shopping_assist_catalog_limit' => $catalog_limit,
 				'module_ai_shopping_assist_store_brand' => trim((string)($this->request->post['module_ai_shopping_assist_store_brand'] ?? $this->config->get('config_name'))) ?: $this->config->get('config_name'),
-				'module_ai_shopping_assist_assistant_name' => trim((string)($this->request->post['module_ai_shopping_assist_assistant_name'] ?? 'MANU')) ?: 'MANU',
+				'module_ai_shopping_assist_assistant_name' => trim((string)($this->request->post['module_ai_shopping_assist_assistant_name'] ?? 'ROKO')) ?: 'ROKO',
+				'module_ai_shopping_assist_sitemap_url' => $this->normalizeUrl((string)($this->request->post['module_ai_shopping_assist_sitemap_url'] ?? '')),
+				'module_ai_shopping_assist_system_prompt' => $this->limitSettingText((string)($this->request->post['module_ai_shopping_assist_system_prompt'] ?? ''), 12000),
 				'module_ai_shopping_assist_catalog_token' => trim((string)($this->request->post['module_ai_shopping_assist_catalog_token'] ?? '')),
 				'module_ai_shopping_assist_lead_webhook_url' => trim((string)($this->request->post['module_ai_shopping_assist_lead_webhook_url'] ?? self::DEFAULT_LEAD_WEBHOOK_URL)),
 				'module_ai_shopping_assist_lead_webhook_secret' => trim((string)($this->request->post['module_ai_shopping_assist_lead_webhook_secret'] ?? self::DEFAULT_LEAD_WEBHOOK_SECRET)),
 				'module_ai_shopping_assist_footer_injection' => (int)($this->request->post['module_ai_shopping_assist_footer_injection'] ?? 0),
-				'module_ai_shopping_assist_widget_title' => trim((string)($this->request->post['module_ai_shopping_assist_widget_title'] ?? 'MANU')),
-				'module_ai_shopping_assist_widget_button' => trim((string)($this->request->post['module_ai_shopping_assist_widget_button'] ?? 'Ask MANU'))
+				'module_ai_shopping_assist_widget_title' => trim((string)($this->request->post['module_ai_shopping_assist_widget_title'] ?? 'ROKO')),
+				'module_ai_shopping_assist_widget_button' => trim((string)($this->request->post['module_ai_shopping_assist_widget_button'] ?? 'Ask ROKO'))
 			];
+
+			foreach (self::AGENT_NAMES as $agent_key => $agent_name) {
+				$setting_key = 'module_ai_shopping_assist_prompt_' . $agent_key;
+				$settings[$setting_key] = $this->limitSettingText(
+					(string)($this->request->post[$setting_key] ?? ''),
+					self::AGENT_PROMPT_LIMIT
+				);
+			}
 
 			$this->model_setting_setting->editSetting(self::SETTING_CODE, $settings);
 
@@ -198,9 +235,69 @@ class AiShoppingAssist extends \Opencart\System\Engine\Controller {
 		if (!$json) {
 			try {
 				$this->db->query('DELETE FROM `' . DB_PREFIX . 'ai_shopping_assist_knowledge`');
+				$this->touchKnowledgeCacheVersion();
 				$json['success'] = $this->language->get('text_knowledge_cleared');
 			} catch (\Throwable $exception) {
 				$json['error'] = $this->language->get('error_knowledge_import');
+			}
+		}
+
+		$this->response->addHeader('Content-Type: application/json');
+		$this->response->setOutput(json_encode($json));
+	}
+
+	public function rebuildCatalogKnowledge(): void {
+		$this->load->language('extension/ai_shopping_assist/module/ai_shopping_assist');
+
+		$json = [];
+
+		if (!$this->user->hasPermission('modify', 'extension/ai_shopping_assist/module/ai_shopping_assist')) {
+			$json['error'] = $this->language->get('error_permission');
+		}
+
+		$start = max(0, (int)($this->request->post['start'] ?? 0));
+		$limit = min(100, max(20, (int)($this->request->post['limit'] ?? 50)));
+
+		if (!$json) {
+			try {
+				$this->createKnowledgeTable();
+				$this->load->model('catalog/product');
+
+				if ($start === 0) {
+					$this->db->query("DELETE FROM `" . DB_PREFIX . "ai_shopping_assist_knowledge` WHERE `content_type` IN ('catalog_product', 'brand_summary')");
+				}
+
+				$total = (int)$this->model_catalog_product->getTotalProducts([]);
+				$products = $this->model_catalog_product->getProducts([
+					'sort' => 'p.product_id',
+					'order' => 'ASC',
+					'start' => $start,
+					'limit' => $limit
+				]);
+
+				foreach ($products as $product) {
+					$this->upsertCatalogKnowledgeProduct($product);
+				}
+
+				$next = $start + count($products);
+
+				if ($next >= $total || !$products) {
+					$this->rebuildBrandSummaries();
+					$this->touchKnowledgeCacheVersion();
+				}
+
+				$json = [
+					'success' => $next >= $total
+						? sprintf($this->language->get('text_catalog_index_complete'), $total)
+						: sprintf($this->language->get('text_catalog_index_progress'), $next, $total),
+					'processed' => $next,
+					'total' => $total,
+					'next' => $next,
+					'done' => $next >= $total || !$products
+				];
+			} catch (\Throwable $exception) {
+				$this->log->write('AI Shopping Assist catalog index failed: ' . $exception->getMessage());
+				$json['error'] = $this->language->get('error_catalog_index');
 			}
 		}
 
@@ -228,23 +325,32 @@ class AiShoppingAssist extends \Opencart\System\Engine\Controller {
 	public function install(): void {
 		$this->createLogTable();
 		$this->createKnowledgeTable();
+		$this->createLeadTable();
 
 		$this->load->model('setting/setting');
-		$this->model_setting_setting->editSetting(self::SETTING_CODE, [
+		$settings = [
 			'module_ai_shopping_assist_status' => 0,
 			'module_ai_shopping_assist_gemini_api_key' => '',
 			'module_ai_shopping_assist_gemini_model' => 'gemini-2.5-flash',
 			'module_ai_shopping_assist_gemini_temperature' => '0.3',
-			'module_ai_shopping_assist_catalog_limit' => 80,
+			'module_ai_shopping_assist_catalog_limit' => 12,
 			'module_ai_shopping_assist_store_brand' => $this->config->get('config_name'),
-			'module_ai_shopping_assist_assistant_name' => 'MANU',
+			'module_ai_shopping_assist_assistant_name' => 'ROKO',
+			'module_ai_shopping_assist_sitemap_url' => '',
+			'module_ai_shopping_assist_system_prompt' => '',
 			'module_ai_shopping_assist_catalog_token' => '',
 			'module_ai_shopping_assist_lead_webhook_url' => self::DEFAULT_LEAD_WEBHOOK_URL,
 			'module_ai_shopping_assist_lead_webhook_secret' => self::DEFAULT_LEAD_WEBHOOK_SECRET,
 			'module_ai_shopping_assist_footer_injection' => 1,
-			'module_ai_shopping_assist_widget_title' => 'MANU',
-			'module_ai_shopping_assist_widget_button' => 'Ask MANU'
-		]);
+			'module_ai_shopping_assist_widget_title' => 'ROKO',
+			'module_ai_shopping_assist_widget_button' => 'Ask ROKO'
+		];
+
+		foreach (self::AGENT_NAMES as $agent_key => $agent_name) {
+			$settings['module_ai_shopping_assist_prompt_' . $agent_key] = '';
+		}
+
+		$this->model_setting_setting->editSetting(self::SETTING_CODE, $settings);
 
 		$this->load->model('setting/event');
 		$this->model_setting_event->deleteEventByCode(self::EVENT_CONTROLLER);
@@ -317,6 +423,104 @@ class AiShoppingAssist extends \Opencart\System\Engine\Controller {
 				KEY `name` (`name`(191))
 			) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
 		");
+
+		$this->ensureKnowledgeSearchIndex();
+	}
+
+	private function createLeadTable(): void {
+		$this->db->query("
+			CREATE TABLE IF NOT EXISTS `" . DB_PREFIX . "ai_shopping_assist_lead` (
+				`lead_id` varchar(32) NOT NULL,
+				`conversation_id` varchar(80) NOT NULL DEFAULT '',
+				`product_name` varchar(255) NOT NULL DEFAULT '',
+				`qty` varchar(40) NOT NULL DEFAULT '',
+				`name` varchar(180) NOT NULL DEFAULT '',
+				`company` varchar(180) NOT NULL DEFAULT '',
+				`contact_number` varchar(180) NOT NULL DEFAULT '',
+				`email` varchar(180) NOT NULL DEFAULT '',
+				`delivery_location` varchar(500) NOT NULL DEFAULT '',
+				`page_url` text NOT NULL,
+				`status` varchar(30) NOT NULL DEFAULT 'new',
+				`date_added` datetime NOT NULL,
+				`date_modified` datetime NOT NULL,
+				PRIMARY KEY (`lead_id`),
+				KEY `conversation_id` (`conversation_id`),
+				KEY `status` (`status`),
+				KEY `date_added` (`date_added`)
+			) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+		");
+	}
+
+	private function ensureKnowledgeSearchIndex(): void {
+		try {
+			$index = $this->db->query("SHOW INDEX FROM `" . DB_PREFIX . "ai_shopping_assist_knowledge` WHERE `Key_name` = 'knowledge_search'");
+
+			if (!$index->rows) {
+				$this->db->query(
+					"ALTER TABLE `" . DB_PREFIX . "ai_shopping_assist_knowledge` "
+					. "ADD FULLTEXT KEY `knowledge_search` (`name`, `brand`, `content`)"
+				);
+			}
+		} catch (\Throwable $exception) {
+			$this->log->write('AI Shopping Assist FULLTEXT index warning: ' . $exception->getMessage());
+		}
+	}
+
+	private function upsertCatalogKnowledgeProduct(array $product): void {
+		$product_id = (string)($product['product_id'] ?? '');
+
+		if ($product_id === '') {
+			return;
+		}
+
+		$name = $this->limitKnowledgeText((string)($product['name'] ?? ''), 512);
+		$brand = $this->limitKnowledgeText((string)($product['manufacturer'] ?? ''), 255);
+		$model = trim((string)($product['model'] ?? ''));
+		$description = trim(html_entity_decode(strip_tags((string)($product['description'] ?? '')), ENT_QUOTES, 'UTF-8'));
+		$attributes = [];
+
+		if (method_exists($this->model_catalog_product, 'getAttributes')) {
+			foreach ($this->model_catalog_product->getAttributes((int)$product_id) as $group) {
+				foreach (($group['attribute'] ?? []) as $attribute) {
+					$attribute_name = trim((string)($attribute['name'] ?? ''));
+					$attribute_value = trim(html_entity_decode(strip_tags((string)($attribute['text'] ?? '')), ENT_QUOTES, 'UTF-8'));
+
+					if ($attribute_name !== '' && $attribute_value !== '') {
+						$attributes[$attribute_name] = $attribute_value;
+					}
+				}
+			}
+		}
+
+		$content = implode("\n\n", array_filter([
+			'Product: ' . $name,
+			'Product ID: ' . $product_id,
+			$model !== '' ? 'Model: ' . $model : '',
+			$brand !== '' ? 'Brand: ' . $brand : '',
+			$description !== '' ? "Description and applications:\n" . $description : '',
+			$attributes ? "Technical attributes:\n" . json_encode($attributes, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) : ''
+		]));
+		$source_url = rtrim((string)$this->config->get('config_url'), '/') . '/index.php?route=product/product&product_id=' . rawurlencode($product_id);
+		$row = $this->makeKnowledgeRow($source_url, $product_id, $name, $brand, 'catalog_product', $content);
+
+		$this->db->query("
+			INSERT INTO `" . DB_PREFIX . "ai_shopping_assist_knowledge`
+			SET
+				`source_key` = '" . $this->db->escape($row['source_key']) . "',
+				`product_id` = '" . $this->db->escape($row['product_id']) . "',
+				`name` = '" . $this->db->escape($row['name']) . "',
+				`brand` = '" . $this->db->escape($row['brand']) . "',
+				`source_url` = '" . $this->db->escape($row['source_url']) . "',
+				`content_type` = 'catalog_product',
+				`content` = '" . $this->db->escape($row['content']) . "',
+				`date_modified` = NOW()
+			ON DUPLICATE KEY UPDATE
+				`name` = VALUES(`name`),
+				`brand` = VALUES(`brand`),
+				`source_url` = VALUES(`source_url`),
+				`content` = VALUES(`content`),
+				`date_modified` = NOW()
+		");
 	}
 
 	private function getKnowledgeCount(): int {
@@ -367,7 +571,10 @@ class AiShoppingAssist extends \Opencart\System\Engine\Controller {
 		$this->db->query('START TRANSACTION');
 
 		try {
-			$this->db->query('DELETE FROM `' . DB_PREFIX . 'ai_shopping_assist_knowledge`');
+			$this->db->query(
+				"DELETE FROM `" . DB_PREFIX . "ai_shopping_assist_knowledge` "
+				. "WHERE `content_type` IN ('product', 'datasheet', 'brand_summary')"
+			);
 
 			foreach ($rows as $row) {
 				$this->db->query("
@@ -384,13 +591,87 @@ class AiShoppingAssist extends \Opencart\System\Engine\Controller {
 				");
 			}
 
+			$this->rebuildBrandSummaries();
 			$this->db->query('COMMIT');
+			$this->touchKnowledgeCacheVersion();
 		} catch (\Throwable $exception) {
 			$this->db->query('ROLLBACK');
 			throw $exception;
 		}
 
 		return count($rows);
+	}
+
+	private function getRecentLeads(): array {
+		try {
+			$query = $this->db->query("
+				SELECT `lead_id`, `product_name`, `qty`, `name`, `company`, `contact_number`, `email`, `delivery_location`, `status`, `date_added`
+				FROM `" . DB_PREFIX . "ai_shopping_assist_lead`
+				ORDER BY `date_added` DESC
+				LIMIT 50
+			");
+			return $query->rows;
+		} catch (\Throwable $exception) {
+			return [];
+		}
+	}
+
+	private function rebuildBrandSummaries(): void {
+		$this->db->query("DELETE FROM `" . DB_PREFIX . "ai_shopping_assist_knowledge` WHERE `content_type` = 'brand_summary'");
+		$brands = $this->db->query("
+			SELECT `brand`, COUNT(DISTINCT `product_id`) AS `products`
+			FROM `" . DB_PREFIX . "ai_shopping_assist_knowledge`
+			WHERE `content_type` IN ('catalog_product', 'product') AND `brand` <> ''
+			GROUP BY `brand`
+			ORDER BY `brand` ASC
+		");
+
+		foreach ($brands->rows as $brand_row) {
+			$brand = (string)$brand_row['brand'];
+			$products = $this->db->query("
+				SELECT `name`, LEFT(`content`, 900) AS `content`
+				FROM `" . DB_PREFIX . "ai_shopping_assist_knowledge`
+				WHERE `content_type` IN ('catalog_product', 'product')
+					AND `brand` = '" . $this->db->escape($brand) . "'
+				ORDER BY `name` ASC
+				LIMIT 12
+			");
+			$product_names = [];
+			$application_notes = [];
+
+			foreach ($products->rows as $product) {
+				$product_names[] = (string)$product['name'];
+				$application_notes[] = (string)$product['content'];
+			}
+
+			$content = implode("\n\n", [
+				'Brand portfolio: ' . $brand,
+				'Indexed products: ' . (int)$brand_row['products'],
+				'Representative product families: ' . implode(' | ', $product_names),
+				"Representative descriptions and applications:\n" . implode("\n---\n", $application_notes)
+			]);
+			$row = $this->makeKnowledgeRow('', '', $brand . ' product portfolio', $brand, 'brand_summary', $content);
+
+			$this->db->query("
+				INSERT INTO `" . DB_PREFIX . "ai_shopping_assist_knowledge`
+				SET
+					`source_key` = '" . $this->db->escape($row['source_key']) . "',
+					`product_id` = '',
+					`name` = '" . $this->db->escape($row['name']) . "',
+					`brand` = '" . $this->db->escape($row['brand']) . "',
+					`source_url` = '',
+					`content_type` = 'brand_summary',
+					`content` = '" . $this->db->escape($row['content']) . "',
+					`date_modified` = NOW()
+			");
+		}
+	}
+
+	private function touchKnowledgeCacheVersion(): void {
+		try {
+			$this->cache->set('ai_shopping_assist.knowledge_version', (string)microtime(true));
+		} catch (\Throwable $exception) {
+		}
 	}
 
 	private function buildKnowledgeRows(array $payload): array {
@@ -590,5 +871,31 @@ class AiShoppingAssist extends \Opencart\System\Engine\Controller {
 		}
 
 		return implode(', ', $normalized);
+	}
+
+	private function normalizeUrl(string $value): string {
+		$value = trim($value);
+
+		if ($value === '') {
+			return '';
+		}
+
+		$parts = parse_url($value);
+
+		if (!$parts || empty($parts['scheme']) || empty($parts['host']) || !in_array(strtolower($parts['scheme']), ['http', 'https'], true)) {
+			return '';
+		}
+
+		return $this->limitSettingText($value, 1000);
+	}
+
+	private function limitSettingText(string $value, int $limit): string {
+		$value = str_replace(["\r\n", "\r"], "\n", trim($value));
+
+		if (function_exists('mb_substr')) {
+			return mb_substr($value, 0, $limit);
+		}
+
+		return substr($value, 0, $limit);
 	}
 }
