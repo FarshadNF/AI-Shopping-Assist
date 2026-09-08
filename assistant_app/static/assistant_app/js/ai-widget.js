@@ -44,7 +44,7 @@ class AIShoppingAssistant {
             <section class="aisa-panel" hidden aria-live="polite">
               <header class="aisa-head">
                 <div>
-                  <div class="aisa-title">MANU</div>
+                  <div class="aisa-title">Manu</div>
                   <span class="aisa-status">آماده پاسخگویی</span>
                 </div>
                 <button type="button" class="aisa-close" aria-label="بستن">×</button>
@@ -55,7 +55,7 @@ class AIShoppingAssistant {
                 <button class="aisa-send" type="submit">ارسال</button>
               </form>
             </section>
-            <button type="button" class="aisa-toggle">MANU</button>
+            <button type="button" class="aisa-toggle">Manu</button>
         `;
         document.body.appendChild(this.root);
     }

@@ -21,15 +21,15 @@
         showBlogSuggestions: true,
         showCategorySuggestions: true,
         showProductSuggestions: true,
-        title: 'ROKO',
-        buttonText: 'ROKO',
+        title: 'Manu',
+        buttonText: 'Ask Manu',
         avatarUrl: '',
         iconUrl: '',
         characterUrl: '',
         responseWordDelayMs: 45,
         agentAvatars: {},
         agentProfiles: {
-          roko: { name: 'ROKO', role: 'Agent Manager', shortRole: 'Manager' },
+          roko: { name: 'Manu', role: 'Agent Manager', shortRole: 'Manager' },
           raya: { name: 'Raya', role: 'Pre-sales Consultant', shortRole: 'Pre-sales' },
           scout: { name: 'Scout', role: 'Product Finder', shortRole: 'Product finder' },
           dex: { name: 'Dex', role: 'Technical Specialist', shortRole: 'Technical' },
@@ -41,7 +41,7 @@
         redirectDelayMs: 700,
         maxHistoryMessages: 80,
         maxConversations: 30,
-        welcomeMessage: 'Hi, I am ROKO. Tell me what you need and I will help you find the right product.',
+        welcomeMessage: 'Hi, I am Manu. Tell me what you need and I will help you find the right product.',
         starterSuggestions: [
           {
             title: 'Product Specifications',
@@ -61,7 +61,7 @@
           }
         ],
         blogBubbleEnabled: true,
-        blogBubbleMessage: 'Want a quick summary? Chat with ROKO now!',
+        blogBubbleMessage: 'Want a quick summary? Chat with Manu now!',
         blogBubbleDelayMs: 1500
       };
 
@@ -127,7 +127,7 @@
           </div>
           <div class="aisa-messages"></div>
           <form class="aisa-form">
-            <input class="aisa-input" type="text" autocomplete="off" placeholder="Ask ROKO about products..." required />
+            <input class="aisa-input" type="text" autocomplete="off" placeholder="Ask Manu about products..." required />
             <button class="aisa-send" type="submit" aria-label="Send message" title="Send message">
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 14-7-4 14-3-6-7-1Z"/><path d="m12 13 7-8"/></svg>
               <span>Send</span>
@@ -135,15 +135,15 @@
           </form>
         </div>
         <div class="aisa-launcher">
-          <div class="aisa-closed-promo" role="region" aria-label="Ask ROKO">
-            <img class="aisa-promo-character" alt="ROKO" />
+          <div class="aisa-closed-promo" role="region" aria-label="Ask Manu">
+            <img class="aisa-promo-character" alt="Manu" />
             <section class="aisa-promo-card">
-              <button type="button" class="aisa-promo-open" aria-label="Open ROKO chat">
+              <button type="button" class="aisa-promo-open" aria-label="Open Manu chat">
                 <span class="aisa-promo-kicker"><i aria-hidden="true"></i> AI PRODUCT GUIDE</span>
-                <span class="aisa-promo-title">Ask <strong>ROKO</strong> <span aria-hidden="true">👋</span></span>
+                <span class="aisa-promo-title">Ask <strong>Manu</strong> <span aria-hidden="true">👋</span></span>
                 <span class="aisa-promo-subtitle">How can I help?</span>
               </button>
-              <div class="aisa-promo-actions" aria-label="Popular ROKO actions">
+              <div class="aisa-promo-actions" aria-label="Popular Manu actions">
                 <button type="button" data-prompt="Help me find the right product for my needs.">
                   <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-4-4"></path></svg>
                   <span>Find a Product</span>
@@ -158,12 +158,12 @@
                 </button>
               </div>
               <form class="aisa-promo-form">
-                <input class="aisa-promo-input" type="text" autocomplete="off" aria-label="Ask ROKO anything" placeholder="Ask me anything..." required />
-                <button type="submit" class="aisa-promo-send" aria-label="Send to ROKO">
+                <input class="aisa-promo-input" type="text" autocomplete="off" aria-label="Ask Manu anything" placeholder="Ask me anything..." required />
+                <button type="submit" class="aisa-promo-send" aria-label="Send to Manu">
                   <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 14-7-4 14-3-6-7-1Z"></path><path d="m12 13 7-8"></path></svg>
                 </button>
               </form>
-              <p class="aisa-promo-note"><span aria-hidden="true">✦</span> <strong>ROKO</strong> is your AI assistant for products, solutions and support.</p>
+              <p class="aisa-promo-note"><span aria-hidden="true">✦</span> <strong>Manu</strong> is your AI assistant for products, solutions and support.</p>
             </section>
           </div>
           <div class="aisa-context-bubble" hidden role="status" aria-live="polite">
@@ -262,7 +262,7 @@
         ? profiles[normalizedKey]
         : {};
       const fallbackName = normalizedKey === 'roko'
-        ? String(this.config.title || this.defaults.title || 'ROKO')
+        ? String(this.config.title || this.defaults.title || 'Manu')
         : normalizedKey.charAt(0).toUpperCase() + normalizedKey.slice(1);
 
       return {
@@ -508,7 +508,7 @@
         return configured;
       }
       const shortTitle = title.length > 42 ? title.slice(0, 39).trim() + '...' : title;
-      return 'Want a quick summary of "' + shortTitle + '"? Ask ROKO now!';
+      return 'Want a quick summary of "' + shortTitle + '"? Ask Manu now!';
     }
 
     initContextBubble() {
@@ -916,7 +916,7 @@
       item.className = 'aisa-message bot aisa-typing';
       item.setAttribute('role', 'status');
       item.setAttribute('aria-live', 'polite');
-      item.setAttribute('aria-label', 'ROKO is typing');
+      item.setAttribute('aria-label', 'Manu is typing');
 
       const dots = document.createElement('span');
       dots.className = 'aisa-typing-dots';
@@ -955,7 +955,7 @@
       const duration = this.getAgentSwitchDuration(data.switch_duration_ms);
 
       this.applyAgentAvatar('roko');
-      this.setStatus(rtl ? 'ROKO پیشنهاد تغییر ایجنت دارد' : 'ROKO suggests an agent switch');
+      this.setStatus(rtl ? 'Manu پیشنهاد تغییر ایجنت دارد' : 'Manu suggests an agent switch');
 
       return new Promise((resolve) => {
         const card = document.createElement('section');
@@ -969,11 +969,11 @@
         const avatar = document.createElement('img');
         avatar.className = 'aisa-agent-switch-avatar';
         avatar.src = String((this.config.agentAvatars || {}).roko || this.config.avatarUrl || '');
-        avatar.alt = 'ROKO';
+        avatar.alt = 'Manu';
 
         const headingCopy = document.createElement('div');
         const headingTitle = document.createElement('strong');
-        headingTitle.textContent = 'ROKO';
+        headingTitle.textContent = 'Manu';
         const headingMeta = document.createElement('span');
         headingMeta.textContent = rtl ? 'پیشنهاد تغییر متخصص' : 'Specialist switch suggestion';
         headingCopy.appendChild(headingTitle);
@@ -992,7 +992,7 @@
         const progressHeading = document.createElement('div');
         progressHeading.className = 'aisa-agent-switch-progress-heading';
         const progressLabel = document.createElement('span');
-        progressLabel.textContent = rtl ? 'ROKO در حال مدیریت انتقال است' : 'ROKO is managing the hand-off';
+        progressLabel.textContent = rtl ? 'Manu در حال مدیریت انتقال است' : 'Manu is managing the hand-off';
         const progressTimer = document.createElement('span');
         progressTimer.className = 'aisa-agent-switch-progress-timer';
         progressTimer.textContent = Math.ceil(duration / 1000) + 's';
@@ -1175,7 +1175,7 @@
       if (!message) return;
       const text = String(message.textContent || '');
       const profile = this.getAgentProfile(this.getActiveAgent());
-      const name = String(profile.name || 'ROKO');
+      const name = String(profile.name || 'Manu');
       const index = text.toLocaleLowerCase().indexOf(name.toLocaleLowerCase());
       if (index < 0) return;
 
@@ -1208,7 +1208,7 @@
 
       const wrap = document.createElement('div');
       wrap.className = 'aisa-starter-actions';
-      wrap.setAttribute('aria-label', 'Popular ROKO actions');
+      wrap.setAttribute('aria-label', 'Popular Manu actions');
 
       normalized.forEach((suggestion, index) => {
         const button = document.createElement('button');
@@ -1270,7 +1270,7 @@
         this.saveChatHistory(messages);
         this.updateConversationMeta(conversationId, message);
       } catch (error) {
-        console.warn('ROKO could not save chat history:', error);
+        console.warn('Manu could not save chat history:', error);
       }
     }
 
@@ -1990,7 +1990,7 @@
           await this.handleAction(action, message, data);
         }
       } catch (error) {
-        console.error('ROKO error:', error);
+        console.error('Manu error:', error);
         this.hideTypingIndicator();
         await this.addProgressiveBotMessage(this.localizedConnectionError(message));
       } finally {

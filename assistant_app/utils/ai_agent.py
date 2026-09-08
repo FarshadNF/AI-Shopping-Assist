@@ -272,10 +272,10 @@ class AIAgent:
         self.retry_max_delay = _float_env("GEMINI_RETRY_MAX_DELAY", 6.0)
 
         # [ارتقا]: خواندن متغیرهای هویتی از تنظیمات محیطی برای داینامیک شدن کامل رفتار
-        self.store_brand = os.getenv("STORE_BRAND", "Our Company")
-        self.ai_name = os.getenv("AI_ASSISTANT_NAME", "MANU")
+        self.store_brand = os.getenv("STORE_BRAND", "ManuAuto")
+        self.ai_name = os.getenv("AI_ASSISTANT_NAME", "Manu")
         self.business_model = os.getenv("BUSINESS_MODEL", "B2C_CART")
-        self.target_market = os.getenv("TARGET_MARKET", "International")
+        self.target_market = os.getenv("TARGET_MARKET", "Canada and North America")
 
         # تعیین نقش داینامیک بر اساس نوع بیزینس (فروشگاهی یا مهندسی/B2B)
         if self.business_model == "B2B_INQUIRY":

@@ -1,6 +1,6 @@
 <?php
 class ControllerExtensionModuleRoko extends Controller {
-	private const VERSION = '4.2.2-starter-card-overflow-fix';
+	private const VERSION = '4.2.2-manu';
 	private const MARKER = '<!-- ROKO_WIDGET -->';
 	private const GEMINI_MAX_OUTPUT_TOKENS = 4096;
 	private const MAX_RESPONSE_PRODUCTS = 3;
@@ -16,7 +16,7 @@ class ControllerExtensionModuleRoko extends Controller {
 	private const REMOTE_TEXT_LIMIT = 25000000;
 	private const AGENT_PROMPT_LIMIT = 8000;
 	private const AGENT_ROLES = [
-		'roko' => 'ROKO | Main orchestrator',
+		'roko' => 'Manu | Main orchestrator',
 		'raya' => 'Raya | Pre-sales consultant',
 		'scout' => 'Scout | Product finder',
 		'dex' => 'Dex | Technical specialist',
@@ -56,11 +56,11 @@ class ControllerExtensionModuleRoko extends Controller {
 		$widget_button = (string)$this->config->get('module_roko_widget_button');
 
 		if ($widget_title === '' || $widget_title === 'دستیار هوشمند خرید') {
-			$widget_title = 'ROKO';
+			$widget_title = 'Manu';
 		}
 
 		if ($widget_button === '' || $widget_button === 'دستیار خرید' || $widget_button === 'Chat') {
-			$widget_button = 'Ask ROKO';
+			$widget_button = 'Ask Manu';
 		}
 
 		$config = [
@@ -126,7 +126,7 @@ class ControllerExtensionModuleRoko extends Controller {
 
 	public function chat(): void {
 		if (!$this->config->get('module_roko_status')) {
-			$this->outputJson(['status' => 'error', 'reply' => 'ROKO is disabled.'], 403);
+			$this->outputJson(['status' => 'error', 'reply' => 'Manu is disabled.'], 403);
 			return;
 		}
 
@@ -226,8 +226,8 @@ class ControllerExtensionModuleRoko extends Controller {
 					$response_status = 'error';
 					$reply = $this->localizedText(
 						$message,
-						'Your request could not be saved. Please try again after the lead storage is repaired in the ROKO admin panel.',
-						'درخواست شما ذخیره نشد. لطفاً بعد از ترمیم جدول لیدها در پنل مدیریت ROKO دوباره تلاش کنید.'
+						'Your request could not be saved. Please try again after the lead storage is repaired in the Manu admin panel.',
+						'درخواست شما ذخیره نشد. لطفاً بعد از ترمیم جدول لیدها در پنل مدیریت Manu دوباره تلاش کنید.'
 					);
 				}
 			}
@@ -359,7 +359,7 @@ class ControllerExtensionModuleRoko extends Controller {
 		$quantity = max(1, (int)($input['quantity'] ?? 1));
 
 		if (!$this->config->get('module_roko_status')) {
-			$this->outputJson(['success' => false, 'error' => 'ROKO is disabled.'], 403);
+			$this->outputJson(['success' => false, 'error' => 'Manu is disabled.'], 403);
 			return;
 		}
 
@@ -431,7 +431,7 @@ class ControllerExtensionModuleRoko extends Controller {
 
 	public function logRedirect(): void {
 		if (!$this->config->get('module_roko_status')) {
-			$this->outputJson(['status' => 'error', 'message' => 'ROKO is disabled.'], 403);
+			$this->outputJson(['status' => 'error', 'message' => 'Manu is disabled.'], 403);
 			return;
 		}
 
@@ -525,7 +525,7 @@ class ControllerExtensionModuleRoko extends Controller {
 			$finish_reason = strtoupper((string)($response['candidates'][0]['finishReason'] ?? ''));
 
 			if ($finish_reason === 'MAX_TOKENS') {
-				$this->log->write('ROKO Gemini response was truncated at the output token limit.');
+				$this->log->write('Manu Gemini response was truncated at the output token limit.');
 				return ['status' => 502, 'body' => '', 'error' => 'Gemini response was truncated.'];
 			}
 
@@ -553,7 +553,7 @@ class ControllerExtensionModuleRoko extends Controller {
 
 	private function buildGeminiPrompt(string $message, string $conversation_id, array $page_context = [], array $active_agent_keys = []): string {
 		$brand = (string)($this->config->get('module_roko_store_brand') ?: $this->config->get('config_name'));
-		$assistant_name = (string)($this->config->get('module_roko_assistant_name') ?: 'ROKO');
+		$assistant_name = (string)($this->config->get('module_roko_assistant_name') ?: 'Manu');
 		$current_page = $this->resolveCurrentPageContext($page_context);
 		$catalog = $this->getPromptCatalog($message);
 		$navigation = $this->getNavigationPromptCatalog();
@@ -576,11 +576,11 @@ class ControllerExtensionModuleRoko extends Controller {
 		return implode("\n\n", [
 			'You are a real online sales assistant inside the OpenCart store "' . $brand . '". Your name is "' . $assistant_name . '".',
 			$custom_system_prompt !== '' ? "Store-specific system prompt:\n" . $custom_system_prompt : '',
-			'ROKO is the only customer-facing identity. Specialist agents work internally; follow their active instructions but answer to the customer as ROKO.',
+			'Manu is the only customer-facing identity. Specialist agents work internally; follow their active instructions but answer to the customer as Manu.',
 			'Active internal agent route: ' . implode(', ', array_map(static function (string $agent_key): string {
 				return self::AGENT_ROLES[$agent_key] ?? $agent_key;
 			}, $active_agent_keys)) . '.',
-			'The active route is authoritative for this turn. Apply every active specialist instruction, let ROKO combine the result, and do not mention internal routing or specialist names to the customer.',
+			'The active route is authoritative for this turn. Apply every active specialist instruction, let Manu combine the result, and do not mention internal routing or specialist names to the customer.',
 			$agent_prompt_block !== '' ? "Active agent-specific prompt(s):\n" . $agent_prompt_block : '',
 			'Default to English. If the latest user message is clearly Persian or another language, you may reply in that language, but your base persona and concise style are English-first.',
 			'Use only the product catalog below for product-specific claims. Check stock before recommending purchase. Keep replies short, natural, and sales-focused.',
@@ -781,7 +781,7 @@ class ControllerExtensionModuleRoko extends Controller {
 		$agent_key = $this->normalizeAgentKey($agent_key);
 		$parts = explode(' | ', self::AGENT_ROLES[$agent_key], 2);
 
-		return (string)($parts[0] ?? 'ROKO');
+		return (string)($parts[0] ?? 'Manu');
 	}
 
 	private function messageHasExplicitAgentIntent(string $message): bool {
@@ -1783,7 +1783,7 @@ class ControllerExtensionModuleRoko extends Controller {
 				");
 			}
 		} catch (\Throwable $exception) {
-			$this->log->write('ROKO sitemap DB cache failed: ' . $exception->getMessage());
+			$this->log->write('Manu sitemap DB cache failed: ' . $exception->getMessage());
 		}
 	}
 
@@ -2029,7 +2029,7 @@ class ControllerExtensionModuleRoko extends Controller {
 			curl_setopt($handle, CURLOPT_RETURNTRANSFER, true);
 			curl_setopt($handle, CURLOPT_CONNECTTIMEOUT, min(4, $timeout));
 			curl_setopt($handle, CURLOPT_TIMEOUT, $timeout);
-			curl_setopt($handle, CURLOPT_USERAGENT, 'Mozilla/5.0 (compatible; ROKO/3.4; +https://rockford-qatar.com)');
+			curl_setopt($handle, CURLOPT_USERAGENT, 'Mozilla/5.0 (compatible; Manu/3.4; +https://www.manuauto.com)');
 			curl_setopt($handle, CURLOPT_ENCODING, '');
 
 			if (!ini_get('open_basedir')) {
@@ -2053,7 +2053,7 @@ class ControllerExtensionModuleRoko extends Controller {
 			'http' => [
 				'method' => 'GET',
 				'timeout' => $timeout,
-				'header' => "User-Agent: ROKO/3.4\r\n",
+				'header' => "User-Agent: Manu/3.4\r\n",
 				'ignore_errors' => true
 			]
 		]);
@@ -2329,7 +2329,7 @@ class ControllerExtensionModuleRoko extends Controller {
 
 			return is_array($query->rows) ? $query->rows : [];
 		} catch (\Throwable $exception) {
-			$this->log->write('ROKO local product search failed: ' . $exception->getMessage());
+			$this->log->write('Manu local product search failed: ' . $exception->getMessage());
 			return $this->fallbackPromptProductSearch($terms, $limit);
 		}
 	}
@@ -2440,7 +2440,7 @@ class ControllerExtensionModuleRoko extends Controller {
 		$parsed = $this->parseAssistantJson($raw_text);
 
 		if (!$parsed) {
-			$this->log->write('ROKO rejected an invalid structured Gemini response: ' . substr(trim($raw_text), 0, 600));
+			$this->log->write('Manu rejected an invalid structured Gemini response: ' . substr(trim($raw_text), 0, 600));
 
 			return [
 				'status' => 'error',
@@ -3924,7 +3924,7 @@ class ControllerExtensionModuleRoko extends Controller {
 		if ($saved_count !== count($products)) {
 			$reply = $saved_count > 0
 				? 'Your request was only partially saved. Please contact our sales team and mention request ' . $request_id . '.'
-				: 'Your request could not be saved. Please try again after the lead storage is repaired in the ROKO admin panel.';
+				: 'Your request could not be saved. Please try again after the lead storage is repaired in the Manu admin panel.';
 			$this->writeChatLog($conversation_id, 'assistant', $reply);
 			$this->outputJson([
 				'status' => 'error',
@@ -4038,7 +4038,7 @@ class ControllerExtensionModuleRoko extends Controller {
 
 			return true;
 		} catch (\Throwable $exception) {
-			$this->log->write('ROKO lead record failed: ' . $exception->getMessage());
+			$this->log->write('Manu lead record failed: ' . $exception->getMessage());
 			return false;
 		}
 	}
@@ -4100,7 +4100,7 @@ class ControllerExtensionModuleRoko extends Controller {
 			}
 		}
 
-		$this->log->write('ROKO lead table setup failed for ' . $table . ': ' . implode(' | ', array_unique($errors)));
+		$this->log->write('Manu lead table setup failed for ' . $table . ': ' . implode(' | ', array_unique($errors)));
 		return false;
 	}
 
@@ -4148,7 +4148,7 @@ class ControllerExtensionModuleRoko extends Controller {
 
 			return true;
 		} catch (\Throwable $exception) {
-			$this->log->write('ROKO lead table migration failed for ' . $table . ': ' . $exception->getMessage());
+			$this->log->write('Manu lead table migration failed for ' . $table . ': ' . $exception->getMessage());
 			return false;
 		}
 	}
@@ -4186,7 +4186,7 @@ class ControllerExtensionModuleRoko extends Controller {
 					`date_added` = NOW()
 			");
 		} catch (\Throwable $exception) {
-			$this->log->write('ROKO log failed: ' . $exception->getMessage());
+			$this->log->write('Manu log failed: ' . $exception->getMessage());
 		}
 	}
 
@@ -4217,7 +4217,7 @@ class ControllerExtensionModuleRoko extends Controller {
 					`date_added` = NOW()
 			");
 		} catch (\Throwable $exception) {
-			$this->log->write('ROKO redirect log failed: ' . $exception->getMessage());
+			$this->log->write('Manu redirect log failed: ' . $exception->getMessage());
 		}
 	}
 

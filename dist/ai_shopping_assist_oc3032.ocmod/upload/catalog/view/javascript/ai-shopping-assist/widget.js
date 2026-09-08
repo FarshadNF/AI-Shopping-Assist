@@ -14,14 +14,14 @@
         checkoutRoute: 'index.php?route=checkout/checkout',
         couponRoute: 'index.php?route=extension/total/coupon/coupon',
         invoiceRoute: 'index.php?route=extension/module/ai_shopping_assist/sendInvoice',
-        title: 'MANU',
-        buttonText: 'Ask MANU',
-        avatarUrl: '',
-        iconUrl: '',
+        title: 'Manu',
+        buttonText: 'Ask Manu',
+        avatarUrl: 'catalog/view/javascript/ai-shopping-assist/manu-character.png',
+        iconUrl: 'catalog/view/javascript/ai-shopping-assist/manu-character.png',
         redirectDelayMs: 700,
         maxHistoryMessages: 80,
         maxConversations: 30,
-        welcomeMessage: "Hi, I'm MANU. Tell me what you need and I'll help you find the right product.",
+        welcomeMessage: "Hi, I'm Manu. Tell me what you need and I'll help you find the right product.",
         starterSuggestions: [
           {
             title: 'Product Specifications',
@@ -104,7 +104,7 @@
           <div class="aisa-messages"></div>
           <form class="aisa-form">
             <div class="aisa-input-wrap">
-              <textarea class="aisa-input" rows="1" autocomplete="off" placeholder="Ask MANU..." required></textarea>
+              <textarea class="aisa-input" rows="1" autocomplete="off" placeholder="Ask Manu..." required></textarea>
               <span class="aisa-input-hint" aria-hidden="true"></span>
             </div>
             <button class="aisa-send" type="submit" aria-label="Send message">
@@ -117,7 +117,7 @@
             <img class="aisa-toggle-avatar" alt="" hidden />
           </span>
           <span class="aisa-toggle-copy">
-            <strong>MANU</strong>
+            <strong>Manu</strong>
             <small>Live product desk</small>
           </span>
           <span class="aisa-toggle-arrow" aria-hidden="true">
@@ -894,7 +894,7 @@
 
     async askAssistant(message) {
       this.sendBtn.disabled = true;
-      this.setStatus('MANU is thinking');
+      this.setStatus('Manu is thinking');
 
       try {
         const body = {

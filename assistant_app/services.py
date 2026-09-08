@@ -866,9 +866,9 @@ def get_vector_store():
         return None
 
     try:
-        from .utils.vector_handler import RockfordVectorStore
+        from .utils.vector_handler import ManuAutoVectorStore
 
-        return RockfordVectorStore()
+        return ManuAutoVectorStore()
     except Exception as exc:
         logger.warning("Vector Brain is unavailable: %s", exc)
         return None
@@ -1008,8 +1008,8 @@ def build_system_instruction(user_message):
     vector_knowledge = get_vector_knowledge(user_message)
     vector_context = vector_knowledge or "No additional Vector Brain context was found."
     
-    assistant_name = getattr(settings, 'AI_ASSISTANT_NAME', 'MANU')
-    store_brand = getattr(settings, 'STORE_BRAND', 'فروشگاه ما')
+    assistant_name = getattr(settings, 'AI_ASSISTANT_NAME', 'Manu')
+    store_brand = getattr(settings, 'STORE_BRAND', 'ManuAuto')
     
     return f"""
 LANGUAGE RULE:

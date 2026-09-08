@@ -5,7 +5,7 @@ class ControllerExtensionModuleRoko extends Controller {
 	private const EVENT_VIEW = 'roko_footer_view';
 	private const AGENT_PROMPT_LIMIT = 8000;
 	private const AGENT_NAMES = [
-		'roko' => 'ROKO',
+		'roko' => 'Manu',
 		'raya' => 'Raya',
 		'scout' => 'Scout',
 		'dex' => 'Dex',
@@ -61,11 +61,11 @@ class ControllerExtensionModuleRoko extends Controller {
 		$widget_button = (string)$this->config->get('module_roko_widget_button');
 
 		if ($assistant_name === '' || $assistant_name === 'پشتیبان هوشمند') {
-			$assistant_name = 'ROKO';
+			$assistant_name = 'Manu';
 		}
 
 		if ($widget_title === '' || $widget_title === 'دستیار هوشمند خرید') {
-			$widget_title = 'ROKO';
+			$widget_title = 'Manu';
 		}
 
 		if ($widget_button === '' || $widget_button === 'دستیار خرید') {
@@ -204,7 +204,7 @@ class ControllerExtensionModuleRoko extends Controller {
 				'module_roko_gemini_temperature' => (string)$temperature,
 				'module_roko_catalog_limit' => $catalog_limit,
 				'module_roko_store_brand' => trim((string)($this->request->post['module_roko_store_brand'] ?? $this->config->get('config_name'))) ?: $this->config->get('config_name'),
-				'module_roko_assistant_name' => trim((string)($this->request->post['module_roko_assistant_name'] ?? 'ROKO')) ?: 'ROKO',
+				'module_roko_assistant_name' => trim((string)($this->request->post['module_roko_assistant_name'] ?? 'Manu')) ?: 'Manu',
 				'module_roko_sitemap_url' => $this->normalizeUrl((string)($this->request->post['module_roko_sitemap_url'] ?? '')),
 				'module_roko_system_prompt' => $this->limitSettingText((string)($this->request->post['module_roko_system_prompt'] ?? ''), 12000),
 				'module_roko_catalog_token' => trim((string)($this->request->post['module_roko_catalog_token'] ?? '')),
@@ -213,7 +213,7 @@ class ControllerExtensionModuleRoko extends Controller {
 				'module_roko_suggest_blogs' => (int)($this->request->post['module_roko_suggest_blogs'] ?? 0),
 				'module_roko_suggest_categories' => (int)($this->request->post['module_roko_suggest_categories'] ?? 0),
 				'module_roko_suggest_products' => (int)($this->request->post['module_roko_suggest_products'] ?? 0),
-				'module_roko_widget_title' => trim((string)($this->request->post['module_roko_widget_title'] ?? 'ROKO')),
+				'module_roko_widget_title' => trim((string)($this->request->post['module_roko_widget_title'] ?? 'Manu')),
 				'module_roko_widget_button' => trim((string)($this->request->post['module_roko_widget_button'] ?? 'Chat')),
 				'module_roko_redirect_utm' => $this->limitSettingText((string)($this->request->post['module_roko_redirect_utm'] ?? ''), 500)
 			];
@@ -467,7 +467,7 @@ class ControllerExtensionModuleRoko extends Controller {
 			'module_roko_gemini_temperature' => '0.3',
 			'module_roko_catalog_limit' => 80,
 			'module_roko_store_brand' => $this->config->get('config_name'),
-			'module_roko_assistant_name' => 'ROKO',
+			'module_roko_assistant_name' => 'Manu',
 			'module_roko_sitemap_url' => '',
 			'module_roko_system_prompt' => '',
 			'module_roko_catalog_token' => '',
@@ -476,7 +476,7 @@ class ControllerExtensionModuleRoko extends Controller {
 			'module_roko_suggest_blogs' => 1,
 			'module_roko_suggest_categories' => 1,
 			'module_roko_suggest_products' => 1,
-			'module_roko_widget_title' => 'ROKO',
+			'module_roko_widget_title' => 'Manu',
 			'module_roko_widget_button' => 'Chat',
 			'module_roko_redirect_utm' => 'utm_source=roko&utm_medium=assistant&utm_campaign=chat'
 		];
@@ -585,7 +585,7 @@ class ControllerExtensionModuleRoko extends Controller {
 			}
 		}
 
-		$this->log->write('ROKO lead table setup failed for ' . $table . ': ' . implode(' | ', array_unique($errors)));
+		$this->log->write('Manu lead table setup failed for ' . $table . ': ' . implode(' | ', array_unique($errors)));
 		return false;
 	}
 
@@ -633,7 +633,7 @@ class ControllerExtensionModuleRoko extends Controller {
 
 			return true;
 		} catch (\Throwable $exception) {
-			$this->log->write('ROKO lead table migration failed for ' . $table . ': ' . $exception->getMessage());
+			$this->log->write('Manu lead table migration failed for ' . $table . ': ' . $exception->getMessage());
 			return false;
 		}
 	}

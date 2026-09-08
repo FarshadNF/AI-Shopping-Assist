@@ -1,9 +1,9 @@
 <?php
-$_['heading_title'] = 'ROKO';
+$_['heading_title'] = 'Manu';
 
 $_['text_extension'] = 'Extensions';
-$_['text_success'] = 'Success: You have modified ROKO!';
-$_['text_edit'] = 'Edit ROKO';
+$_['text_success'] = 'Success: You have modified Manu!';
+$_['text_edit'] = 'Edit Manu';
 $_['text_enabled'] = 'Enabled';
 $_['text_disabled'] = 'Disabled';
 $_['text_logs'] = 'Recent chat logs';
@@ -82,14 +82,14 @@ $_['text_filter_all_actions'] = 'همه عملیات‌ها';
 
 $_['help_gemini_api_key'] = 'Add one or more Google AI Studio keys separated by commas. Keys are used server-side and never exposed to the browser.';
 $_['help_catalog_limit'] = 'Maximum products sent to Gemini in each prompt. Keep this moderate for speed and token cost.';
-$_['help_sitemap_url'] = 'Optional. Paste your store sitemap URL so ROKO can use real internal links for navigation and suggestions.';
-$_['help_upload_sitemap'] = 'Upload a full sitemap.xml file. ROKO reads this file before the configured Sitemap URL.';
+$_['help_sitemap_url'] = 'Optional. Paste your store sitemap URL so Manu can use real internal links for navigation and suggestions.';
+$_['help_upload_sitemap'] = 'Upload a full sitemap.xml file. Manu reads this file before the configured Sitemap URL.';
 $_['help_system_prompt'] = 'Optional. Add store-specific rules, tone, link guidance, offer policy, or recommendation instructions. These rules are appended to every Gemini prompt.';
-$_['help_agent_prompts'] = 'پرامپت ROKO همیشه فعال است. براساس پیام مشتری، پرامپت مرتبط‌ترین ساب‌ایجنت خودکار انتخاب می‌شود؛ در درخواست‌های فنی، Dex می‌تواند همراه Prism یا Atlas فعال شود.';
+$_['help_agent_prompts'] = 'پرامپت Manu همیشه فعال است. براساس پیام مشتری، پرامپت مرتبط‌ترین ساب‌ایجنت خودکار انتخاب می‌شود؛ در درخواست‌های فنی، Dex می‌تواند همراه Prism یا Atlas فعال شود.';
 $_['help_agent_prompt'] = 'اختیاری است. فقط دستورها، لحن، محدودیت‌ها و مسئولیت‌های اختصاصی همین ایجنت را بنویسید. قوانین عمومی فروشگاه را در سیستم پرامپت بالا قرار دهید.';
 $_['help_catalog_token'] = 'Optional. If set, catalog JSON requests must include X-ROKO-Token or X-AI-Assistant-Token.';
-$_['help_suggestion_controls'] = 'مشخص کنید ROKO بعد از هر پاسخ کدام نوع پیشنهادها را تولید و نمایش دهد. موارد غیرفعال از تاریخچه چت نیز نمایش داده نمی‌شوند.';
-$_['help_redirect_utm'] = 'اختیاری. پارامترهای UTM برای ریدایرکت‌های ROKO، مثلاً: utm_source=roko&utm_medium=assistant&utm_campaign=chat';
+$_['help_suggestion_controls'] = 'مشخص کنید Manu بعد از هر پاسخ کدام نوع پیشنهادها را تولید و نمایش دهد. موارد غیرفعال از تاریخچه چت نیز نمایش داده نمی‌شوند.';
+$_['help_redirect_utm'] = 'اختیاری. پارامترهای UTM برای ریدایرکت‌های Manu، مثلاً: utm_source=roko&utm_medium=assistant&utm_campaign=chat';
 
 $_['column_date'] = 'Date';
 $_['column_log_id'] = 'Log ID';
@@ -131,7 +131,7 @@ $_['column_delivery_location'] = 'محل تحویل';
 $_['column_page_url'] = 'آدرس صفحه';
 $_['column_page_title'] = 'عنوان صفحه';
 
-$_['error_permission'] = 'Warning: You do not have permission to modify ROKO!';
+$_['error_permission'] = 'Warning: You do not have permission to modify Manu!';
 $_['error_gemini_api_key'] = 'At least one Gemini API key is required when the module is enabled.';
 $_['error_upload_sitemap'] = 'Please choose a sitemap XML file.';
 $_['error_upload_sitemap_type'] = 'Only .xml, .xml.gz, or .gz sitemap files are allowed.';

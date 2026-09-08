@@ -44,16 +44,16 @@ class ControllerExtensionModuleAiShoppingAssist extends Controller {
 		$widget_title = (string)$this->config->get('module_ai_shopping_assist_widget_title');
 		$widget_button = (string)$this->config->get('module_ai_shopping_assist_widget_button');
 
-		if ($assistant_name === '' || $assistant_name === 'پشتیبان هوشمند' || $assistant_name === 'Rockford Assistant' || $assistant_name === 'ROKO') {
-			$assistant_name = 'MANU';
+		if ($assistant_name === '' || $assistant_name === 'پشتیبان هوشمند' || $assistant_name === 'Rockford Assistant' || $assistant_name === 'ROKO' || $assistant_name === 'MANU') {
+			$assistant_name = 'Manu';
 		}
 
-		if ($widget_title === '' || $widget_title === 'دستیار هوشمند خرید' || $widget_title === 'Rockford Assistant' || $widget_title === 'ROKO') {
-			$widget_title = 'MANU';
+		if ($widget_title === '' || $widget_title === 'دستیار هوشمند خرید' || $widget_title === 'Rockford Assistant' || $widget_title === 'ROKO' || $widget_title === 'MANU') {
+			$widget_title = 'Manu';
 		}
 
-		if ($widget_button === '' || $widget_button === 'دستیار خرید' || $widget_button === 'Chat' || $widget_button === 'Ask ROKO') {
-			$widget_button = 'Ask MANU';
+		if ($widget_button === '' || $widget_button === 'دستیار خرید' || $widget_button === 'Chat' || $widget_button === 'Ask ROKO' || $widget_button === 'Ask MANU') {
+			$widget_button = 'Ask Manu';
 		}
 
 		$data['module_ai_shopping_assist_assistant_name'] = $assistant_name;
@@ -104,13 +104,13 @@ class ControllerExtensionModuleAiShoppingAssist extends Controller {
 				'module_ai_shopping_assist_gemini_temperature' => (string)$temperature,
 				'module_ai_shopping_assist_catalog_limit' => $catalog_limit,
 				'module_ai_shopping_assist_store_brand' => trim((string)($this->request->post['module_ai_shopping_assist_store_brand'] ?? $this->config->get('config_name'))) ?: $this->config->get('config_name'),
-				'module_ai_shopping_assist_assistant_name' => trim((string)($this->request->post['module_ai_shopping_assist_assistant_name'] ?? 'MANU')) ?: 'MANU',
+				'module_ai_shopping_assist_assistant_name' => trim((string)($this->request->post['module_ai_shopping_assist_assistant_name'] ?? 'Manu')) ?: 'Manu',
 				'module_ai_shopping_assist_catalog_token' => trim((string)($this->request->post['module_ai_shopping_assist_catalog_token'] ?? '')),
 				'module_ai_shopping_assist_lead_webhook_url' => trim((string)($this->request->post['module_ai_shopping_assist_lead_webhook_url'] ?? self::DEFAULT_LEAD_WEBHOOK_URL)),
 				'module_ai_shopping_assist_lead_webhook_secret' => trim((string)($this->request->post['module_ai_shopping_assist_lead_webhook_secret'] ?? self::DEFAULT_LEAD_WEBHOOK_SECRET)),
 				'module_ai_shopping_assist_footer_injection' => (int)($this->request->post['module_ai_shopping_assist_footer_injection'] ?? 0),
-				'module_ai_shopping_assist_widget_title' => trim((string)($this->request->post['module_ai_shopping_assist_widget_title'] ?? 'MANU')),
-				'module_ai_shopping_assist_widget_button' => trim((string)($this->request->post['module_ai_shopping_assist_widget_button'] ?? 'Ask MANU'))
+				'module_ai_shopping_assist_widget_title' => trim((string)($this->request->post['module_ai_shopping_assist_widget_title'] ?? 'Manu')),
+				'module_ai_shopping_assist_widget_button' => trim((string)($this->request->post['module_ai_shopping_assist_widget_button'] ?? 'Ask Manu'))
 			];
 
 			$this->model_setting_setting->editSetting(self::SETTING_CODE, $settings);
@@ -237,13 +237,13 @@ class ControllerExtensionModuleAiShoppingAssist extends Controller {
 			'module_ai_shopping_assist_gemini_temperature' => '0.3',
 			'module_ai_shopping_assist_catalog_limit' => 80,
 			'module_ai_shopping_assist_store_brand' => $this->config->get('config_name'),
-			'module_ai_shopping_assist_assistant_name' => 'MANU',
+			'module_ai_shopping_assist_assistant_name' => 'Manu',
 			'module_ai_shopping_assist_catalog_token' => '',
 			'module_ai_shopping_assist_lead_webhook_url' => self::DEFAULT_LEAD_WEBHOOK_URL,
 			'module_ai_shopping_assist_lead_webhook_secret' => self::DEFAULT_LEAD_WEBHOOK_SECRET,
 			'module_ai_shopping_assist_footer_injection' => 1,
-			'module_ai_shopping_assist_widget_title' => 'MANU',
-			'module_ai_shopping_assist_widget_button' => 'Ask MANU'
+			'module_ai_shopping_assist_widget_title' => 'Manu',
+			'module_ai_shopping_assist_widget_button' => 'Ask Manu'
 		]);
 
 		$this->load->model('setting/event');

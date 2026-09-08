@@ -36,7 +36,7 @@ def is_internal_url(candidate, base_url):
 
 
 def extract_pdf_text_from_url(pdf_url):
-    headers = {"User-Agent": "RockfordAI-DatasheetParser/3.1"}
+    headers = {"User-Agent": "ManuAutoAI-DatasheetParser/3.1"}
     max_bytes = int(
         getattr(settings, "AI_ASSISTANT_CRAWLER_MAX_PDF_BYTES", 15 * 1024 * 1024)
     )
@@ -103,7 +103,7 @@ def _sitemap_locations(sitemap_url, base_url, headers, depth=0):
 
 def auto_discover_urls(base_url):
     print("[SPIDER] Initiating auto-discovery of site structure...")
-    headers = {"User-Agent": "RockfordAI-Spider/3.1"}
+    headers = {"User-Agent": "ManuAutoAI-Spider/3.1"}
     xml_sitemaps = [
         f"{base_url}/sitemap.xml",
         f"{base_url}/index.php?route=feed/google_sitemap",
@@ -152,7 +152,7 @@ def scrape_hyper_deep_info(url, base_url):
         "technical_attributes": {},
         "datasheet_content": "",
     }
-    headers = {"User-Agent": "RockfordAI-DeepCrawler/3.1"}
+    headers = {"User-Agent": "ManuAutoAI-DeepCrawler/3.1"}
 
     try:
         response = requests.get(url, headers=headers, timeout=20)
@@ -326,7 +326,7 @@ def build_vector_payload(products, base_url):
 
 def run_pipeline(force_refresh=False):
     setup_django()
-    from assistant_app.utils.vector_handler import RockfordVectorStore
+    from assistant_app.utils.vector_handler import ManuAutoVectorStore
 
     base_url = (
         getattr(settings, "OPENCART_BASE_URL", "")
@@ -380,13 +380,13 @@ def run_pipeline(force_refresh=False):
     print(
         f"[VECTOR-PHASE] Injecting {len(vector_payload)} sources into Vector Brain..."
     )
-    indexed_chunks = RockfordVectorStore().inject_knowledge_base(
+    indexed_chunks = ManuAutoVectorStore().inject_knowledge_base(
         vector_payload,
         namespace="deep_crawler",
         replace_namespace=True,
     )
     print(
-        "[ALL-DONE] Rockford Vector Brain synchronized: "
+        "[ALL-DONE] ManuAuto Vector Brain synchronized: "
         f"{len(products)} products, {indexed_chunks} chunks."
     )
     return {

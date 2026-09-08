@@ -136,11 +136,11 @@ AI_ASSISTANT_MAX_CATALOG_ITEMS = int(os.getenv("AI_ASSISTANT_MAX_CATALOG_ITEMS",
 AI_ASSISTANT_ASYNC_CATALOG_IMPORT = env_bool("AI_ASSISTANT_ASYNC_CATALOG_IMPORT", True)
 AI_ASSISTANT_VECTOR_ENABLED = env_bool("AI_ASSISTANT_VECTOR_ENABLED", True)
 AI_ASSISTANT_VECTOR_DB_PATH = Path(
-    os.getenv("AI_ASSISTANT_VECTOR_DB_PATH", BASE_DIR / "rockford_vector_db")
+    os.getenv("AI_ASSISTANT_VECTOR_DB_PATH", BASE_DIR / "manuauto_vector_db")
 )
 AI_ASSISTANT_VECTOR_COLLECTION = os.getenv(
     "AI_ASSISTANT_VECTOR_COLLECTION",
-    "rockford_knowledge",
+    "manuauto_knowledge",
 )
 AI_ASSISTANT_VECTOR_RESULTS = int(os.getenv("AI_ASSISTANT_VECTOR_RESULTS", "4"))
 AI_ASSISTANT_VECTOR_CHUNK_SIZE = int(
@@ -167,16 +167,16 @@ OPENCART_SYNC_TOKEN = os.getenv("OPENCART_SYNC_TOKEN", AI_ASSISTANT_SYNC_TOKEN)
 OPENCART_TIMEOUT = float(os.getenv("OPENCART_TIMEOUT", "15"))
 
 # ----------------- تنظیمات هویتی و بیزینسی چت‌بات (پروژه‌محور) -----------------
-STORE_BRAND = os.getenv("STORE_BRAND", "Rockford Qatar")
-AI_ASSISTANT_NAME = os.getenv("AI_ASSISTANT_NAME", "MANU")
+STORE_BRAND = os.getenv("STORE_BRAND", "ManuAuto")
+AI_ASSISTANT_NAME = os.getenv("AI_ASSISTANT_NAME", "Manu")
 BUSINESS_MODEL = os.getenv("BUSINESS_MODEL", "B2B_INQUIRY") # می‌تواند B2B_INQUIRY یا B2C_CART باشد
-TARGET_MARKET = os.getenv("TARGET_MARKET", "Qatar and Middle East")
+TARGET_MARKET = os.getenv("TARGET_MARKET", "Canada and North America")
 
 # تعریف مقادیر پیش‌فرض قدرتمند برای سایت‌های مهندسی
-_DEFAULT_BRANDS = "MOXA, WESTERMO, BEIJER, PROXIM, COHU, VIDEOTEC, SIEMENS RUGGEDCOM, SIEMENS SCALANCE, BRIDGEWAVE"
+_DEFAULT_BRANDS = "MOXA, Balluff, Robustel, Weidmuller, Carlo Gavazzi, IMO, Proxim, PULS, Sprecher & Schuh, Patlite"
 COMPANY_BRANDS = env_csv("COMPANY_BRANDS", _DEFAULT_BRANDS)
 
-_DEFAULT_INDUSTRIES = "Oil & Gas, Power/Utility, Transportation Rail/Road, Infrastructure, Water/Wastewater, Automation, IP Surveillance, Manufacturing, Marine"
+_DEFAULT_INDUSTRIES = "Mining, Oil & Gas, Power, Maritime and Offshore, Intelligent Transportation (Road & Rail), Military, Water & Wastewater, Renewable Energies, Manufacturing"
 COMPANY_INDUSTRIES = env_csv("COMPANY_INDUSTRIES", _DEFAULT_INDUSTRIES)
 
 _DEFAULT_SERVICES = "Advisory & Consulting, Pre-Sales Support, Network Design, Training"
@@ -190,7 +190,7 @@ GTM_CONTAINER_ID = os.getenv("GTM_CONTAINER_ID", "")
 CORS_ALLOW_ALL_ORIGINS = env_bool("AI_ASSISTANT_CORS_ALLOW_ALL", False)
 CORS_ALLOWED_ORIGINS = env_csv(
     "AI_ASSISTANT_ALLOWED_ORIGINS",
-    "http://localhost,http://127.0.0.1,http://localhost:3000,http://127.0.0.1:3000,https://rockford-qatar.com",
+    "http://localhost,http://127.0.0.1,http://localhost:3000,http://127.0.0.1:3000,https://www.manuauto.com,https://manuauto.com",
 )
 
 CORS_ALLOW_HEADERS = list(default_headers) + [

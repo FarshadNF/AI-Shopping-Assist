@@ -11,7 +11,7 @@ class VectorStoreUnavailable(RuntimeError):
     pass
 
 
-class RockfordVectorStore:
+class ManuAutoVectorStore:
     def __init__(self):
         try:
             import chromadb
@@ -24,12 +24,12 @@ class RockfordVectorStore:
         db_path = getattr(
             settings,
             "AI_ASSISTANT_VECTOR_DB_PATH",
-            Path(settings.BASE_DIR) / "rockford_vector_db",
+            Path(settings.BASE_DIR) / "manuauto_vector_db",
         )
         collection_name = getattr(
             settings,
             "AI_ASSISTANT_VECTOR_COLLECTION",
-            "rockford_knowledge",
+            "manuauto_knowledge",
         )
 
         self.db_path = Path(db_path)
